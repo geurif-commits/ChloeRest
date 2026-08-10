@@ -1,0 +1,52 @@
+name: Build Installers (Frontend + Backend)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-and-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build backend bundle
+        run: npm run build:server
+
+      - name: Package backend exe (pkg)
+        run: npm run package:win
+
+      - name: Create backend installer ZIP
+        shell: powershell
+        run: |
+          $out = "backend-installer.zip"
+          if (Test-Path $out) { Remove-Item $out }
+          Compress-Archive -Path ServidorPOS.exe -DestinationPath $out
+
+      - name: Build frontend and create installer
+        working-directory: frontend-restaurante
+        shell: powershell
+        run: |
+          npm ci
+          npm run dist
+
+      - name: Upload backend installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-installer
+          path: backend-installer.zip
+
+      - name: Upload frontend installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-installers
+          path: frontend-restaurante/release

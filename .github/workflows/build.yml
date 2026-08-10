@@ -1,0 +1,43 @@
+name: Build and Upload Artifacts
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build backend bundle
+        run: npm run build:server
+
+      - name: Build frontend
+        working-directory: frontend-restaurante
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload bundle.cjs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-cjs
+          path: bundle.cjs
+
+      - name: Upload frontend dist
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-restaurante/dist

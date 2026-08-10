@@ -1,0 +1,11 @@
+# Node
+node_modules/
+
+# Environment
+.env
+
+# Build artifacts
+dist/
+release/
+bundle.cjs
+ServidorPOS.exe

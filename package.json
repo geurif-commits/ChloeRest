@@ -1,0 +1,30 @@
+{
+  "name": "sistema_restaurante",
+  "version": "1.0.0",
+  "description": "Servidor Backend POS Restaurante",
+  "main": "bundle.cjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "build:server": "esbuild server.js --bundle --platform=node --target=node18 --format=cjs --outfile=bundle.cjs --external:pg-native --external:mock-aws-s3 --external:aws-sdk --external:nock",
+    "package:win": "npm run build:server && pkg bundle.cjs --targets node18-win-x64 --output ServidorPOS.exe --no-bytecode --public"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.19.2",
+    "multer": "^2.2.0",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [
+      "frontend-restaurante/dist/**/*"
+    ]
+  }
+}
