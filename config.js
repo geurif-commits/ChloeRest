@@ -31,11 +31,26 @@ function findEnvFile(startDir) {
 const appRoot = process.pkg ? path.dirname(process.execPath) : process.cwd();
 const dotenvPath = findEnvFile(appRoot) || findEnvFile(process.cwd());
 if (dotenvPath) loadEnvFile(dotenvPath);
+
+const isProduction = process.env.NODE_ENV === 'production';
+const requiredProduction = ['DB_PASSWORD', 'APP_SESSION_SECRET', 'BOOTSTRAP_ADMIN_PIN', 'CORS_ORIGINS'];
+if (isProduction) {
+  const missing = requiredProduction.filter((key) => !process.env[key]?.trim());
+  if (missing.length) {
+    throw new Error(`Configuración de producción incompleta. Variables obligatorias ausentes: ${missing.join(', ')}`);
+  }
+}
+
+if (isProduction && !/^\d{6}$/.test(process.env.BOOTSTRAP_ADMIN_PIN.trim())) {
+  throw new Error('BOOTSTRAP_ADMIN_PIN debe contener exactamente 6 dígitos en producción.');
+}
+
 const generatedSessionSecret = randomBytes(48).toString('base64url');
 const sessionSecretValue = process.env.APP_SESSION_SECRET || generatedSessionSecret;
 
 export const config = {
   appRoot,
+  isProduction,
   port: Number(process.env.PORT || 3000),
   host: process.env.API_HOST || '0.0.0.0',
   uploadsDir: path.resolve(appRoot, process.env.UPLOADS_DIR || 'uploads'),
@@ -43,13 +58,13 @@ export const config = {
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'postgres',
-    password: process.env.DB_PASSWORD || '012011',
+    password: process.env.DB_PASSWORD || (isProduction ? undefined : '012011'),
     port: Number(process.env.DB_PORT || 5432),
   },
   sessionSecret: sessionSecretValue,
   hasPersistentSessionSecret: Boolean(process.env.APP_SESSION_SECRET),
   sessionHours: Number(process.env.SESSION_HOURS || 8),
-  supervisorAuthorizationMinutes: Number(process.env.SUPERVISOR_AUTH_MINUTES || 5),
+  supervisorAuthorizationMinutes: Number(process.env.SUPERVISOR_AUTHORIZATION_MINUTES || process.env.SUPERVISOR_AUTH_MINUTES || 5),
   licenseActivationKey: process.env.LICENSE_ACTIVATION_KEY || null,
   bootstrapAdminPin: process.env.BOOTSTRAP_ADMIN_PIN || null,
   corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map((origin) => origin.trim()).filter(Boolean),
