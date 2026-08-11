@@ -28,9 +28,16 @@ function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
   const [activando, setActivando] = useState(false);
   const [estadoLicencia, setEstadoLicencia] = useState(null);
 
+  // Estados para cuentas bancarias
+  const [cuentasBancarias, setCuentasBancarias] = useState([]);
+  const [editandoCuenta, setEditandoCuenta] = useState(null);
+  const [formCuenta, setFormCuenta] = useState({ nombre_banco: '', tipo_cuenta: 'Corriente', numero_cuenta: '', titular: '' });
+  const [guardandoCuenta, setGuardandoCuenta] = useState(false);
+
   useEffect(() => {
     cargarConfiguracion();
     verificarLicencia();
+    cargarCuentasBancarias();
   }, []);
 
   const verificarLicencia = async () => {
@@ -41,6 +48,62 @@ function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
         setEstadoLicencia(data);
       }
     } catch { /* sin conexión, mostrar licencia por defecto */ }
+  };
+
+  const cargarCuentasBancarias = async () => {
+    try {
+      const res = await fetch(`${urlBase}/api/cuentas-bancarias`);
+      if (res.ok) {
+        const data = await res.json();
+        setCuentasBancarias(data);
+      }
+    } catch {}
+  };
+
+  const guardarCuentaBancaria = async () => {
+    if (!formCuenta.nombre_banco?.trim() || !formCuenta.numero_cuenta?.trim() || !formCuenta.titular?.trim()) {
+      return toastAviso("Completa banco, número de cuenta y titular.");
+    }
+    setGuardandoCuenta(true);
+    try {
+      const url = editandoCuenta ? `${urlBase}/api/cuentas-bancarias/${editandoCuenta.id}` : `${urlBase}/api/cuentas-bancarias`;
+      const res = await fetch(url, {
+        method: editandoCuenta ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formCuenta)
+      });
+      if (res.ok) {
+        toastAviso(editandoCuenta ? "✅ Cuenta actualizada." : "✅ Cuenta creada.");
+        setFormCuenta({ nombre_banco: '', tipo_cuenta: 'Corriente', numero_cuenta: '', titular: '' });
+        setEditandoCuenta(null);
+        cargarCuentasBancarias();
+      } else {
+        const data = await res.json();
+        toastAviso(`❌ ${data.error || 'Error al guardar.'}`);
+      }
+    } catch {
+      toastAviso("⚠️ Error de conexión.");
+    } finally {
+      setGuardandoCuenta(false);
+    }
+  };
+
+  const eliminarCuentaBancaria = async (id) => {
+    if (!confirm("¿Eliminar esta cuenta bancaria?")) return;
+    try {
+      const res = await fetch(`${urlBase}/api/cuentas-bancarias/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toastAviso("✅ Cuenta eliminada.");
+        cargarCuentasBancarias();
+      }
+    } catch {
+      toastAviso("⚠️ Error de conexión.");
+    }
+  };
+
+  const editarCuenta = (cuenta) => {
+    setEditandoCuenta(cuenta);
+    setFormCuenta({ nombre_banco: cuenta.nombre_banco, tipo_cuenta: cuenta.tipo_cuenta, numero_cuenta: cuenta.numero_cuenta, titular: cuenta.titular });
   };
 
   const licenciaActiva = estadoLicencia && !estadoLicencia.bloqueado && !estadoLicencia.esNuevo && estadoLicencia.tipo !== 'Vitalicia' && estadoLicencia.diasRestantes > 0;
@@ -312,6 +375,60 @@ function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
               />
               Cobrar Propina Legal (10%)
             </label>
+          </div>
+        </div>
+
+        {/* CUENTAS BANCARIAS PARA TRANSFERENCIAS */}
+        <div style={{background: '#0a0a0f', padding: '15px', borderRadius: '12px', border: '1px solid #2a2a38'}}>
+          <label style={{color: '#ffb703', fontWeight: 'bold', display: 'block', marginBottom: '10px', fontSize: '0.9rem'}}>🏦 Cuentas Bancarias (Transferencias)</label>
+          
+          {cuentasBancarias.length > 0 && (
+            <div style={{marginBottom: '12px'}}>
+              {cuentasBancarias.map((cuenta) => (
+                <div key={cuenta.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: '#14141b', borderRadius: '8px', marginBottom: '6px', border: '1px solid #2a2a38'}}>
+                  <div>
+                    <span style={{color: '#00f576', fontWeight: 'bold', fontSize: '0.85rem'}}>{cuenta.nombre_banco}</span>
+                    <span style={{color: '#9494ad', fontSize: '0.8rem', marginLeft: '8px'}}>{cuenta.numero_cuenta}</span>
+                    <span style={{color: '#9494ad', fontSize: '0.75rem', marginLeft: '8px'}}>({cuenta.titular})</span>
+                  </div>
+                  <div style={{display: 'flex', gap: '6px'}}>
+                    <button type="button" onClick={() => editarCuenta(cuenta)} style={{background: 'transparent', border: '1px solid #2a2a38', color: '#9494ad', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem'}}>✏️</button>
+                    <button type="button" onClick={() => eliminarCuentaBancaria(cuenta.id)} style={{background: 'transparent', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem'}}>🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: '#14141b', borderRadius: '8px', border: '1px solid #2a2a38'}}>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <div style={{flex: 2}}>
+                <input type="text" placeholder="Banco (ej: Banreserva)" value={formCuenta.nombre_banco} onChange={(e) => setFormCuenta({...formCuenta, nombre_banco: e.target.value})} style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
+              </div>
+              <div style={{flex: 1}}>
+                <select value={formCuenta.tipo_cuenta} onChange={(e) => setFormCuenta({...formCuenta, tipo_cuenta: e.target.value})} style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}}>
+                  <option value="Corriente">Corriente</option>
+                  <option value="Ahorro">Ahorro</option>
+                  <option value="VIP">VIP</option>
+                </select>
+              </div>
+            </div>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <div style={{flex: 1}}>
+                <input type="text" placeholder="Nº de Cuenta" value={formCuenta.numero_cuenta} onChange={(e) => setFormCuenta({...formCuenta, numero_cuenta: e.target.value})} style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
+              </div>
+              <div style={{flex: 1}}>
+                <input type="text" placeholder="Titular" value={formCuenta.titular} onChange={(e) => setFormCuenta({...formCuenta, titular: e.target.value})} style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
+              </div>
+            </div>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button type="button" onClick={guardarCuentaBancaria} disabled={guardandoCuenta} style={{flex: 1, background: 'linear-gradient(135deg, #00f576, #00b852)', color: '#000', border: 'none', padding: '8px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem'}}>
+                {guardandoCuenta ? 'Guardando...' : editandoCuenta ? '✏️ Actualizar' : '+ Agregar'}
+              </button>
+              {editandoCuenta && (
+                <button type="button" onClick={() => { setEditandoCuenta(null); setFormCuenta({ nombre_banco: '', tipo_cuenta: 'Corriente', numero_cuenta: '', titular: '' }); }} style={{background: 'transparent', border: '1px solid #2a2a38', color: '#9494ad', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem'}}>Cancelar</button>
+              )}
+            </div>
           </div>
         </div>
 

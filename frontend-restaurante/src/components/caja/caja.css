@@ -173,6 +173,13 @@
   color: var(--text-primary);
 }
 
+.mesa-grid-panel__card-waiter {
+  font-size: 0.75rem;
+  color: var(--gold);
+  font-weight: var(--weight-bold);
+  opacity: 0.9;
+}
+
 .mesa-grid-panel__card-badge {
   font-size: 0.75rem;
   color: var(--red);
@@ -180,6 +187,210 @@
   background: rgba(255, 51, 102, 0.15);
   padding: 3px 6px;
   border-radius: var(--radius-full);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   MESA DETALLE MODAL (Popup)
+   ───────────────────────────────────────────────────────────────────── */
+
+.mesa-detalle-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.mesa-detalle-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  width: min(100%, 520px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.mesa-detalle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-light);
+  background: linear-gradient(135deg, rgba(214, 164, 77, 0.08), transparent);
+}
+
+.mesa-detalle-header__info {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.mesa-detalle-header__icon {
+  font-size: 1.8rem;
+}
+
+.mesa-detalle-header__info h2 {
+  margin: 0;
+  color: var(--gold);
+  font-size: 1.2rem;
+}
+
+.mesa-detalle-header__info p {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.mesa-detalle-header__sub {
+  color: var(--text-dim) !important;
+  font-size: 0.75rem !important;
+}
+
+.mesa-detalle-close {
+  background: none;
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.mesa-detalle-close:hover {
+  background: var(--red-soft);
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.mesa-detalle-body {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mesa-detalle-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  max-height: 300px;
+}
+
+.mesa-detalle-empty {
+  text-align: center;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 30px 0;
+}
+
+.mesa-detalle-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.mesa-detalle-table th {
+  color: var(--text-dim);
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.mesa-detalle-table td {
+  padding: 10px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+}
+
+.mesa-detalle-table td:last-child {
+  text-align: right;
+}
+
+.mesa-detalle-table th:last-child {
+  text-align: right;
+}
+
+.mesa-detalle-totals {
+  padding: 14px 20px;
+  background: var(--bg-base);
+  border-top: 1px solid var(--border-light);
+}
+
+.mesa-detalle-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.mesa-detalle-total-row strong {
+  color: var(--text-primary);
+}
+
+.mesa-detalle-total-row--total {
+  border-top: 1px solid var(--border-light);
+  margin-top: 6px;
+  padding-top: 10px;
+  font-size: 1.1rem;
+  color: var(--gold);
+}
+
+.mesa-detalle-total-row--total strong {
+  color: var(--gold);
+  font-size: 1.15rem;
+}
+
+.mesa-detalle-actions {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-light);
+}
+
+.mesa-detalle-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.mesa-detalle-btn--print {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+}
+
+.mesa-detalle-btn--print:hover {
+  border-color: var(--border-medium);
+  background: var(--bg-elevated);
+}
+
+.mesa-detalle-btn--charge {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+  color: #000;
+  border: none;
+}
+
+.mesa-detalle-btn--charge:hover {
+  filter: brightness(1.1);
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -709,6 +920,7 @@
 
 @media (max-width: 850px) {
   .caja-workspace {
+    flex-direction: column;
     overflow: auto !important;
   }
 
@@ -716,15 +928,16 @@
     width: 100% !important;
     height: auto !important;
     flex-direction: row !important;
-    gap: 15px;
+    gap: 10px;
     align-items: center;
-    padding: 12px 16px !important;
+    padding: 10px 12px !important;
+    flex-shrink: 0;
   }
 
   .caja-sidebar > div:first-child {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
   }
 
   .caja-sidebar__brand {
@@ -734,10 +947,15 @@
   .caja-sidebar__nav {
     flex-direction: row !important;
     overflow-x: auto;
+    gap: 6px;
+    flex: 1;
   }
 
   .caja-sidebar__nav-btn {
     white-space: nowrap;
+    flex: 0 0 auto;
+    padding: 10px 14px;
+    font-size: 0.82rem;
   }
 
   .caja-sidebar__logout {
@@ -745,15 +963,30 @@
   }
 
   .caja-main {
-    min-height: calc(100vh - 74px);
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
+
+  .caja-main__header {
+    padding: 12px 14px;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .caja-main__header h1 {
+    font-size: 1.1rem;
   }
 
   .caja-panels {
     flex-direction: column;
     max-height: none !important;
+    height: auto;
   }
 
   .caja-main__content {
+    padding: 14px;
     overflow: auto !important;
     align-items: flex-start !important;
   }

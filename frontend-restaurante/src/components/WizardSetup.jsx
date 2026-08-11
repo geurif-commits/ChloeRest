@@ -10,12 +10,12 @@ const TEMAS = [
   { id: 'claro', name: 'Claro', color: '#1a73e8' },
 ];
 
-function WizardSetup({ apiUrl, config, alCompletado }) {
+function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const urlBase = apiUrl || 'http://localhost:3000';
   const [paso, setPaso] = useState(0);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const [nombreNegocio, setNombreNegocio] = useState(config.nombre_negocio || '');
+  const [nombreNegocio, setNombreNegocio] = useState(config.nombre_negocio || configRegistro?.negocio || '');
   const [slogan, setSlogan] = useState(config.slogan || '');
   const [temaActivo, setTemaActivo] = useState(config.tema_activo || 'noche');
   const [colorPrimario, setColorPrimario] = useState(config.color_primario || '#00f576');

@@ -75,16 +75,6 @@ function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicencia }) {
       </aside>
 
       <main className="admin-content">
-        <header className="admin-header">
-          <div className="admin-header__left">
-            <button className="admin-header__back" onClick={alVolver}>←</button>
-            <div>
-              <p className="admin-header__eyebrow">{seccion.etiqueta}</p>
-              <h1>{TITULOS[pestana]}</h1>
-            </div>
-          </div>
-          <span className="admin-header__user">{usuario.nombre}</span>
-        </header>
 
         <nav className="admin-subnav">
           {seccion.items.map((item) => (

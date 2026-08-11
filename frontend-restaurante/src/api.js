@@ -1,5 +1,5 @@
 const TOKEN_KEY = 'POS_SESSION_TOKEN';
-const PUBLIC_PATHS = ['/api/login/camarero', '/api/licencia/verificar', '/api/health', '/api/configuracion/sistema', '/api/setup/completar', '/api/kds/stream', '/api/mesas/stream'];
+const PUBLIC_PATHS = ['/api/login/camarero', '/api/licencia/verificar', '/api/health', '/api/configuracion/sistema', '/api/setup/completar', '/api/setup/registro', '/api/kds/stream', '/api/mesas/stream'];
 
 /**
  * Normaliza la URL solicitada extrayendo solo el pathname (ej. /api/login/camarero).

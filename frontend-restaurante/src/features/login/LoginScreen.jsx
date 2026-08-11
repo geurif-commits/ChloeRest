@@ -4,11 +4,13 @@ import {
   Clock3,
   Delete,
   LockKeyhole,
+  MapPin,
   MonitorCog,
   Server,
   Settings,
   ShieldCheck,
   Store,
+  User,
   Utensils,
   Wine,
 } from 'lucide-react';
@@ -269,9 +271,14 @@ export default function LoginScreen({
   const version =
     sistemaInfo?.version || '2.0.0';
 
-  const sucursal =
-    sistemaInfo?.sucursal ||
-    'No configurada';
+  const provincia = [
+    sistemaInfo?.sucursal,
+    sistemaInfo?.provincia,
+    sistemaInfo?.negocio?.provincia,
+    configSistema?.provincia,
+  ].find((valor) => valor && !['No configurada', 'No disponible'].includes(String(valor).trim())) || 'No configurada';
+
+  const cajeraTurno = sistemaInfo?.cajera || null;
 
   /* ================================================================
      RENDER
@@ -307,12 +314,18 @@ export default function LoginScreen({
       <header className="premium-login__topbar">
 
         <div className="premium-login__appname">
-          <Icon>
-            <Utensils size={17} strokeWidth={2} />
-          </Icon>
+          <span
+            className={`server-selector__dot ${
+              servidorOnline
+                ? 'is-online'
+                : ''
+            }`}
+          />
 
           <span>
-            {nombreNegocio} POS
+            {servidorOnline ? 'En línea' : 'Sin conexión'}
+            {' • '}
+            {hostServidor}
           </span>
         </div>
 
@@ -322,31 +335,18 @@ export default function LoginScreen({
           onClick={onChangeServer}
           title="Cambiar servidor"
         >
-          <span
-            className={`server-selector__dot ${
-              servidorOnline
-                ? 'is-online'
-                : ''
-            }`}
-          />
-
-          <span className="server-selector__content">
-            <strong>
-              {servidorOnline
-                ? 'Servidor conectado'
-                : 'Servidor desconectado'}
-            </strong>
-
-            <small>
-              {hostServidor}
-            </small>
-          </span>
-
           <Settings
             size={16}
             className="server-selector__gear"
           />
         </button>
+
+        {provincia && provincia !== 'No configurada' && (
+          <span className="premium-login__topbar-info" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted, #9EA6B7)' }}>
+            <MapPin size={13} />
+            {provincia}
+          </span>
+        )}
 
       </header>
 
@@ -440,10 +440,18 @@ export default function LoginScreen({
               label="Caja"
               value={
                 cajaAbierta
-                  ? 'Disponible'
+                  ? (cajeraTurno ? `Cajera de turno` : 'Disponible')
                   : 'Cerrada'
               }
-              ok={cajaAbierta}
+              ok={cajaAbierta && !cajeraTurno}
+            />
+
+            <StatusItem
+              icon={
+                <User size={19} />
+              }
+              label={cajeraTurno ? 'Cajera de turno' : 'Sin cajero'}
+              value={cajeraTurno || '—'}
             />
 
             <StatusItem
@@ -456,10 +464,10 @@ export default function LoginScreen({
 
             <StatusItem
               icon={
-                <Utensils size={19} />
+                <MapPin size={19} />
               }
               label="Sucursal"
-              value={sucursal}
+              value={provincia}
             />
 
           </div>
@@ -645,7 +653,7 @@ export default function LoginScreen({
 
               <span>
                 <strong>
-                  Pantalla cocina
+                  Cocina
                 </strong>
 
                 <small>
@@ -672,7 +680,7 @@ export default function LoginScreen({
 
               <span>
                 <strong>
-                  Pantalla bar
+                  Bar
                 </strong>
 
                 <small>

@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════
    CHLOE RESTAURANT POS
-   LOGIN SCREEN — LUXURY DARK
+   LOGIN SCREEN — LUXURY DARK / WIDESCREEN
    ═══════════════════════════════════════════════════════════════════════ */
 
 .premium-login {
@@ -41,6 +41,14 @@
     );
 
   font-family: var(--font-family);
+
+  box-sizing: border-box;
+}
+
+.premium-login *,
+.premium-login *::before,
+.premium-login *::after {
+  box-sizing: border-box;
 }
 
 
@@ -108,7 +116,6 @@
   z-index: -1;
 
   width: 34rem;
-
   height: 34rem;
 
   border-radius: 50%;
@@ -130,14 +137,12 @@
 
 .premium-login__spark--one {
   top: -24rem;
-
   right: -14rem;
 }
 
 
 .premium-login__spark--two {
   bottom: -25rem;
-
   left: -18rem;
 
   opacity: 0.13;
@@ -153,10 +158,11 @@
 
   z-index: 5;
 
-  height: 10px;
+  height: 48px;
 
   padding:
-    0 clamp(22px, 4vw, 64px);
+    0
+    clamp(22px, 4vw, 64px);
 
   display: flex;
 
@@ -192,13 +198,18 @@
 }
 
 
+.premium-login__appname .server-selector__dot {
+  width: 9px;
+  height: 9px;
+}
+
+
 .premium-login__appname .login-icon {
   display: grid;
 
   place-items: center;
 
   width: 30px;
-
   height: 30px;
 
   border-radius: 9px;
@@ -226,7 +237,8 @@
 
   min-width: 250px;
 
-  padding: 9px 12px;
+  padding:
+    9px 12px;
 
   border:
     1px solid rgba(214, 164, 77, 0.20);
@@ -276,14 +288,14 @@
 
 .server-selector__dot {
   width: 9px;
-
   height: 9px;
 
   flex: 0 0 auto;
 
   border-radius: 50%;
 
-  background: var(--login-red);
+  background:
+    var(--login-red);
 
   box-shadow:
     0 0 12px rgba(252, 88, 104, 0.48);
@@ -400,7 +412,6 @@
   position: relative;
 
   width: 126px;
-
   height: 126px;
 
   display: grid;
@@ -460,7 +471,6 @@
   z-index: 1;
 
   width: 100%;
-
   height: 100%;
 
   object-fit: contain;
@@ -487,7 +497,10 @@
 
 
 .eyebrow {
-  margin: 0 0 5px;
+  margin:
+    0
+    0
+    5px;
 
   color: #bfc5d4;
 
@@ -519,7 +532,10 @@
 .premium-login__slogan {
   max-width: 350px;
 
-  margin: 12px 0 17px;
+  margin:
+    12px
+    0
+    17px;
 
   color: #aeb6c8;
 
@@ -533,7 +549,6 @@
   display: block;
 
   width: 120px;
-
   height: 1px;
 
   background:
@@ -561,7 +576,8 @@
   gap: 14px;
 
   margin:
-    32px 0
+    32px
+    0
     24px;
 }
 
@@ -572,7 +588,6 @@
   place-items: center;
 
   width: 56px;
-
   height: 56px;
 
   flex: 0 0 auto;
@@ -622,7 +637,7 @@
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   STATUS
+   STATUS CARDS
    ═══════════════════════════════════════════════════════════════════════ */
 
 .status-stack {
@@ -643,7 +658,9 @@
 
   min-height: 55px;
 
-  padding: 7px 10px;
+  padding:
+    7px
+    10px;
 
   border:
     1px solid rgba(255, 255, 255, 0.045);
@@ -677,7 +694,6 @@
   place-items: center;
 
   width: 38px;
-
   height: 38px;
 
   flex: 0 0 auto;
@@ -745,7 +761,6 @@
 
 .status-item__indicator {
   width: 7px;
-
   height: 7px;
 
   flex: 0 0 auto;
@@ -781,7 +796,8 @@
 .login-access-card {
   position: relative;
 
-  width: min(100%, 610px);
+  width:
+    min(100%, 610px);
 
   justify-self: end;
 
@@ -826,7 +842,6 @@
   top: 0;
 
   left: 10%;
-
   right: 10%;
 
   height: 1px;
@@ -847,11 +862,9 @@
   position: absolute;
 
   width: 220px;
-
   height: 220px;
 
   top: -150px;
-
   right: -110px;
 
   border-radius: 50%;
@@ -896,7 +909,6 @@
   place-items: center;
 
   width: 64px;
-
   height: 64px;
 
   margin-bottom: 15px;
@@ -943,7 +955,8 @@
 
   color: #ffffff;
 
-  font-size: clamp(1.7rem, 2.4vw, 2.05rem);
+  font-size:
+    clamp(1.7rem, 2.4vw, 2.05rem);
 
   font-weight: 750;
 
@@ -953,7 +966,10 @@
 
 .login-access-card > p,
 .login-access-card__header p {
-  margin: 7px 0 0;
+  margin:
+    7px
+    0
+    0;
 
   color: #aeb7cc;
 
@@ -977,14 +993,14 @@
   gap: 18px;
 
   margin:
-    24px 0
+    24px
+    0
     22px;
 }
 
 
 .pin-dots span {
   width: 15px;
-
   height: 15px;
 
   border:
@@ -992,8 +1008,7 @@
 
   border-radius: 50%;
 
-  background:
-    transparent;
+  background: transparent;
 
   transition:
     transform 180ms ease,
@@ -1045,7 +1060,6 @@
   place-items: center;
 
   width: 76px;
-
   height: 76px;
 
   padding: 0;
@@ -1127,7 +1141,6 @@
 
 .premium-keypad__empty {
   width: 76px;
-
   height: 76px;
 }
 
@@ -1183,7 +1196,8 @@
 
 
 .login-access-card__status svg {
-  color: var(--login-gold);
+  color:
+    var(--login-gold);
 
   opacity: 0.82;
 }
@@ -1191,7 +1205,6 @@
 
 .loading-dot {
   width: 7px;
-
   height: 7px;
 
   border-radius: 50%;
@@ -1220,7 +1233,8 @@
   height: 1px;
 
   margin:
-    22px 0
+    22px
+    0
     17px;
 
   background:
@@ -1334,7 +1348,6 @@
   place-items: center;
 
   width: 39px;
-
   height: 39px;
 
   flex: 0 0 auto;
@@ -1364,7 +1377,8 @@
 
 
 .kds-shortcut small {
-  color: rgba(255, 255, 255, 0.70);
+  color:
+    rgba(255, 255, 255, 0.70);
 
   font-size: 0.67rem;
 }
@@ -1379,7 +1393,8 @@
 
   z-index: 4;
 
-  left: clamp(22px, 4vw, 64px);
+  left:
+    clamp(22px, 4vw, 64px);
 
   bottom: 18px;
 
@@ -1408,6 +1423,7 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 @keyframes loginWelcomeIn {
+
   from {
     opacity: 0;
 
@@ -1421,10 +1437,12 @@
     transform:
       translateX(0);
   }
+
 }
 
 
 @keyframes loginCardIn {
+
   from {
     opacity: 0;
 
@@ -1442,10 +1460,12 @@
       translateY(0)
       scale(1);
   }
+
 }
 
 
 @keyframes loginLogoFloat {
+
   0%,
   100% {
     transform:
@@ -1456,10 +1476,12 @@
     transform:
       translateY(-5px);
   }
+
 }
 
 
 @keyframes loginPulse {
+
   0%,
   100% {
     opacity: 1;
@@ -1474,6 +1496,7 @@
     transform:
       scale(1.25);
   }
+
 }
 
 
@@ -1488,7 +1511,7 @@
       minmax(270px, 0.82fr)
       minmax(450px, 1.18fr);
 
-    gap: 40px;
+    gap: 20px;
 
     padding-left: 50px;
     padding-right: 50px;
@@ -1507,6 +1530,7 @@
     overflow-y: auto;
   }
 
+
   .premium-login__layout {
     min-height:
       calc(100vh - 70px);
@@ -1515,16 +1539,22 @@
       1fr;
 
     padding:
-      35px 20px
+      35px
+      20px
       70px;
+
+    justify-items: center;
   }
+
 
   .premium-login__welcome {
     display: none;
   }
 
+
   .login-access-card {
     justify-self: center;
+    margin: 0 auto;
 
     width:
       min(100%, 560px);
@@ -1533,13 +1563,16 @@
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════════
+   SMALL MOBILE
+   ═══════════════════════════════════════════════════════════════════════ */
+
 @media (max-width: 560px) {
 
   .premium-login__topbar {
-    height: 62px;
-
     padding:
-      0 14px;
+      8px
+      14px;
   }
 
 
@@ -1560,7 +1593,8 @@
     max-width: 190px;
 
     padding:
-      8px 10px;
+      8px
+      10px;
   }
 
 
@@ -1576,17 +1610,21 @@
 
   .premium-login__layout {
     min-height:
-      calc(100vh - 62px);
+      calc(100vh - 50px);
 
     padding:
-      18px 12px
+      18px
+      12px
       60px;
+
+    justify-items: center;
   }
 
 
   .login-access-card {
     padding:
-      26px 17px;
+      26px
+      17px;
 
     border-radius:
       22px;
@@ -1595,7 +1633,6 @@
 
   .login-access-card__lock {
     width: 56px;
-
     height: 56px;
 
     margin-bottom: 12px;
@@ -1611,13 +1648,13 @@
     gap: 16px;
 
     margin:
-      20px 0;
+      20px
+      0;
   }
 
 
   .pin-dots span {
     width: 14px;
-
     height: 14px;
   }
 
@@ -1633,7 +1670,6 @@
   .premium-keypad button,
   .premium-keypad__empty {
     width: 64px;
-
     height: 64px;
   }
 
@@ -1651,7 +1687,6 @@
 
   .premium-login__footer {
     left: 0;
-
     right: 0;
 
     justify-content: center;
@@ -1663,153 +1698,334 @@
 
 
 /* ═══════════════════════════════════════════════════════════════════════
-   LOW HEIGHT — POS / ELECTRON
+   WIDESCREEN POS — 1366×768 / 1440×800
+   COMPACT MODE
    ═══════════════════════════════════════════════════════════════════════ */
 
-@media (max-height: 820px) {
+@media (min-width: 901px) and (max-height: 820px) {
+
+  /* ─────────────────────────────────────────────────────────────────────
+     PANTALLA COMPLETA
+     ─────────────────────────────────────────────────────────────────── */
+
+  .premium-login {
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+
+    overflow: hidden;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     TOPBAR
+     ─────────────────────────────────────────────────────────────────── */
+
+  .premium-login__topbar {
+    height: 44px;
+
+    padding:
+      0
+      clamp(22px, 4vw, 64px);
+  }
+
+
+  .premium-login__appname {
+    font-size: 0.78rem;
+
+    gap: 8px;
+  }
+
+
+  .premium-login__appname .login-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+
+  .server-selector {
+    min-width: 230px;
+
+    padding:
+      6px
+      10px;
+
+    border-radius: 11px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     MAIN GRID
+     
+     GAP REDUCIDO:
+     Antes: 20px
+     Ahora: 10px
+     ─────────────────────────────────────────────────────────────────── */
 
   .premium-login__layout {
-    padding-top: 22px;
+    height:
+      calc(100vh - 44px);
 
-    padding-bottom: 50px;
+    min-height: 0;
+
+    display: grid;
+
+    grid-template-columns:
+      minmax(420px, 0.95fr)
+      minmax(480px, 1.05fr);
+
+    align-items: center;
+
+    /* AQUÍ ESTÁ LA REDUCCIÓN */
+    gap: 10px;
+
+    padding:
+      14px
+      clamp(35px, 6vw, 90px)
+      30px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     LEFT / WELCOME
+     ─────────────────────────────────────────────────────────────────── */
+
+  .premium-login__welcome {
+    width: 100%;
+
+    max-width: 445px;
+
+    justify-self: end;
   }
 
 
   .brand-mark {
-    width: 104px;
+    width: 82px;
+    height: 82px;
 
-    height: 104px;
+    margin-bottom: 11px;
 
-    margin-bottom: 17px;
+    border-radius: 21px;
   }
 
 
-  .clock-card {
-    margin-top: 22px;
+  .brand-mark::after {
+    inset: 5px;
 
-    margin-bottom: 16px;
+    border-radius: 17px;
+  }
+
+
+  .brand-mark img {
+    padding: 7px;
+  }
+
+
+  .brand-mark span {
+    font-size: 2rem;
+  }
+
+
+  .eyebrow {
+    font-size: 0.78rem;
+  }
+
+
+  .premium-login__welcome h1 {
+    font-size:
+      clamp(2rem, 3vw, 2.75rem);
+
+    line-height: 0.98;
+  }
+
+
+  .premium-login__slogan {
+    margin:
+      7px
+      0
+      10px;
+
+    font-size: 0.80rem;
+
+    line-height: 1.35;
+  }
+
+
+  .gold-rule {
+    width: 90px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     CLOCK
+     ─────────────────────────────────────────────────────────────────── */
+
+  .clock-card {
+    gap: 10px;
+
+    margin:
+      15px
+      0
+      10px;
   }
 
 
   .clock-card__icon {
-    width: 48px;
+    width: 42px;
+    height: 42px;
 
-    height: 48px;
+    border-radius: 11px;
   }
 
 
   .clock-card strong {
-    font-size: 1.65rem;
-  }
-
-
-  .status-stack {
-    gap: 6px;
-  }
-
-
-  .status-item {
-    min-height: 47px;
-  }
-
-
-  .status-item__icon {
-    width: 34px;
-
-    height: 34px;
-  }
-
-
-  .login-access-card {
-    padding:
-      24px 34px;
-  }
-
-
-  .login-access-card__lock {
-    width: 54px;
-
-    height: 54px;
-
-    margin-bottom: 9px;
-  }
-
-
-  .pin-dots {
-    margin:
-      16px 0;
-  }
-
-
-  .premium-keypad {
-    gap: 9px;
-
-    grid-template-columns:
-      repeat(3, 68px);
-  }
-
-
-  .premium-keypad button,
-  .premium-keypad__empty {
-    width: 68px;
-
-    height: 68px;
-  }
-
-
-  .login-access-card__divider {
-    margin:
-      17px 0
-      13px;
-  }
-
-
-  .kds-shortcut {
-    min-height: 57px;
-
-    padding:
-      9px;
-  }
-
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   VERY LOW HEIGHT
-   ═══════════════════════════════════════════════════════════════════════ */
-
-@media (max-height: 700px) {
-
-  .premium-login__layout {
-    padding-top: 12px;
-
-    padding-bottom: 42px;
-  }
-
-
-  .login-access-card {
-    padding:
-      18px 30px;
-  }
-
-
-  .login-access-card__lock {
-    width: 48px;
-
-    height: 48px;
-  }
-
-
-  .login-access-card h2 {
     font-size: 1.45rem;
   }
 
 
-  .pin-dots {
-    margin:
-      12px 0;
+  .clock-card span {
+    font-size: 0.67rem;
   }
 
+
+  /* ─────────────────────────────────────────────────────────────────────
+     STATUS CARDS
+     ─────────────────────────────────────────────────────────────────── */
+
+  .status-stack {
+    gap: 5px;
+
+    width: 100%;
+  }
+
+
+  .status-item {
+    min-height: 42px;
+    height: 42px;
+
+    gap: 9px;
+
+    padding:
+      4px
+      8px;
+
+    border-radius: 10px;
+  }
+
+
+  .status-item__icon {
+    width: 31px;
+    height: 31px;
+
+    border-radius: 8px;
+  }
+
+
+  .status-item__content {
+    gap: 1px;
+  }
+
+
+  .status-item__content small {
+    font-size: 0.58rem;
+
+    line-height: 1;
+  }
+
+
+  .status-item__content strong {
+    font-size: 0.75rem;
+
+    line-height: 1.1;
+  }
+
+
+  .status-item__indicator {
+    width: 6px;
+    height: 6px;
+
+    margin-right: 3px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     LOGIN CARD
+     ─────────────────────────────────────────────────────────────────── */
+
+  .login-access-card {
+    width:
+      min(100%, 500px);
+
+    padding:
+      18px
+      24px;
+
+    border-radius: 22px;
+
+    /* Acerca la tarjeta a la columna izquierda */
+    justify-self: start;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     LOGIN HEADER
+     ─────────────────────────────────────────────────────────────────── */
+
+  .login-access-card__lock {
+    width: 48px;
+    height: 48px;
+
+    margin-bottom: 7px;
+
+    border-radius: 14px;
+  }
+
+
+  .login-access-card__eyebrow {
+    margin-bottom: 3px;
+
+    font-size: 0.61rem;
+  }
+
+
+  .login-access-card h2 {
+    font-size: 1.60rem;
+
+    line-height: 1.05;
+  }
+
+
+  .login-access-card > p,
+  .login-access-card__header p {
+    margin-top: 4px;
+
+    font-size: 0.74rem;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     PIN
+     ─────────────────────────────────────────────────────────────────── */
+
+  .pin-dots {
+    gap: 13px;
+
+    margin:
+      11px
+      0
+      12px;
+  }
+
+
+  .pin-dots span {
+    width: 10px;
+    height: 10px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     KEYPAD — 62 PX
+     ─────────────────────────────────────────────────────────────────── */
 
   .premium-keypad {
     grid-template-columns:
@@ -1822,15 +2038,283 @@
   .premium-keypad button,
   .premium-keypad__empty {
     width: 62px;
-
     height: 62px;
+  }
+
+
+  .premium-keypad button {
+    font-size: 1.20rem;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     SECURITY
+     ─────────────────────────────────────────────────────────────────── */
+
+  .login-access-card__status {
+    min-height: 18px;
+
+    margin-top: 8px;
+
+    font-size: 0.60rem;
+  }
+
+
+  .loading-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     DIVIDER
+     ─────────────────────────────────────────────────────────────────── */
+
+  .login-access-card__divider {
+    margin:
+      10px
+      0
+      8px;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     COCINA / BAR
+     ─────────────────────────────────────────────────────────────────── */
+
+  .kds-shortcuts {
+    gap: 8px;
+  }
+
+
+  .kds-shortcut {
+    min-height: 50px;
+    height: 50px;
+
+    padding:
+      6px
+      8px;
+
+    gap: 8px;
+
+    border-radius: 11px;
+  }
+
+
+  .kds-shortcut__icon {
+    width: 30px;
+    height: 30px;
+
+    border-radius: 8px;
+  }
+
+
+  .kds-shortcut > span:last-child {
+    gap: 1px;
+  }
+
+
+  .kds-shortcut strong {
+    font-size: 0.72rem;
+  }
+
+
+  .kds-shortcut small {
+    font-size: 0.58rem;
+  }
+
+
+  /* ─────────────────────────────────────────────────────────────────────
+     FOOTER
+     ─────────────────────────────────────────────────────────────────── */
+
+  .premium-login__footer {
+    bottom: 10px;
+
+    font-size: 0.61rem;
+  }
+
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   VERY LOW HEIGHT
+   700PX OR LESS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 901px) and (max-height: 700px) {
+
+  .premium-login__topbar {
+    height: 40px;
+  }
+
+
+  .premium-login__layout {
+    height:
+      calc(100vh - 40px);
+
+    padding:
+      8px
+      clamp(25px, 5vw, 70px)
+      22px;
+
+    gap: 20px;
+  }
+
+
+  .brand-mark {
+    width: 68px;
+    height: 68px;
+
+    margin-bottom: 8px;
+
+    border-radius: 18px;
+  }
+
+
+  .premium-login__welcome h1 {
+    font-size: 2rem;
+  }
+
+
+  .premium-login__slogan {
+    margin:
+      5px
+      0
+      7px;
+
+    font-size: 0.72rem;
+  }
+
+
+  .clock-card {
+    margin:
+      10px
+      0
+      7px;
+  }
+
+
+  .clock-card__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+
+  .clock-card strong {
+    font-size: 1.25rem;
+  }
+
+
+  .status-stack {
+    gap: 3px;
+  }
+
+
+  .status-item {
+    min-height: 36px;
+    height: 36px;
+
+    padding:
+      3px
+      7px;
+  }
+
+
+  .status-item__icon {
+    width: 27px;
+    height: 27px;
+  }
+
+
+  .status-item__content small {
+    font-size: 0.52rem;
+  }
+
+
+  .status-item__content strong {
+    font-size: 0.68rem;
+  }
+
+
+  .login-access-card {
+    padding:
+      14px
+      22px;
+
+    border-radius: 19px;
+  }
+
+
+  .login-access-card__lock {
+    width: 42px;
+    height: 42px;
+
+    margin-bottom: 5px;
+  }
+
+
+  .login-access-card h2 {
+    font-size: 1.42rem;
+  }
+
+
+  .login-access-card > p,
+  .login-access-card__header p {
+    font-size: 0.68rem;
+  }
+
+
+  .pin-dots {
+    margin:
+      8px
+      0
+      9px;
+  }
+
+
+  .premium-keypad {
+    grid-template-columns:
+      repeat(3, 56px);
+
+    gap: 6px;
+  }
+
+
+  .premium-keypad button,
+  .premium-keypad__empty {
+    width: 56px;
+    height: 56px;
+  }
+
+
+  .premium-keypad button {
+    font-size: 1.05rem;
+  }
+
+
+  .login-access-card__status {
+    margin-top: 6px;
   }
 
 
   .login-access-card__divider {
     margin:
-      13px 0
-      10px;
+      7px
+      0
+      6px;
+  }
+
+
+  .kds-shortcut {
+    min-height: 44px;
+    height: 44px;
+  }
+
+
+  .kds-shortcut__icon {
+    width: 27px;
+    height: 27px;
   }
 
 }

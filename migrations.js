@@ -147,6 +147,65 @@ const migrations = [{
   sql: `
     ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS cajero_id INTEGER REFERENCES usuarios(id);
   `,
+}, {
+  id: '007_registro_cliente',
+  sql: `
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'negocio_config') THEN
+        ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS propietario VARCHAR(200);
+        ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS email VARCHAR(200);
+        ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS fecha_registro TIMESTAMP;
+      END IF;
+    END $$;
+  `,
+}, {
+  id: '008_cuentas_bancarias',
+  sql: `
+    CREATE TABLE IF NOT EXISTS cuentas_bancarias (
+      id SERIAL PRIMARY KEY,
+      nombre_banco VARCHAR(100) NOT NULL,
+      tipo_cuenta VARCHAR(30) NOT NULL DEFAULT 'Corriente',
+      numero_cuenta VARCHAR(50) NOT NULL,
+      titular VARCHAR(200) NOT NULL,
+      activa BOOLEAN NOT NULL DEFAULT TRUE,
+      orden INTEGER NOT NULL DEFAULT 0,
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `,
+}, {
+  id: '009_pago_mixto',
+  sql: `
+    ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS metodo_pago_2 VARCHAR(20);
+    ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS monto_pago_2 NUMERIC(10,2) DEFAULT 0;
+    ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS banco_pago_2 VARCHAR(100);
+  `,
+}, {
+  id: '010_historial_cierres',
+  sql: `
+    CREATE TABLE IF NOT EXISTS historial_cierres (
+      id BIGSERIAL PRIMARY KEY,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+      usuario_nombre VARCHAR(200) NOT NULL,
+      fecha_apertura TIMESTAMP NOT NULL,
+      fecha_cierre TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      monto_inicial NUMERIC(10,2) NOT NULL DEFAULT 0,
+      total_ventas NUMERIC(10,2) NOT NULL DEFAULT 0,
+      efectivo NUMERIC(10,2) NOT NULL DEFAULT 0,
+      tarjeta NUMERIC(10,2) NOT NULL DEFAULT 0,
+      transferencia NUMERIC(10,2) NOT NULL DEFAULT 0,
+      total_itbis NUMERIC(10,2) NOT NULL DEFAULT 0,
+      total_propina NUMERIC(10,2) NOT NULL DEFAULT 0,
+      total_facturas INTEGER NOT NULL DEFAULT 0,
+      efectivo_contado NUMERIC(10,2) DEFAULT 0,
+      diferencia_efectivo NUMERIC(10,2) DEFAULT 0,
+      notas TEXT,
+      detalle_json JSONB,
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_historial_cierres_fecha ON historial_cierres(fecha_cierre DESC);
+    CREATE INDEX IF NOT EXISTS idx_historial_cierres_usuario ON historial_cierres(usuario_id);
+  `,
 }];
 
 export async function runMigrations(pool) {

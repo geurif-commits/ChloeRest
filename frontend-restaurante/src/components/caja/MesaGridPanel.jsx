@@ -1,38 +1,107 @@
 import React from 'react';
 
-function MesaGridPanel({ mesas, mesaSeleccionada, onSeleccionarMesa, onAbrirMesaLibre }) {
-  const mesasOcupadas = mesas.filter(m => m.estado === 'Ocupada');
+function MesaGridPanel({
+  mesas,
+  onSeleccionarMesa,
+  onAbrirMesaLibre
+}) {
+  const mesasOcupadas = mesas.filter(
+    (m) => m.estado === 'Ocupada'
+  );
 
   return (
-    <div className="mesa-grid-panel">
+    <section className="mesa-grid-panel">
+
       <div className="mesa-grid-panel__header">
-        <h3>Mesas Ocupadas ({mesasOcupadas.length})</h3>
-        <button className="mesa-grid-panel__open-btn" onClick={onAbrirMesaLibre}>
-          Abrir Mesa Libre
+
+        <div className="mesa-grid-panel__title">
+          <h3>
+            Mesas Ocupadas ({mesasOcupadas.length})
+          </h3>
+
+          <span className="mesa-grid-panel__status">
+            {mesasOcupadas.length === 0
+              ? 'Sin mesas en consumo'
+              : `${mesasOcupadas.length} mesa${
+                  mesasOcupadas.length !== 1
+                    ? 's'
+                    : ''
+                } activa${
+                  mesasOcupadas.length !== 1
+                    ? 's'
+                    : ''
+                }`}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          className="mesa-grid-panel__open-btn"
+          onClick={onAbrirMesaLibre}
+        >
+          + Abrir Mesa Libre
         </button>
+
       </div>
 
       <div className="mesa-grid-panel__grid">
+
         {mesasOcupadas.length === 0 ? (
+
           <div className="mesa-grid-panel__empty">
-            No hay mesas ocupadas en este momento.
+
+            <span className="mesa-grid-panel__empty-icon">
+              🍽️
+            </span>
+
+            <div>
+              <strong>
+                No hay mesas ocupadas
+              </strong>
+
+              <span>
+                Las mesas en consumo aparecerán aquí.
+              </span>
+            </div>
+
           </div>
+
         ) : (
-          mesasOcupadas.map(mesa => (
-            <div
+
+          mesasOcupadas.map((mesa) => (
+
+            <button
+              type="button"
               key={mesa.id}
-              className={`mesa-grid-panel__card ${mesaSeleccionada?.id === mesa.id ? 'mesa-grid-panel__card--selected' : ''}`}
-              onClick={() => onSeleccionarMesa(mesa)}
+              className="mesa-grid-panel__card"
+              onClick={() =>
+                onSeleccionarMesa(mesa)
+              }
             >
-              <span className="mesa-grid-panel__card-name">{mesa.nombre_numero}</span>
+
+              <span className="mesa-grid-panel__card-name">
+                {mesa.nombre_numero}
+              </span>
+
+              <span className="mesa-grid-panel__card-waiter">
+                {mesa.camarero_nombre ||
+                  mesa.camarero ||
+                  'Sin asignar'}
+              </span>
+
               <span className="mesa-grid-panel__card-badge">
                 Ocupada
               </span>
-            </div>
+
+            </button>
+
           ))
+
         )}
+
       </div>
-    </div>
+
+    </section>
   );
 }
 

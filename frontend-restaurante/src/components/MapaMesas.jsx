@@ -7,6 +7,31 @@ import { toastAviso } from '../components/Toast.jsx';
 // Preserva toda la lógica de negocio del componente original
 // ════════════════════════════════════════════════════════════════════════
 
+function colorEstadoMesa(estado) {
+  switch (estado) {
+    case 'Disponible': return 'var(--green)';
+    case 'Ocupada': return 'var(--red)';
+    case 'Reservada': return 'var(--gold)';
+    default: return 'var(--muted)';
+  }
+}
+
+function MesaSvg({ estado }) {
+  const color = colorEstadoMesa(estado);
+  return (
+    <svg width="74" height="74" viewBox="0 0 100 100" fill="none" aria-hidden="true" className="mesa-table__svg">
+      {/* sillas */}
+      <rect x="42" y="5" width="16" height="13" rx="3.5" fill={color} opacity="0.4" />
+      <rect x="42" y="82" width="16" height="13" rx="3.5" fill={color} opacity="0.4" />
+      <rect x="5" y="42" width="13" height="16" rx="3.5" fill={color} opacity="0.4" />
+      <rect x="82" y="42" width="13" height="16" rx="3.5" fill={color} opacity="0.4" />
+      {/* superficie de la mesa */}
+      <rect x="24" y="32" width="52" height="36" rx="8" stroke={color} strokeWidth="3" fill="rgba(255,255,255,0.03)" />
+      <circle cx="50" cy="50" r="3.5" fill={color} opacity="0.75" />
+    </svg>
+  );
+}
+
 function MapaMesas({ usuario, alCerrarSesion, apiUrl }) {
   const urlBase = apiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -98,6 +123,7 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl }) {
   };
 
   const agregarDigitoPin = (digito) => {
+    if (verificandoPin) return;
     setPinError('');
     if (pinIngresado.length >= 12) return;
     const nuevo = pinIngresado + digito;
@@ -124,16 +150,30 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl }) {
     setMesaPin(null); setPinIngresado(''); setPinError('');
   };
 
-  const obtenerColorEstado = (estado) => {
-    switch (estado) {
-      case 'Disponible': return 'var(--green)';
-      case 'Ocupada': return 'var(--red)';
-      case 'Reservada': return 'var(--gold)';
-      default: return 'var(--muted)';
-    }
-  };
+  // Soporte de teclado físico en el PIN de re-entrada a mesa:
+  // los dígitos se capturan y, al completarse, se acepta automáticamente si es correcto.
+  useEffect(() => {
+    if (!mesaPin) return;
+    const manejarTecla = (e) => {
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); agregarDigitoPin(e.key); return; }
+      if (e.key === 'Backspace') { e.preventDefault(); setPinIngresado((p) => p.slice(0, -1)); return; }
+      if (e.key === 'Enter') { e.preventDefault(); if (pinIngresado.length >= 4) verificarPin(pinIngresado); return; }
+      if (e.key === 'Escape') { e.preventDefault(); cerrarModalPin(); }
+    };
+    window.addEventListener('keydown', manejarTecla);
+    return () => window.removeEventListener('keydown', manejarTecla);
+  }, [mesaPin, pinIngresado, verificandoPin]);
 
-  const mesasFiltradas = mesas.filter((mesa) => {
+  const obtenerColorEstado = colorEstadoMesa;
+
+  const esCamarero = usuario?.rol === 'Camarero';
+
+  // Aislamiento por camarero: solo ve las mesas disponibles y las suyas (ocupadas/reservadas).
+  const mesasVisibles = esCamarero
+    ? mesas.filter((mesa) => mesa.estado === 'Disponible' || mesa.camarero_id === usuario.id)
+    : mesas;
+
+  const mesasFiltradas = mesasVisibles.filter((mesa) => {
     const coincideBusqueda = mesa.nombre_numero?.toLowerCase().includes(busqueda.toLowerCase());
     const coincideEstado = filtroEstado === 'Todas' || mesa.estado === filtroEstado;
     return coincideBusqueda && coincideEstado;
@@ -173,7 +213,7 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl }) {
   return (
     <div className="mesa-workspace">
       <header className="mesa-workspace__header">
-        <div><p className="mesa-workspace__eyebrow">Operación de salón</p><h1>Mapa de mesas</h1><p className="mesa-workspace__summary">{mesas.length} mesas · {mesas.filter((m) => m.estado === 'Ocupada').length} ocupadas</p></div>
+        <div><p className="mesa-workspace__eyebrow">Operación de salón</p><h1>Mapa de mesas</h1><p className="mesa-workspace__summary">{mesasVisibles.length} mesas · {mesasVisibles.filter((m) => m.estado === 'Ocupada').length} ocupadas</p></div>
         <div className="mesa-workspace__actions">
           <input type="search" placeholder="Buscar mesa" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="input-field mesa-workspace__search" />
           <button className={`mesa-workspace__transfer ${modoTraslado ? 'is-active' : ''}`} onClick={() => { setModoTraslado(!modoTraslado); setMesaOrigen(null); }}>{modoTraslado ? '✓ Traslado activo' : '⇄ Trasladar'}</button>
@@ -181,15 +221,17 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl }) {
         </div>
       </header>
       <section className="mesa-workspace__filters" aria-label="Filtrar mesas">
-        {['Todas', 'Disponible', 'Ocupada', 'Reservada'].map((estado) => <button key={estado} className={filtroEstado === estado ? 'is-active' : ''} onClick={() => setFiltroEstado(estado)}>{estado}<strong>{estado === 'Todas' ? mesas.length : mesas.filter((mesa) => mesa.estado === estado).length}</strong></button>)}
+        {['Todas', 'Disponible', 'Ocupada', 'Reservada'].map((estado) => <button key={estado} className={filtroEstado === estado ? 'is-active' : ''} onClick={() => setFiltroEstado(estado)}>{estado}<strong>{estado === 'Todas' ? mesasVisibles.length : mesasVisibles.filter((mesa) => mesa.estado === estado).length}</strong></button>)}
       </section>
       {modoTraslado && <div className="mesa-workspace__notice">Selecciona primero una mesa ocupada y después la mesa de destino disponible.</div>}
       <section className="mesa-workspace__body">
         {cargando ? <div className="mesa-workspace__empty">Cargando mesas…</div> : mesasFiltradas.length === 0 ? <div className="mesa-workspace__empty">No hay mesas que coincidan con este filtro.</div> : (
           <div className="mesa-workspace__grid">
-            {mesasFiltradas.map((mesa) => <button key={mesa.id} className={`mesa-card mesa-card--${mesa.estado.toLowerCase()} ${mesaOrigen?.id === mesa.id ? 'is-origin' : ''}`} onClick={() => hacerClicMesa(mesa)}>
-              <span className="mesa-card__status" style={{ background: obtenerColorEstado(mesa.estado), boxShadow: `0 0 10px ${obtenerColorEstado(mesa.estado)}` }} />
-              <span className="mesa-card__icon">▦</span><strong>{mesa.nombre_numero}</strong><span>{mesa.estado}</span>{mesa.camarero && <small>Atiende: {mesa.camarero}</small>}
+            {mesasFiltradas.map((mesa) => <button key={mesa.id} className={`mesa-table mesa-table--${mesa.estado.toLowerCase()} ${mesaOrigen?.id === mesa.id ? 'is-origin' : ''}`} onClick={() => hacerClicMesa(mesa)} title={`${mesa.nombre_numero} · ${mesa.estado}`}>
+              <MesaSvg estado={mesa.estado} />
+              <strong>{mesa.nombre_numero}</strong>
+              <span className="mesa-table__estado" style={{ color: obtenerColorEstado(mesa.estado) }}>{mesa.estado}</span>
+              {mesa.camarero && <small>Atiende: {mesa.camarero}</small>}
             </button>)}
           </div>
         )}

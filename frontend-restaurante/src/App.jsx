@@ -6,9 +6,9 @@ import BloqueoLicencia from './components/BloqueoLicencia';
 import ConfigurarIP from './components/ConfigurarIP';
 import PantallaCaja from './components/PantallaCaja';
 import WizardSetup from './components/WizardSetup';
+import WelcomeScreen from './components/WelcomeScreen';
 import LoginScreen from './features/login/LoginScreen.jsx';
 import ToastContainer from './components/Toast.jsx';
-import AsistenteIA from './components/AsistenteIA.jsx';
 import { toastAviso } from './components/Toast.jsx';
 import { borrarSesion, guardarSesion } from './api.js';
 import { getApiUrl, setApiUrl as guardarApiUrl, clearApiUrl } from './configApi.js';
@@ -29,6 +29,7 @@ function AppContent() {
   const [verificandoLicencia, setVerificandoLicencia] = useState(true);
   const [estadoLicencia, setEstadoLicencia] = useState({ bloqueado: false, motivo: '', contacto: '' });
   const [intentoVerificacion, setIntentoVerificacion] = useState(0);
+  const [registroCliente, setRegistroCliente] = useState(null);
 
   useEffect(() => {
     if (!apiUrl) return;
@@ -107,19 +108,21 @@ useEffect(() => {
   if (estadoLicencia.bloqueado && (!usuario || usuario.rol !== 'Administrador')) return (<><ToastContainer /><BloqueoLicencia motivo={estadoLicencia.motivo} contacto={estadoLicencia.contacto} apiUrl={apiUrl} alIniciarSesionAdmin={(d) => { guardarSesion(d.token); setUsuario(d.usuario); }} /></>);
   if (viendoKDS) return (<><ToastContainer /><PantallaKDS tipo={viendoKDS} alSalir={resetSesion} apiUrl={apiUrl} /></>);
   if (usuario) {
-    if (usuario.rol === 'Cocina') return (<><ToastContainer /><PantallaKDS tipo="Cocina" alSalir={resetSesion} apiUrl={apiUrl} /><AsistenteIA apiUrl={apiUrl} usuario={usuario} /></>);
-    if (usuario.rol === 'Bar') return (<><ToastContainer /><PantallaKDS tipo="Bar" alSalir={resetSesion} apiUrl={apiUrl} /><AsistenteIA apiUrl={apiUrl} usuario={usuario} /></>);
-    if (usuario.rol === 'Administrador') return (<><ToastContainer /><PanelAdmin usuario={usuario} alVolver={() => { resetSesion(); verificarLicenciaSistema(); }} apiUrl={apiUrl} alVerificarLicencia={verificarLicenciaSistema} /><AsistenteIA apiUrl={apiUrl} usuario={usuario} /></>);
-    if (usuario.rol === 'Cajero') return (<><ToastContainer /><PantallaCaja usuario={usuario} alCerrarSesion={resetSesion} apiUrl={apiUrl} /><AsistenteIA apiUrl={apiUrl} usuario={usuario} /></>);
-    return (<><ToastContainer /><MapaMesas usuario={usuario} alCerrarSesion={resetSesion} apiUrl={apiUrl} /><AsistenteIA apiUrl={apiUrl} usuario={usuario} /></>);
+    if (usuario.rol === 'Cocina') return (<><ToastContainer /><PantallaKDS tipo="Cocina" alSalir={resetSesion} apiUrl={apiUrl} /></>);
+    if (usuario.rol === 'Bar') return (<><ToastContainer /><PantallaKDS tipo="Bar" alSalir={resetSesion} apiUrl={apiUrl} /></>);
+    if (usuario.rol === 'Administrador') return (<><ToastContainer /><PanelAdmin usuario={usuario} alVolver={() => { resetSesion(); verificarLicenciaSistema(); }} apiUrl={apiUrl} alVerificarLicencia={verificarLicenciaSistema} /></>);
+    if (usuario.rol === 'Cajero') return (<><ToastContainer /><PantallaCaja usuario={usuario} alCerrarSesion={resetSesion} apiUrl={apiUrl} /></>);
+    return (<><ToastContainer /><MapaMesas usuario={usuario} alCerrarSesion={resetSesion} apiUrl={apiUrl} /></>);
   }
-  if (configCargada && configSistema && !configSistema.setup_completado) return (<><ToastContainer /><WizardSetup apiUrl={apiUrl} config={configSistema} alCompletado={() => window.location.reload()} /></>);
+  if (configCargada && configSistema && !configSistema.setup_completado) {
+    if (!registroCliente) return (<><ToastContainer /><WelcomeScreen apiUrl={apiUrl} config={configSistema} alContinuar={(datos) => setRegistroCliente(datos)} /></>);
+    return (<><ToastContainer /><WizardSetup apiUrl={apiUrl} config={configSistema} configRegistro={registroCliente} alCompletado={() => window.location.reload()} /></>);
+  }
 
 return (
     <>
       <ToastContainer />
       <LoginScreen apiUrl={apiUrl} configSistema={configSistema} onLogin={(data) => { guardarSesion(data.token); setUsuario(data.usuario); }} onVerKDS={(tipo) => setViendoKDS(tipo)} servidorOnline={servidorOnline} onChangeServer={() => { clearApiUrl(); setApiUrl(''); }} />
-      <AsistenteIA apiUrl={apiUrl} usuario={usuario} />
     </>
   );
 }

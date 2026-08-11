@@ -324,11 +324,17 @@ async function descontarInventario(client, detalles) {
 async function cobrarCuenta({ cuentaId, actor, body, req }) {
   const allowedMethods = ['Efectivo', 'Tarjeta', 'Transferencia'];
   const metodoPago = String(body.metodo_pago || '');
+  const metodoPago2 = body.metodo_pago_2 || null;
+  const montoPago2 = Number(body.monto_pago_2 || 0);
+  const bancoPago2 = body.banco_pago_2 || null;
   const tipoComprobante = ['B01', 'B02', 'e-CF'].includes(body.tipo_comprobante) ? body.tipo_comprobante : 'B02';
   if (!allowedMethods.includes(metodoPago)) throw httpError(400, 'MÃ©todo de pago no vÃ¡lido.');
   if (metodoPago === 'Tarjeta' && !/^\d{4}$/.test(String(body.tarjeta_ultimos_4 || ''))) {
     throw httpError(400, 'Debes indicar los Ãºltimos cuatro dÃ­gitos de la tarjeta.');
   }
+  if (metodoPago2 && !allowedMethods.includes(metodoPago2)) throw httpError(400, 'MÃ©todo de pago 2 no vÃ¡lido.');
+  if (metodoPago2 === 'Transferencia' && montoPago2 <= 0) throw httpError(400, 'Indica el monto de la transferencia.');
+  if (metodoPago2 === metodoPago) throw httpError(400, 'No puedes repetir el mismo mÃ©todo de pago en pago mixto.');
 
   return transaction(async (client) => {
     const account = await client.query('SELECT * FROM cuentas WHERE id = $1 AND estado = $2 FOR UPDATE', [cuentaId, 'Abierta']);
@@ -342,13 +348,16 @@ async function cobrarCuenta({ cuentaId, actor, body, req }) {
       `UPDATE cuentas
        SET estado = 'Cerrada', metodo_pago = $1, subtotal = $2, itbis = $3, propina = $4, total = $5,
            fecha_cierre = CURRENT_TIMESTAMP, tipo_comprobante = $6, rnc_cedula_cliente = $7,
-           ncf_ecf_generado = $8, tarjeta_ultimos_4 = $9, tarjeta_marca = $10, cajero_id = $12
+           ncf_ecf_generado = $8, tarjeta_ultimos_4 = $9, tarjeta_marca = $10, cajero_id = $12,
+           metodo_pago_2 = $13, monto_pago_2 = $14, banco_pago_2 = $15
        WHERE id = $11`,
       [metodoPago, totals.subtotal, totals.itbis, totals.propina, totals.total, tipoComprobante,
         body.rnc_cedula_cliente?.trim() || null, comprobante,
         metodoPago === 'Tarjeta' ? body.tarjeta_ultimos_4 : null,
         metodoPago === 'Tarjeta' ? String(body.tarjeta_marca || '').trim() || null : null,
-        cuentaId, actor.id],
+        cuentaId, actor.id,
+        metodoPago2 || null, montoPago2 || null,
+        metodoPago2 === 'Transferencia' ? String(bancoPago2 || '').trim() || null : null],
     );
 
     if (account.rows[0].mesa_id) {
@@ -359,7 +368,7 @@ async function cobrarCuenta({ cuentaId, actor, body, req }) {
       accion: 'COBRAR_CUENTA',
       entidad: 'cuentas',
       entidadId: cuentaId,
-      detalle: { metodoPago, comprobante, ...totals },
+      detalle: { metodoPago, metodoPago2, montoPago2, comprobante, ...totals },
       ip: clientIp(req),
     });
     notificarMesas('mesa_actualizada');
@@ -390,9 +399,15 @@ app.get('/api/sistema/info', async (_req, res) => {
     const cajaAbierta = cajaRes.rowCount && cajaRes.rows[0].estado === 'Abierta';
     const montoCaja = cajaRes.rowCount ? Number(cajaRes.rows[0].monto_inicial) : 0;
 
+    // Cajera/cajero de turno: quien abrió la caja hoy
+    const cajeraRes = await db.query(
+      "SELECT u.nombre FROM aperturas_caja a JOIN usuarios u ON u.id = a.usuario_id WHERE a.estado = 'Abierta' AND a.fecha::date = CURRENT_DATE ORDER BY a.id DESC LIMIT 1"
+    );
+    const cajera = cajeraRes.rowCount ? cajeraRes.rows[0].nombre : null;
+
     // Sucursal / Negocio
-    const negRes = await db.query('SELECT nombre_negocio, provincia, direccion, telefono FROM negocio_config ORDER BY id LIMIT 1');
-    const negocio = negRes.rowCount ? negRes.rows[0] : { nombre_negocio: 'Chloe Restaurant', provincia: '', direccion: '', telefono: '' };
+    const negRes = await db.query('SELECT nombre_comercial, provincia, direccion, telefono FROM negocio_config ORDER BY id LIMIT 1');
+    const negocio = negRes.rowCount ? negRes.rows[0] : { nombre_comercial: 'Chloe Restaurant', provincia: '', direccion: '', telefono: '' };
 
     // Mesas ocupadas
     const mesasRes = await db.query("SELECT COUNT(*) as total FROM mesas WHERE estado = 'Ocupada'");
@@ -402,14 +417,16 @@ app.get('/api/sistema/info', async (_req, res) => {
       version: '2.0.0',
       caja: { abierta: cajaAbierta, monto: montoCaja },
       sucursal: negocio.provincia || 'No configurada',
-      nombreNegocio: negocio.nombre_negocio,
+      provincia: negocio.provincia || null,
+      cajera,
+      nombreNegocio: negocio.nombre_comercial || 'Chloe Restaurant',
       direccion: negocio.direccion,
       telefono: negocio.telefono,
       mesasOcupadas,
       horaServidor: new Date().toISOString(),
     });
   } catch (e) {
-    res.json({ version: '2.0.0', caja: { abierta: false, monto: 0 }, sucursal: 'No disponible', error: true });
+    res.json({ version: '2.0.0', caja: { abierta: false, monto: 0 }, sucursal: 'No disponible', provincia: null, cajera: null, error: true });
   }
 });
 
@@ -469,6 +486,44 @@ app.get('/api/configuracion/sistema', route(async (_req, res) => {
     setup_completado: !!row.setup_completado,
     tiene_administrador: admins.rows[0].total > 0,
   });
+}));
+
+// ── Registro del cliente nuevo (público: se consume desde la pantalla de bienvenida) ──
+app.post('/api/setup/registro', route(async (req, res) => {
+  const propietario = String(req.body.propietario || '').trim();
+  const nombreComercial = String(req.body.negocio || req.body.nombre_comercial || '').trim();
+  const telefono = String(req.body.telefono || '').trim();
+  const email = String(req.body.email || '').trim();
+  const provincia = String(req.body.provincia || '').trim();
+
+  if (!propietario || !nombreComercial || !telefono || !email || !provincia) {
+    throw httpError(400, 'Completa el registro: propietario, negocio, teléfono, correo y provincia.');
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, 'El correo electrónico no es válido.');
+
+  const current = await db.query('SELECT id FROM negocio_config ORDER BY id LIMIT 1');
+  if (current.rowCount) {
+    await db.query(
+      `UPDATE negocio_config
+       SET nombre_comercial = COALESCE(NULLIF($1, ''), nombre_comercial),
+           propietario = $2, telefono = $3, email = $4, provincia = $5,
+           fecha_registro = COALESCE(fecha_registro, CURRENT_TIMESTAMP)
+       WHERE id = $6`,
+      [nombreComercial, propietario, telefono, email, provincia, current.rows[0].id]
+    );
+  } else {
+    await db.query(
+      `INSERT INTO negocio_config
+       (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal,
+        nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis,
+        cobrar_propina, licencia_bloqueada, fecha_instalacion, propietario, email, fecha_registro)
+       VALUES ($1, $1, '', $3, '', $5, 'Ordinario', 'Cocina', 'Bar', 0, NULL, 'Activa',
+               TRUE, TRUE, FALSE, CURRENT_TIMESTAMP, $2, $4, CURRENT_TIMESTAMP)`,
+      [nombreComercial, propietario, telefono, email, provincia]
+    );
+  }
+
+  res.json({ mensaje: 'Registro completado correctamente. Bienvenido a ChloeRestaurant.' });
 }));
 
 app.post('/api/setup/completar', uploadImagenesSistema, validarImagenesSubidas, route(async (req, res) => {
@@ -667,6 +722,48 @@ app.post('/api/negocio/config', requireRoles(...ROLES_ADMIN), upload.single('log
   }
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ACTUALIZAR_NEGOCIO', entidad: 'negocio_config', ip: clientIp(req) });
   res.json({ mensaje: 'ConfiguraciÃ³n de negocio y licencia actualizada.', bloqueado: !unblock });
+}));
+
+// ──── CRUD Cuentas Bancarias ────
+app.get('/api/cuentas-bancarias', requireRoles(...ROLES_ADMIN), route(async (_req, res) => {
+  const result = await db.query('SELECT * FROM cuentas_bancarias ORDER BY orden, id');
+  res.json(result.rows);
+}));
+
+app.post('/api/cuentas-bancarias', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const { nombre_banco, tipo_cuenta, numero_cuenta, titular } = req.body;
+  if (!nombre_banco?.trim() || !numero_cuenta?.trim() || !titular?.trim()) {
+    throw httpError(400, 'Banco, nÃºmero de cuenta y titular son obligatorios.');
+  }
+  const result = await db.query(
+    `INSERT INTO cuentas_bancarias (nombre_banco, tipo_cuenta, numero_cuenta, titular)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [nombre_banco.trim(), tipo_cuenta || 'Corriente', numero_cuenta.trim(), titular.trim()]
+  );
+  await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CREAR_CUENTA_BANCARIA', entidad: 'cuentas_bancarias', entidadId: result.rows[0].id, ip: clientIp(req) });
+  res.json(result.rows[0]);
+}));
+
+app.put('/api/cuentas-bancarias/:id', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const id = positiveInteger(req.params.id, 'Cuenta bancaria');
+  const { nombre_banco, tipo_cuenta, numero_cuenta, titular, activa, orden } = req.body;
+  const result = await db.query(
+    `UPDATE cuentas_bancarias
+     SET nombre_banco = $1, tipo_cuenta = $2, numero_cuenta = $3, titular = $4, activa = $5, orden = $6
+     WHERE id = $7 RETURNING *`,
+    [nombre_banco?.trim(), tipo_cuenta || 'Corriente', numero_cuenta?.trim(), titular?.trim(), activa !== false, orden || 0, id]
+  );
+  if (!result.rowCount) throw httpError(404, 'Cuenta bancaria no encontrada.');
+  await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'EDITAR_CUENTA_BANCARIA', entidad: 'cuentas_bancarias', entidadId: id, ip: clientIp(req) });
+  res.json(result.rows[0]);
+}));
+
+app.delete('/api/cuentas-bancarias/:id', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const id = positiveInteger(req.params.id, 'Cuenta bancaria');
+  const result = await db.query('DELETE FROM cuentas_bancarias WHERE id = $1', [id]);
+  if (!result.rowCount) throw httpError(404, 'Cuenta bancaria no encontrada.');
+  await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ELIMINAR_CUENTA_BANCARIA', entidad: 'cuentas_bancarias', entidadId: id, ip: clientIp(req) });
+  res.json({ mensaje: 'Cuenta bancaria eliminada.' });
 }));
 
 app.get('/api/mesas', route(async (req, res) => {
@@ -952,6 +1049,50 @@ app.delete('/api/productos/:id', requireRoles(...ROLES_ADMIN), route(async (req,
   res.json({ mensaje: 'Producto eliminado del menÃº.' });
 }));
 
+app.get('/api/menu-configuracion', requireRoles(...ROLES_OPERACION), route(async (_req, res) => {
+  const [categorias, guarniciones, terminos] = await Promise.all([
+    db.query("SELECT id, nombre, grupo FROM menu_categorias WHERE activo = TRUE ORDER BY grupo, nombre"),
+    db.query("SELECT id, nombre FROM menu_guarniciones WHERE activo = TRUE ORDER BY nombre"),
+    db.query("SELECT id, nombre FROM menu_terminos WHERE activo = TRUE ORDER BY nombre")
+  ]);
+  res.json({ categorias: categorias.rows, guarniciones: guarniciones.rows, terminos: terminos.rows });
+}));
+
+app.post('/api/menu-configuracion/:tipo', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const tipo = req.params.tipo;
+  const nombre = String(req.body.nombre || '').trim();
+  if (!['categorias', 'guarniciones', 'terminos'].includes(tipo) || !nombre) throw httpError(400, 'Configuración inválida.');
+  const tabla = tipo === 'categorias' ? 'menu_categorias' : tipo === 'guarniciones' ? 'menu_guarniciones' : 'menu_terminos';
+  const query = tipo === 'categorias'
+    ? `INSERT INTO ${tabla} (nombre, grupo) VALUES ($1, $2) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING *`
+    : `INSERT INTO ${tabla} (nombre) VALUES ($1) ON CONFLICT (nombre) DO UPDATE SET activo = TRUE RETURNING *`;
+  const params = tipo === 'categorias' ? [nombre, req.body.grupo === 'bebidas' ? 'bebidas' : 'alimentos'] : [nombre];
+  const result = await db.query(query, params);
+  res.status(201).json(result.rows[0]);
+}));
+
+app.put('/api/menu-configuracion/:tipo/:id', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const tipo = req.params.tipo;
+  const id = positiveInteger(req.params.id, 'Identificador');
+  const nombre = String(req.body.nombre || '').trim();
+  if (!['categorias', 'guarniciones', 'terminos'].includes(tipo) || !nombre) throw httpError(400, 'Configuración inválida.');
+  const tabla = tipo === 'categorias' ? 'menu_categorias' : tipo === 'guarniciones' ? 'menu_guarniciones' : 'menu_terminos';
+  const query = tipo === 'categorias'
+    ? `UPDATE ${tabla} SET nombre = $1, grupo = $2 WHERE id = $3 AND activo = TRUE RETURNING *`
+    : `UPDATE ${tabla} SET nombre = $1 WHERE id = $2 AND activo = TRUE RETURNING *`;
+  const params = tipo === 'categorias' ? [nombre, req.body.grupo === 'bebidas' ? 'bebidas' : 'alimentos', id] : [nombre, id];
+  const result = await db.query(query, params);
+  if (!result.rowCount) throw httpError(404, 'Elemento no encontrado.');
+  res.json(result.rows[0]);
+}));
+
+app.delete('/api/menu-configuracion/:tipo/:id', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const tabla = req.params.tipo === 'categorias' ? 'menu_categorias' : req.params.tipo === 'guarniciones' ? 'menu_guarniciones' : 'menu_terminos';
+  if (!['menu_categorias', 'menu_guarniciones', 'menu_terminos'].includes(tabla)) throw httpError(400, 'Configuración inválida.');
+  await db.query(`UPDATE ${tabla} SET activo = FALSE WHERE id = $1`, [positiveInteger(req.params.id, 'Identificador')]);
+  res.json({ mensaje: 'Elemento desactivado.' });
+}));
+
 app.get('/api/usuarios', requireRoles(...ROLES_ADMIN), route(async (_req, res) => {
   const result = await db.query("SELECT id, nombre, rol, estado FROM usuarios WHERE COALESCE(estado, 'Activo') = 'Activo' ORDER BY id");
   res.json(result.rows);
@@ -1109,6 +1250,71 @@ app.post('/api/caja/apertura', requireRoles(...ROLES_CAJA), route(async (req, re
   );
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ABRIR_CAJA', entidad: 'aperturas_caja', detalle: { initialAmount }, ip: clientIp(req) });
   res.json({ mensaje: 'Apertura de caja registrada correctamente.', apertura: result.rows[0], abierta: true, monto_inicial: initialAmount });
+}));
+
+app.post('/api/caja/cierre', requireRoles(...ROLES_CAJA), route(async (req, res) => {
+  const efectivoContado = money(req.body.efectivo_contado || 0);
+  const notas = String(req.body.notas || '').trim();
+
+  // Generar reporte completo del turno antes de cerrar
+  const [apertura, ventas, desgloseMetodos] = await Promise.all([
+    db.query("SELECT id, usuario_id, monto_inicial, fecha FROM aperturas_caja WHERE fecha::date = CURRENT_DATE AND estado = 'Abierta' ORDER BY id DESC LIMIT 1"),
+    db.query(`SELECT COUNT(*) AS total_facturas, COALESCE(SUM(subtotal),0) AS subtotal, COALESCE(SUM(itbis),0) AS itbis, COALESCE(SUM(propina),0) AS propina, COALESCE(SUM(total),0) AS total,
+      COALESCE(SUM(CASE WHEN metodo_pago = 'Efectivo' THEN total ELSE 0 END),0) AS efectivo,
+      COALESCE(SUM(CASE WHEN metodo_pago = 'Tarjeta' THEN total ELSE 0 END),0) AS tarjeta,
+      COALESCE(SUM(CASE WHEN metodo_pago = 'Transferencia' THEN total ELSE 0 END),0) AS transferencia
+      FROM cuentas WHERE estado = 'Cerrada' AND fecha_cierre::date = CURRENT_DATE`),
+    db.query("SELECT metodo_pago, COUNT(*) AS cantidad, SUM(total) AS total FROM cuentas WHERE estado = 'Cerrada' AND fecha_cierre::date = CURRENT_DATE GROUP BY metodo_pago")
+  ]);
+
+  const aperturaData = apertura.rows[0] || {};
+  const ventasData = ventas.rows[0] || {};
+  const montoInicial = Number(aperturaData.monto_inicial || 0);
+  const efectivoEsperado = montoInicial + Number(ventasData.efectivo || 0);
+  const diferencia = efectivoContado > 0 ? money(efectivoContado - efectivoEsperado) : 0;
+
+  const detalleJson = {
+    desgloseMetodos: desgloseMetodos.rows,
+    apertura: aperturaData,
+    ventas: ventasData,
+    efectivoContado,
+    efectivoEsperado,
+    diferencia
+  };
+
+  // Guardar en historial
+  const cierreResult = await db.query(
+    `INSERT INTO historial_cierres 
+     (usuario_id, usuario_nombre, fecha_apertura, monto_inicial, total_ventas, efectivo, tarjeta, transferencia, total_itbis, total_propina, total_facturas, efectivo_contado, diferencia_efectivo, notas, detalle_json)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+    [req.user.id, req.user.nombre, aperturaData.fecha || new Date(), montoInicial, ventasData.total || 0,
+     ventasData.efectivo || 0, ventasData.tarjeta || 0, ventasData.transferencia || 0,
+     ventasData.itbis || 0, ventasData.propina || 0, ventasData.total_facturas || 0,
+     efectivoContado, diferencia, notas, JSON.stringify(detalleJson)]
+  );
+
+  // Cerrar apertura
+  await db.query("UPDATE aperturas_caja SET estado = 'Cerrada' WHERE fecha::date = CURRENT_DATE AND estado = 'Abierta'");
+
+  await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CERRAR_CAJA', entidad: 'historial_cierres', entidadId: cierreResult.rows[0].id, detalle: { totalVentas: ventasData.total, efectivo: ventasData.efectivo }, ip: clientIp(req) });
+
+  res.json({ mensaje: 'Caja cerrada correctamente. Reporte generado.', cierre: cierreResult.rows[0] });
+}));
+
+app.get('/api/caja/cierres', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
+  const { desde, hasta } = req.query;
+  const condiciones = [];
+  const parametros = [];
+  const esFechaValida = (f) => typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f) && !Number.isNaN(Date.parse(f));
+  if (desde && esFechaValida(desde)) {
+    parametros.push(desde); condiciones.push(`fecha_cierre::date >= $${parametros.length}::date`);
+  }
+  if (hasta && esFechaValida(hasta)) {
+    parametros.push(hasta); condiciones.push(`fecha_cierre::date <= $${parametros.length}::date`);
+  }
+  const where = condiciones.length ? `WHERE ${condiciones.join(' AND ')}` : '';
+  const result = await db.query(`SELECT * FROM historial_cierres ${where} ORDER BY fecha_cierre DESC LIMIT 200`, parametros);
+  res.json(result.rows);
 }));
 
 app.get('/api/dgii/config', requireRoles(...ROLES_ADMIN), route(async (_req, res) => {
