@@ -1,5 +1,4 @@
 ﻿import express from 'express';
-import cors from 'cors';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,6 +9,7 @@ import { config, isAllowedOrigin } from './config.js';
 import { authenticate, assertValidPin, createSession, hashPin, requireRoles, signSupervisorAuthorization, verifyPin, verifySupervisorAuthorization } from './auth.js';
 import { runMigrations } from './migrations.js';
 import { registrarAuditoria } from './audit.js';
+import { iniciarTelegramBot, notificarSolicitud, notificarPago } from './telegramBot.js';
 
 // â”€â”€ Exception handlers (PM2 reinicia en <2s si el proceso cae) â”€â”€
 process.on('uncaughtException', (err) => {
@@ -107,28 +107,63 @@ const uploadImagenesSistema = upload.fields([{ name: 'fondo_archivo', maxCount: 
 const app = express();
 app.disable('x-powered-by');
 
-app.use(cors({
-  origin(origin, callback) {
-    // Permitir solicitudes de Electron, peticiones directas (sin origin),
-    // orÃ­genes autorizados o cualquier IP de red local (192.168.x.x, 10.x.x.x, 172.x.x.x, localhost)
-    if (
-      !origin || 
-      isAllowedOrigin(origin) || 
-      (() => { try { const h = new URL(origin).hostname; return h === 'localhost' || h === '127.0.0.1'; } catch { return false; } })() || 
-      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin)
-    ) {
-      return callback(null, true);
-    }
-    callback(new Error('Origen no autorizado.'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Supervisor-Authorization', 'X-Session-Token'],
-  maxAge: 600,
-}));
+// Middleware CORS autocontenido (sin dependencia de closures):
+// permite Electron (sin origin), mismo origen (dominio que apunta al
+// servidor), orígenes autorizados (CORS_ORIGINS), localhost y red local.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  const permitido =
+    !origin ||
+    (() => {
+      try {
+        const o = new URL(origin);
+        const hostPeticion = req.get('host');
+        return hostPeticion && o.host === hostPeticion;
+      } catch { return false; }
+    })() ||
+    isAllowedOrigin(origin) ||
+    (() => { try { const h = new URL(origin).hostname; return h === 'localhost' || h === '127.0.0.1'; } catch { return false; } })() ||
+    /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin);
+
+  if (permitido) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Supervisor-Authorization, X-Session-Token');
+    res.setHeader('Access-Control-Max-Age', '600');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    return next();
+  }
+
+  return res.status(403).json({ error: 'Origen no autorizado.' });
+});
 
 app.use(express.json({ limit: '256kb' }));
-app.use('/uploads', express.static(config.uploadsDir, { fallthrough: false, maxAge: '7d' }));
+// ============================================================
+// ARCHIVOS SUBIDOS
+// ============================================================
+
+fs.mkdirSync(config.uploadsDir, { recursive: true });
+
+app.use(
+  '/uploads',
+  express.static(config.uploadsDir, {
+    maxAge: '7d',
+    etag: true,
+    lastModified: true,
+    fallthrough: true,
+  })
+);
+
+// Si una imagen ya no existe, devolver 404 limpio.
+// Nunca devolver index.html para /uploads.
+app.use('/uploads', (_req, res) => {
+  res.status(404).json({
+    error: 'Archivo no encontrado',
+    tipo: 'UPLOAD_NOT_FOUND',
+  });
+});
 const sseClients = new Set();
 function notificarKDS(evento = 'actualizacion') {
   const payload = `data: ${JSON.stringify({ type: evento, time: Date.now() })}\n\n`;
@@ -234,6 +269,84 @@ function clientIp(req) {
 
 function uploadUrl(req, file) {
   return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(file.filename)}`;
+}
+
+// ─── Claves de activación con duración: CHLOE-<DURACION>-<FIRMA> ───
+// Formato: CHLOE-30D-XXXXX-XXXXX-XXXXX-XXXXX | CHLOE-12M-... | CHLOE-L-...
+// FIRMA = HMAC-SHA256(LICENSE_ACTIVATION_KEY, 'CHLOE:<DURACION>') → hex (primeros 20), grupos de 5.
+function firmarDuracion(dur) {
+  const secret = config.licenseActivationKey || '';
+  return crypto.createHmac('sha256', secret).update(`CHLOE:${String(dur).toUpperCase()}`).digest('hex').toUpperCase().slice(0, 20);
+}
+
+function claveParaDuracion(dur) {
+  const firma = firmarDuracion(dur);
+  return `CHLOE-${String(dur).toUpperCase()}-${firma.match(/.{1,5}/g).join('-')}`;
+}
+
+function parsearDuracion(codigo) {
+  const u = String(codigo || '').toUpperCase();
+  if (u === 'L') return { vitalicia: true, meses: -1 };
+  const m = /^([0-9]+)([DM])$/.exec(u);
+  if (!m) return null;
+  const n = Number(m[1]);
+  if (!Number.isInteger(n) || n <= 0 || n > 120) return null;
+  const meses = m[2] === 'M' ? n : Math.ceil(n / 30);
+  return { vitalicia: false, meses };
+}
+
+function vencimientoDesdeMeses(meses) {
+  const fecha = new Date();
+  fecha.setMonth(fecha.getMonth() + meses);
+  return fecha;
+}
+
+// ─── Sesión del Propietario (acceso universal del dueño) ───
+function firmarDuenoTok(payload) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', config.sessionSecret).update(`dueno:${encoded}`).digest('base64url');
+  return `${encoded}.${signature}`;
+}
+
+function verificarDuenoTok(token) {
+  if (!token || !token.includes('.')) return null;
+  const [encoded, signature] = token.split('.');
+  const expected = crypto.createHmac('sha256', config.sessionSecret).update(`dueno:${encoded}`).digest('base64url');
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    return payload.rol === 'Dueno' && payload.exp > Date.now() ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+async function requireDueno(req, res, next) {
+  const value = req.get('authorization') || '';
+  const token = value.startsWith('Bearer ') ? value.slice(7) : '';
+  if (!verificarDuenoTok(token)) return res.status(401).json({ error: 'Acceso de propietario no válido o vencido.' });
+  req.dueno = true;
+  return next();
+}
+
+async function adminODueno(req, res, next) {
+  const value = req.get('authorization') || '';
+  const token = value.startsWith('Bearer ') ? value.slice(7) : '';
+  if (verificarDuenoTok(token)) {
+    req.dueno = true;
+    return next();
+  }
+  try {
+    const result = await db.query('SELECT usuario_data FROM app_sessions WHERE token = $1 AND expira_en > CURRENT_TIMESTAMP', [token]);
+    if (!result.rowCount) return res.status(401).json({ error: 'Sesión no válida o vencida.' });
+    req.user = result.rows[0].usuario_data;
+    if (req.user.rol !== 'Administrador') return res.status(403).json({ error: 'No tienes permiso para realizar esta acción.' });
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Sesión no válida o vencida.' });
+  }
 }
 
 async function transaction(work) {
@@ -444,6 +557,535 @@ app.get('/api/licencia/verificar', route(async (_req, res) => {
   return res.json({ bloqueado: false, diasRestantes: Math.ceil(daysAllowed - elapsedDays) });
 }));
 
+app.post('/api/dispositivo/registrar', route(async (req, res) => {
+  const deviceId = String(req.body.deviceId || '').trim();
+  if (!deviceId || deviceId.length > 100) throw httpError(400, 'Identificador de dispositivo inválido.');
+  const navegador = String(req.body.navegador || '').slice(0, 300);
+  const ip = clientIp(req);
+  const result = await db.query(
+    `INSERT INTO dispositivos (device_id, navegador, ip, ultimo_acceso)
+     VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+     ON CONFLICT (device_id) DO UPDATE
+       SET navegador = $2, ip = $3, ultimo_acceso = CURRENT_TIMESTAMP
+     RETURNING device_id, estado, activado_en, licencia_duracion, licencia_vencimiento`,
+    [deviceId, navegador, ip]
+  );
+  const fila = result.rows[0];
+  const vencido = fila.estado === 'Activo' && fila.licencia_vencimiento && new Date(fila.licencia_vencimiento).getTime() < Date.now();
+  if (vencido) {
+    await db.query("UPDATE dispositivos SET estado = 'Pendiente' WHERE device_id = $1", [fila.device_id]);
+  }
+  res.json({
+    deviceId: fila.device_id,
+    activado: fila.estado === 'Activo' && !vencido,
+    vencido: Boolean(vencido),
+    licenciaDuracion: fila.licencia_duracion || null,
+    licenciaVencimiento: fila.licencia_vencimiento ? fila.licencia_vencimiento.toISOString() : null,
+  });
+}));
+
+app.post('/api/dispositivo/activar', route(async (req, res) => {
+  const deviceId = String(req.body.deviceId || '').trim();
+  const clave = String(req.body.clave || '').trim();
+  const ip = clientIp(req);
+  if (!deviceId || deviceId.length > 100) throw httpError(400, 'Identificador de dispositivo inválido.');
+  if (!clave) throw httpError(400, 'Ingresa la clave de activación del dispositivo.');
+
+  const deviceRes = await db.query('SELECT id, estado, intentos_fallidos FROM dispositivos WHERE device_id = $1', [deviceId]);
+  if (!deviceRes.rowCount) throw httpError(404, 'El dispositivo no está registrado. Vuelve a cargar la pantalla.');
+  const dispositivo = deviceRes.rows[0];
+  if (dispositivo.estado === 'Activo') return res.json({ activado: true });
+
+  if (!config.licenseActivationKey) throw httpError(400, 'La clave de activación no está configurada. Contacta a soporte técnico.');
+
+  // 1) Clave maestra antigua (compatibilidad) → Vitalicia
+  // 2) CHLOE-<DURACION>-<FIRMA> → valida firma HMAC y aplica la duración
+  let licencia;
+  let claveCanonica;
+  if (clave === config.licenseActivationKey) {
+    licencia = { vitalicia: true, meses: -1, codigo: 'L' };
+    claveCanonica = config.licenseActivationKey;
+  } else {
+    const match = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){3})$/i.exec(clave);
+    if (!match) {
+      const intentos = (dispositivo.intentos_fallidos || 0) + 1;
+      await db.query('UPDATE dispositivos SET intentos_fallidos = $1 WHERE id = $2', [intentos, dispositivo.id]);
+      throw httpError(401, 'Clave de activación incorrecta.');
+    }
+    const dur = String(match[1]).toUpperCase();
+    const firmaRecibida = String(match[2]).replace(/-/g, '').toUpperCase();
+    const firmaEsperada = firmarDuracion(dur);
+    const a = Buffer.from(firmaRecibida);
+    const b = Buffer.from(firmaEsperada);
+    const firmaValida = a.length === b.length && crypto.timingSafeEqual(a, b);
+    const duracionParseada = parsearDuracion(dur);
+    if (!firmaValida || !duracionParseada) {
+      const intentos = (dispositivo.intentos_fallidos || 0) + 1;
+      await db.query('UPDATE dispositivos SET intentos_fallidos = $1 WHERE id = $2', [intentos, dispositivo.id]);
+      throw httpError(401, 'Clave de activación incorrecta.');
+    }
+    licencia = { vitalicia: duracionParseada.vitalicia, meses: duracionParseada.meses, codigo: dur };
+    claveCanonica = `CHLOE-${dur}`;
+  }
+
+  // Una clave de licencia solo activa 2 dispositivos.
+  const contador = await db.query(
+    `SELECT COUNT(*)::int AS total
+       FROM dispositivos
+      WHERE estado = 'Activo' AND clave_activacion = $1`,
+    [claveCanonica]
+  );
+  if (contador.rows[0].total >= 2) {
+    throw httpError(403, 'Esta clave de licencia solo puede activar 2 dispositivos. Usa otra clave o gestiona los dispositivos activos.');
+  }
+
+  const vencimiento = licencia.vitalicia ? null : vencimientoDesdeMeses(licencia.meses);
+  await db.query(
+    `UPDATE dispositivos
+        SET estado = 'Activo', activado_en = CURRENT_TIMESTAMP, intentos_fallidos = 0,
+            licencia_duracion = $1, licencia_vencimiento = $2, clave_activacion = $3
+      WHERE id = $4`,
+    [licencia.codigo, vencimiento, claveCanonica, dispositivo.id]
+  );
+
+  // Extender la licencia global del negocio (nunca reducir la vigente ni tocar una Vitalicia)
+  const negocio = await db.query('SELECT id, duracion_meses FROM negocio_config ORDER BY id LIMIT 1');
+  if (negocio.rowCount) {
+    const actual = negocio.rows[0].duracion_meses;
+    if (actual !== -1) {
+      if (licencia.vitalicia) {
+        await db.query('UPDATE negocio_config SET duracion_meses = -1, licencia_bloqueada = FALSE WHERE id = $1', [negocio.rows[0].id]);
+      } else if (!vencimiento) {
+        // sin cambio
+      } else {
+        const diasRestantes = Math.max(0, Math.ceil((vencimiento - Date.now()) / 86400000));
+        const nuevosMeses = Math.max(actual || 0, Math.ceil(diasRestantes / 30));
+        await db.query('UPDATE negocio_config SET duracion_meses = $1, licencia_bloqueada = FALSE WHERE id = $2', [nuevosMeses, negocio.rows[0].id]);
+      }
+    }
+  }
+
+  await registrarAuditoria(db, {
+    usuarioId: null,
+    accion: 'ACTIVAR_DISPOSITIVO',
+    entidad: 'dispositivos',
+    entidadId: String(dispositivo.id),
+    detalle: { deviceId, duracion: licencia.codigo, vitalicia: licencia.vitalicia },
+    ip,
+  });
+  res.json({
+    activado: true,
+    licenciaDuracion: licencia.codigo,
+    vitalicia: licencia.vitalicia,
+    licenciaVencimiento: vencimiento ? vencimiento.toISOString() : null,
+    diasRestantes: vencimiento ? Math.max(0, Math.ceil((vencimiento - Date.now()) / 86400000)) : null,
+  });
+}));
+
+app.get('/api/dispositivos', adminODueno, route(async (_req, res) => {
+  const result = await db.query(
+    `SELECT id, device_id, nombre, navegador, ip, estado, intentos_fallidos, activado_en,
+            licencia_duracion, licencia_vencimiento, creado_en, ultimo_acceso
+     FROM dispositivos ORDER BY creado_en DESC`
+  );
+  res.json({ dispositivos: result.rows, claveMaestra: config.licenseActivationKey || '' });
+}));
+
+app.post('/api/dispositivos/:id/estado', adminODueno, route(async (req, res) => {
+  const id = Number(req.params.id);
+  const estado = String(req.body.estado || '').trim();
+  if (!['Activo', 'Inactivo'].includes(estado)) throw httpError(400, 'Estado inválido.');
+  const result = await db.query(
+    `UPDATE dispositivos
+       SET estado = $1::VARCHAR,
+           activado_en = CASE WHEN $1::VARCHAR = 'Activo' THEN COALESCE(activado_en, CURRENT_TIMESTAMP) ELSE activado_en END,
+           intentos_fallidos = 0
+     WHERE id = $2 RETURNING id, device_id`,
+    [estado, id]
+  );
+  if (!result.rowCount) throw httpError(404, 'Dispositivo no encontrado.');
+  res.json({ ok: true, dispositivo: result.rows[0] });
+}));
+
+// ──── Planes de licencia (público) ────
+app.get('/api/planes', route(async (_req, res) => {
+  const result = await db.query(
+    `SELECT id, nombre, duracion_codigo, precio, moneda, destacado, orden
+     FROM planes_licencia WHERE activo = TRUE ORDER BY orden, id`
+  );
+  res.json({ planes: result.rows });
+}));
+
+// ──── Métodos de pago (público, para la web de venta) ────
+app.get('/api/metodos-pago', route(async (_req, res) => {
+  const result = await db.query(
+    `SELECT id, tipo, nombre, titular, detalle, dato1, dato2, dato3, link_pago, orden
+     FROM metodos_pago WHERE activo = TRUE ORDER BY orden, id`
+  );
+  res.json({ metodos: result.rows });
+}));
+
+// ──── Solicitud de licencia (público, desde el formulario de registro) ────
+app.post('/api/solicitud-licencia', route(async (req, res) => {
+  const planId = Number(req.body.plan_id);
+  const propietario = String(req.body.propietario || '').trim();
+  const negocio = String(req.body.negocio || '').trim();
+  const telefono = String(req.body.telefono || '').trim();
+  const email = String(req.body.email || '').trim();
+  const provincia = String(req.body.provincia || '').trim();
+  const notas = String(req.body.notas || '').trim();
+
+  if (!propietario || !negocio || !telefono || !email) {
+    throw httpError(400, 'Completa los datos de la solicitud: propietario, negocio, teléfono y correo.');
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw httpError(400, 'El correo electrónico no es válido.');
+
+  let planNombre = null;
+  if (Number.isInteger(planId) && planId > 0) {
+    const planRes = await db.query('SELECT nombre FROM planes_licencia WHERE id = $1', [planId]);
+    planNombre = planRes.rows[0]?.nombre || null;
+  }
+
+  const tokenPago = crypto.randomBytes(24).toString('hex');
+  const result = await db.query(
+    `INSERT INTO solicitudes_licencia (plan_id, plan_nombre, propietario, negocio, telefono, email, provincia, notas, token_pago)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, token_pago`,
+    [Number.isInteger(planId) && planId > 0 ? planId : null, planNombre, propietario, negocio, telefono, email, provincia || null, notas || null, tokenPago]
+  );
+
+  const nuevaId = result.rows[0].id;
+  try {
+    const nueva = await obtenerSolicitudPorId(nuevaId);
+    if (nueva) notificarSolicitud(nueva);
+  } catch (err) {
+    console.warn('Telegram: no se pudo notificar la nueva solicitud:', err.message);
+  }
+
+  res.json({ mensaje: 'Tu solicitud fue enviada correctamente. Te contactaremos con tu clave de activación.', id: nuevaId, tokenPago: result.rows[0].token_pago });
+}));
+
+// ──── Confirmación de pago (público, desde la pantalla de métodos de pago) ────
+app.post('/api/solicitud-licencia/:id/confirmar-pago', route(async (req, res) => {
+  const id = Number(req.params.id);
+  const token = String(req.body.token || '').trim();
+  const metodoId = Number(req.body.metodo_id);
+  const comprobante = String(req.body.comprobante || '').trim() || null;
+  if (!token || !Number.isInteger(metodoId) || metodoId <= 0) {
+    throw httpError(400, 'Faltan datos para confirmar el pago.');
+  }
+  const sol = await db.query(
+    'SELECT id, token_pago, estado FROM solicitudes_licencia WHERE id = $1',
+    [id]
+  );
+  if (!sol.rowCount) throw httpError(404, 'Solicitud no encontrada.');
+  if (!sol.rows[0].token_pago || sol.rows[0].token_pago !== token) {
+    throw httpError(403, 'Token de pago inválido.');
+  }
+  const met = await db.query('SELECT nombre FROM metodos_pago WHERE id = $1 AND activo = TRUE', [metodoId]);
+  if (!met.rowCount) throw httpError(400, 'Método de pago no disponible.');
+  const estadoActual = sol.rows[0].estado;
+  const result = await db.query(
+    `UPDATE solicitudes_licencia
+        SET estado = 'Pagada',
+            metodo_pago = COALESCE(metodo_pago, $1),
+            comprobante = COALESCE($2, comprobante),
+            pagada_en = COALESCE(pagada_en, CURRENT_TIMESTAMP)
+      WHERE id = $3 RETURNING id, estado, metodo_pago, pagada_en`,
+    [met.rows[0].nombre, comprobante, id]
+  );
+  await generarFacturaSolicitud(id);
+  await registrarAuditoria(db, { usuarioId: null, accion: 'CONFIRMAR_PAGO', entidad: 'solicitudes_licencia', entidadId: String(id), detalle: { metodo: met.rows[0].nombre, estadoAnterior: estadoActual }, ip: clientIp(req) });
+  try {
+    const pagada = await obtenerSolicitudPorId(id);
+    if (pagada) notificarPago(pagada);
+  } catch (err) {
+    console.warn('Telegram: no se pudo notificar el pago:', err.message);
+  }
+  res.json({ ok: true, solicitud: result.rows[0] });
+}));
+
+// ──── Facturas de activación (manejo interno del dueño) ────
+// Genera el número de factura y congela el monto del plan al momento del pago.
+async function generarFacturaSolicitud(solicitudId) {
+  const sol = await db.query(
+    `SELECT id, numero_factura, plan_id
+       FROM solicitudes_licencia WHERE id = $1`,
+    [solicitudId]
+  );
+  if (!sol.rowCount || sol.rows[0].numero_factura) return;
+  const fila = sol.rows[0];
+  const numero = `FAC-${String(fila.id).padStart(6, '0')}`;
+  let monto = 0;
+  let moneda = 'RD$';
+  if (fila.plan_id) {
+    const plan = await db.query('SELECT precio, moneda FROM planes_licencia WHERE id = $1', [fila.plan_id]);
+    if (plan.rowCount) {
+      monto = Number(plan.rows[0].precio || 0);
+      moneda = plan.rows[0].moneda || 'RD$';
+    }
+  }
+  await db.query(
+    `UPDATE solicitudes_licencia
+        SET numero_factura = $1, monto = $2, moneda = $3
+      WHERE id = $4`,
+    [numero, monto, moneda, fila.id]
+  );
+}
+
+async function obtenerSolicitudPorId(id) {
+  const res = await db.query(
+    `SELECT id, plan_id, plan_nombre, propietario, negocio, telefono, email, provincia, notas,
+            estado, metodo_pago, comprobante, monto, moneda, numero_factura, pagada_en, creado_en, atendida_en
+       FROM solicitudes_licencia WHERE id = $1`,
+    [id]
+  );
+  return res.rows[0] || null;
+}
+
+async function cambiarEstadoSolicitud(id, estado, ip = null, origen = null) {
+  if (!['Pendiente', 'Pagada', 'Atendida', 'Rechazada'].includes(estado)) return { error: 'Estado inválido.' };
+  const result = await db.query(
+    `UPDATE solicitudes_licencia
+        SET estado = $1::VARCHAR,
+            atendida_en = CASE WHEN $1::VARCHAR = 'Pendiente' THEN NULL ELSE COALESCE(atendida_en, CURRENT_TIMESTAMP) END,
+            pagada_en = CASE WHEN $1::VARCHAR = 'Pagada' THEN COALESCE(pagada_en, CURRENT_TIMESTAMP) ELSE pagada_en END
+      WHERE id = $2 RETURNING id, estado, numero_factura`,
+    [estado, id]
+  );
+  if (!result.rowCount) return { error: 'Solicitud no encontrada.' };
+  const solicitud = result.rows[0];
+  if (estado === 'Pagada') {
+    await generarFacturaSolicitud(id);
+    const actualizada = await obtenerSolicitudPorId(id);
+    if (actualizada) solicitud.numero_factura = actualizada.numero_factura;
+  }
+  await registrarAuditoria(db, { usuarioId: null, accion: 'ATENDER_SOLICITUD', entidad: 'solicitudes_licencia', entidadId: String(id), detalle: { estado, origen }, ip: ip || null });
+  return { ok: true, solicitud };
+}
+
+function generarClaveLicencia(dur) {
+  const duracion = String(dur || '').trim().toUpperCase();
+  const parsed = parsearDuracion(duracion);
+  if (!parsed) return { error: 'Duración inválida. Usa por ejemplo 7D, 15D, 30D, 90D, 6M, 12M, 24M o L.' };
+  if (!config.licenseActivationKey) return { error: 'LICENSE_ACTIVATION_KEY no está configurada en el servidor.' };
+  return { clave: claveParaDuracion(duracion), duracion, vitalicia: parsed.vitalicia };
+}
+
+function validarClaveLicencia(clave) {
+  const c = String(clave || '').trim().toUpperCase();
+  if (!c) return { error: 'Ingresa la clave a verificar.' };
+  if (config.licenseActivationKey && c === config.licenseActivationKey) {
+    return { valida: true, duracion: 'L', vitalicia: true };
+  }
+  const match = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){3})$/i.exec(c);
+  if (!match) return { error: 'Formato inválido. Usa CHLOE-30D-XXXXX-XXXXX-XXXXX-XXXXX.' };
+  const firmaRecibida = String(match[2]).replace(/-/g, '').toUpperCase();
+  const firmaEsperada = firmarDuracion(match[1]);
+  const a = Buffer.from(firmaRecibida);
+  const b = Buffer.from(firmaEsperada);
+  const firmaValida = a.length === b.length && crypto.timingSafeEqual(a, b);
+  const parsed = parsearDuracion(match[1]);
+  if (!firmaValida || !parsed) return { error: 'Firma inválida. La clave no es genuina.' };
+  return { valida: true, duracion: match[1].toUpperCase(), vitalicia: parsed.vitalicia };
+}
+
+app.get('/api/dueno/facturas', requireDueno, route(async (_req, res) => {
+  const result = await db.query(
+    `SELECT id, numero_factura, plan_id, plan_nombre, propietario, negocio, telefono, email,
+            provincia, metodo_pago, comprobante, monto, moneda, estado, pagada_en, creado_en
+       FROM solicitudes_licencia
+      WHERE numero_factura IS NOT NULL
+      ORDER BY pagada_en DESC NULLS LAST, creado_en DESC`
+  );
+  res.json({ facturas: result.rows });
+}));
+
+// ──── Panel del Propietario (acceso universal del dueño) ────
+app.post('/api/dueno/login', route(async (req, res) => {
+  if (!config.ownerPin) throw httpError(503, 'El acceso del propietario no está configurado en el servidor.');
+  verificarRateLimit(clientIp(req));
+  const pin = String(req.body.pin || '');
+  const a = Buffer.from(pin);
+  const b = Buffer.from(config.ownerPin);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    registrarIntentoFallido(clientIp(req));
+    return res.status(401).json({ error: 'PIN incorrecto.' });
+  }
+  registrarIntentoExitoso(clientIp(req));
+  const exp = Date.now() + 12 * 3600 * 1000;
+  res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp }), expiraEn: new Date(exp).toISOString() });
+}));
+
+app.get('/api/dueno/resumen', requireDueno, route(async (_req, res) => {
+  const [devices, solicitudes, planes, negocio, facturas] = await Promise.all([
+    db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE estado = 'Activo')::int AS activos FROM dispositivos"),
+    db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE estado = 'Pendiente')::int AS pendientes, COUNT(*) FILTER (WHERE estado = 'Pagada')::int AS pagadas FROM solicitudes_licencia"),
+    db.query('SELECT COUNT(*)::int AS total FROM planes_licencia WHERE activo = TRUE'),
+    db.query('SELECT nombre_comercial, duracion_meses, licencia_bloqueada FROM negocio_config ORDER BY id LIMIT 1'),
+    db.query('SELECT COUNT(*)::int AS total, COALESCE(SUM(monto), 0)::numeric AS monto_total FROM solicitudes_licencia WHERE numero_factura IS NOT NULL'),
+  ]);
+  res.json({
+    dispositivos: devices.rows[0],
+    solicitudes: solicitudes.rows[0],
+    planes: planes.rows[0],
+    negocio: negocio.rows[0] || null,
+    facturas: facturas.rows[0],
+    claveMaestra: config.licenseActivationKey || '',
+    ownerPinConfigurado: Boolean(config.ownerPin),
+  });
+}));
+
+app.get('/api/dueno/planes', requireDueno, route(async (_req, res) => {
+  const result = await db.query(
+    'SELECT * FROM planes_licencia ORDER BY orden, id'
+  );
+  res.json({ planes: result.rows });
+}));
+
+app.post('/api/dueno/planes', requireDueno, route(async (req, res) => {
+  const nombre = String(req.body.nombre || '').trim();
+  const duracionCodigo = String(req.body.duracion_codigo || '').trim().toUpperCase();
+  const precio = Number(req.body.precio);
+  const moneda = String(req.body.moneda || 'RD$').trim() || 'RD$';
+  const destacado = Boolean(req.body.destacado);
+  const activo = req.body.activo === false ? false : true;
+  const orden = Number(req.body.orden || 0);
+  if (!nombre) throw httpError(400, 'El nombre del plan es obligatorio.');
+  if (!parsearDuracion(duracionCodigo)) throw httpError(400, 'Código de duración inválido. Usa por ejemplo 30D, 90D, 6M, 12M o L.');
+  if (!Number.isFinite(precio) || precio < 0) throw httpError(400, 'Precio inválido.');
+  const result = await db.query(
+    `INSERT INTO planes_licencia (nombre, duracion_codigo, precio, moneda, destacado, activo, orden)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [nombre, duracionCodigo, precio, moneda, destacado, activo, orden]
+  );
+  await registrarAuditoria(db, { usuarioId: null, accion: 'CREAR_PLAN', entidad: 'planes_licencia', entidadId: String(result.rows[0].id), ip: clientIp(req) });
+  res.json({ plan: result.rows[0] });
+}));
+
+app.put('/api/dueno/planes/:id', requireDueno, route(async (req, res) => {
+  const id = Number(req.params.id);
+  const nombre = String(req.body.nombre || '').trim();
+  const duracionCodigo = String(req.body.duracion_codigo || '').trim().toUpperCase();
+  const precio = Number(req.body.precio);
+  const moneda = String(req.body.moneda || 'RD$').trim() || 'RD$';
+  const destacado = Boolean(req.body.destacado);
+  const activo = req.body.activo === false ? false : true;
+  const orden = Number(req.body.orden || 0);
+  if (!nombre) throw httpError(400, 'El nombre del plan es obligatorio.');
+  if (!parsearDuracion(duracionCodigo)) throw httpError(400, 'Código de duración inválido.');
+  if (!Number.isFinite(precio) || precio < 0) throw httpError(400, 'Precio inválido.');
+  const result = await db.query(
+    `UPDATE planes_licencia
+        SET nombre = $1, duracion_codigo = $2, precio = $3, moneda = $4, destacado = $5, activo = $6, orden = $7
+      WHERE id = $8 RETURNING *`,
+    [nombre, duracionCodigo, precio, moneda, destacado, activo, orden, id]
+  );
+  if (!result.rowCount) throw httpError(404, 'Plan no encontrado.');
+  await registrarAuditoria(db, { usuarioId: null, accion: 'ACTUALIZAR_PLAN', entidad: 'planes_licencia', entidadId: String(id), ip: clientIp(req) });
+  res.json({ plan: result.rows[0] });
+}));
+
+app.delete('/api/dueno/planes/:id', requireDueno, route(async (req, res) => {
+  const id = Number(req.params.id);
+  const result = await db.query('DELETE FROM planes_licencia WHERE id = $1 RETURNING id', [id]);
+  if (!result.rowCount) throw httpError(404, 'Plan no encontrado.');
+  await registrarAuditoria(db, { usuarioId: null, accion: 'ELIMINAR_PLAN', entidad: 'planes_licencia', entidadId: String(id), ip: clientIp(req) });
+  res.json({ ok: true });
+}));
+
+app.get('/api/dueno/solicitudes', requireDueno, route(async (_req, res) => {
+  const result = await db.query(
+    'SELECT * FROM solicitudes_licencia ORDER BY creado_en DESC'
+  );
+  res.json({ solicitudes: result.rows });
+}));
+
+app.put('/api/dueno/solicitudes/:id/estado', requireDueno, route(async (req, res) => {
+  const id = Number(req.params.id);
+  const estado = String(req.body.estado || '').trim();
+  const resultado = await cambiarEstadoSolicitud(id, estado, clientIp(req), 'panel-dueno');
+  if (resultado.error) throw httpError(404, resultado.error);
+  res.json({ ok: true, solicitud: resultado.solicitud });
+}));
+
+app.post('/api/dueno/generar-clave', requireDueno, route(async (req, res) => {
+  const dur = String(req.body.duracion || '').trim().toUpperCase();
+  const resultado = generarClaveLicencia(dur);
+  if (resultado.error) throw httpError(resultado.error.includes('LICENSE_ACTIVATION_KEY') ? 503 : 400, resultado.error);
+  await registrarAuditoria(db, { usuarioId: null, accion: 'GENERAR_CLAVE', entidad: 'planes_licencia', detalle: { duracion: resultado.duracion }, ip: clientIp(req) });
+  res.json({ clave: resultado.clave, duracion: resultado.duracion, vitalicia: resultado.vitalicia, ejemplo: `CHLOE-12M-XXXXX-XXXXX-XXXXX-XXXXX` });
+}));
+
+// ──── Métodos de pago (panel del dueño) ────
+app.get('/api/dueno/metodos-pago', requireDueno, route(async (_req, res) => {
+  const result = await db.query('SELECT * FROM metodos_pago ORDER BY orden, id');
+  res.json({ metodos: result.rows });
+}));
+
+app.post('/api/dueno/metodos-pago', requireDueno, route(async (req, res) => {
+  const tipo = String(req.body.tipo || '').trim().toLowerCase();
+  const nombre = String(req.body.nombre || '').trim();
+  const titular = String(req.body.titular || '').trim() || null;
+  const detalle = String(req.body.detalle || '').trim() || null;
+  const dato1 = String(req.body.dato1 || '').trim() || null;
+  const dato2 = String(req.body.dato2 || '').trim() || null;
+  const dato3 = String(req.body.dato3 || '').trim() || null;
+  const linkPago = String(req.body.link_pago || '').trim() || null;
+  const activo = req.body.activo === false ? false : true;
+  const orden = Number(req.body.orden || 0);
+
+  if (!['paypal', 'transferencia', 'binance', 'usdt'].includes(tipo)) {
+    throw httpError(400, 'Tipo inválido. Usa paypal, transferencia, binance o usdt.');
+  }
+  if (!nombre) throw httpError(400, 'El nombre del método de pago es obligatorio.');
+
+  const result = await db.query(
+    `INSERT INTO metodos_pago (tipo, nombre, titular, detalle, dato1, dato2, dato3, link_pago, activo, orden)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [tipo, nombre, titular, detalle, dato1, dato2, dato3, linkPago, activo, orden]
+  );
+  await registrarAuditoria(db, { usuarioId: null, accion: 'CREAR_METODO_PAGO', entidad: 'metodos_pago', entidadId: String(result.rows[0].id), ip: clientIp(req) });
+  res.json({ metodo: result.rows[0] });
+}));
+
+app.put('/api/dueno/metodos-pago/:id', requireDueno, route(async (req, res) => {
+  const id = Number(req.params.id);
+  const tipo = String(req.body.tipo || '').trim().toLowerCase();
+  const nombre = String(req.body.nombre || '').trim();
+  const titular = String(req.body.titular || '').trim() || null;
+  const detalle = String(req.body.detalle || '').trim() || null;
+  const dato1 = String(req.body.dato1 || '').trim() || null;
+  const dato2 = String(req.body.dato2 || '').trim() || null;
+  const dato3 = String(req.body.dato3 || '').trim() || null;
+  const linkPago = String(req.body.link_pago || '').trim() || null;
+  const activo = req.body.activo === false ? false : true;
+  const orden = Number(req.body.orden || 0);
+
+  if (!['paypal', 'transferencia', 'binance', 'usdt'].includes(tipo)) {
+    throw httpError(400, 'Tipo inválido. Usa paypal, transferencia, binance o usdt.');
+  }
+  if (!nombre) throw httpError(400, 'El nombre del método de pago es obligatorio.');
+
+  const result = await db.query(
+    `UPDATE metodos_pago
+        SET tipo = $1, nombre = $2, titular = $3, detalle = $4,
+            dato1 = $5, dato2 = $6, dato3 = $7, link_pago = $8, activo = $9, orden = $10
+      WHERE id = $11 RETURNING *`,
+    [tipo, nombre, titular, detalle, dato1, dato2, dato3, linkPago, activo, orden, id]
+  );
+  if (!result.rowCount) throw httpError(404, 'Método de pago no encontrado.');
+  await registrarAuditoria(db, { usuarioId: null, accion: 'ACTUALIZAR_METODO_PAGO', entidad: 'metodos_pago', entidadId: String(id), ip: clientIp(req) });
+  res.json({ metodo: result.rows[0] });
+}));
+
+app.delete('/api/dueno/metodos-pago/:id', requireDueno, route(async (req, res) => {
+  const id = Number(req.params.id);
+  const result = await db.query('DELETE FROM metodos_pago WHERE id = $1 RETURNING id', [id]);
+  if (!result.rowCount) throw httpError(404, 'Método de pago no encontrado.');
+  await registrarAuditoria(db, { usuarioId: null, accion: 'ELIMINAR_METODO_PAGO', entidad: 'metodos_pago', entidadId: String(id), ip: clientIp(req) });
+  res.json({ ok: true });
+}));
+
 app.post('/api/login/camarero', route(async (req, res) => {
   const ip = clientIp(req);
   verificarRateLimit(ip);
@@ -463,6 +1105,7 @@ app.post('/api/login/camarero', route(async (req, res) => {
   registrarIntentoExitoso(ip);
   const user = matches[0];
   const session = await createSession(user);
+
   return res.json(session);
 }));
 
@@ -485,6 +1128,7 @@ app.get('/api/configuracion/sistema', route(async (_req, res) => {
     opacidad_fondo: Number(row.opacidad_fondo || 1),
     setup_completado: !!row.setup_completado,
     tiene_administrador: admins.rows[0].total > 0,
+    owner_pin_longitud: config.ownerPin ? String(config.ownerPin).length : 0,
   });
 }));
 
@@ -679,10 +1323,30 @@ app.post('/api/divisas', requireRoles('Administrador', 'Cajero'), route(async (r
 }));
 
 app.post('/api/licencia/activar', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
-  const duration = Number(req.body.duracion_meses);
-  if (!Number.isInteger(duration) || duration < -1) throw httpError(400, 'DuraciÃ³n de licencia no vÃ¡lida.');
-  if (!config.licenseActivationKey) throw httpError(503, 'La activaciÃ³n no estÃ¡ configurada en el servidor.');
-  if (req.body.clave_maestra !== config.licenseActivationKey) return res.status(401).json({ error: 'Clave de activaciÃ³n incorrecta.' });
+  let duration = Number(req.body.duracion_meses);
+  const clave = String(req.body.clave_maestra || '').trim();
+  if (!config.licenseActivationKey) throw httpError(503, 'La activación no está configurada en el servidor.');
+
+  let duracionDesdeClave = null;
+  if (clave !== config.licenseActivationKey) {
+    const match = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){3})$/i.exec(clave);
+    if (match) {
+      const firmaRecibida = String(match[2]).replace(/-/g, '').toUpperCase();
+      const firmaEsperada = firmarDuracion(match[1]);
+      const a = Buffer.from(firmaRecibida);
+      const b = Buffer.from(firmaEsperada);
+      const firmaValida = a.length === b.length && crypto.timingSafeEqual(a, b);
+      const parsed = parsearDuracion(match[1]);
+      if (firmaValida && parsed) duracionDesdeClave = parsed;
+    }
+  }
+  if (duracionDesdeClave) {
+    duration = duracionDesdeClave.vitalicia ? -1 : duracionDesdeClave.meses;
+  } else if (clave !== config.licenseActivationKey) {
+    return res.status(401).json({ error: 'Clave de activación incorrecta.' });
+  }
+
+  if (!Number.isInteger(duration) || duration < -1) throw httpError(400, 'Duración de licencia no válida.');
   await db.query('UPDATE negocio_config SET duracion_meses = $1, licencia_bloqueada = FALSE, fecha_instalacion = CURRENT_TIMESTAMP', [duration]);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ACTIVAR_LICENCIA', entidad: 'negocio_config', detalle: { duration }, ip: clientIp(req) });
   res.json({ mensaje: 'Licencia activada correctamente.', bloqueado: false });
@@ -725,7 +1389,7 @@ app.post('/api/negocio/config', requireRoles(...ROLES_ADMIN), upload.single('log
 }));
 
 // ──── CRUD Cuentas Bancarias ────
-app.get('/api/cuentas-bancarias', requireRoles(...ROLES_ADMIN), route(async (_req, res) => {
+app.get('/api/cuentas-bancarias', requireRoles(...ROLES_CAJA), route(async (_req, res) => {
   const result = await db.query('SELECT * FROM cuentas_bancarias ORDER BY orden, id');
   res.json(result.rows);
 }));
@@ -1567,34 +2231,55 @@ app.get('/api/inventario/movimientos', requireRoles(...ROLES_ADMIN), route(async
 //  3) /snapshot/frontend-restaurante/dist  (dist embebido dentro del exe por pkg â†’ autocontenido)
 let frontendDist = path.resolve(config.appRoot, 'frontend-restaurante', 'dist');
 if (!fs.existsSync(frontendDist)) {
+  frontendDist = path.resolve(config.appRoot, 'dist');
+}
+if (!fs.existsSync(frontendDist)) {
   frontendDist = path.resolve(path.dirname(process.execPath), 'dist');
 }
 if (!fs.existsSync(frontendDist) && process.pkg) {
   frontendDist = path.join('/snapshot', 'frontend-restaurante', 'dist');
 }
 if (fs.existsSync(frontendDist)) {
-  // Assets con hash en nombre: cachÃ© larga. index.html y resto: siempre revalidar
-  // (evita que una actualizaciÃ³n quede servida desde cachÃ© por 7 dÃ­as).
-  app.use('/assets', express.static(path.join(frontendDist, 'assets'), { maxAge: '365d', immutable: true }));
-  app.use(express.static(frontendDist, { maxAge: 0 }));
+  // Assets con hash en nombre: caché larga.
+  // index.html: nunca debe quedar almacenado en caché.
+  app.use('/assets', express.static(
+    path.join(frontendDist, 'assets'),
+    { maxAge: '365d', immutable: true }
+  ));
+
+  // No permitir que express.static sirva index.html directamente.
+  // El catch-all lo servirá con Cache-Control: no-store.
+  app.use(express.static(frontendDist, {
+    maxAge: 0,
+    index: false
+  }));
+
   // Catch-all: cualquier ruta no-API devuelve index.html (SPA routing)
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
       return next();
     }
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+    res.setHeader(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate'
+    );
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
-  console.log('ðŸ“¦ Frontend servido desde:', frontendDist);
-} else {
-  console.warn('âš ï¸ No se encontrÃ³ frontend-restaurante/dist/. Ejecuta "npm run build" en el frontend.');
-}
 
-// â”€â”€ Manejador Global de Errores â”€â”€
+  console.log('📦 Frontend servido desde:', frontendDist);
+}
+else {
+  console.warn('⚠️ No se encontró frontend-restaurante/dist/. Ejecuta "npm run build" en el frontend.'); }
+
+// ── Manejador Global de Errores ──
 app.use((error, _req, res, _next) => {
   if (error instanceof multer.MulterError) return res.status(400).json({ error: 'El archivo no cumple con los requisitos.' });
   if (error.message === 'Origen no autorizado.') return res.status(403).json({ error: error.message });
-  if (error.code === '23505') return res.status(409).json({ error: 'La operaciÃ³n duplica un registro existente.' });
+  if (error.code === '23505') return res.status(409).json({ error: 'La operacion duplica un registro existente.' });
   console.error(error);
   return res.status(error.status || 500).json({ error: error.status ? error.message : 'Error interno del servidor.' });
 });
@@ -1642,14 +2327,14 @@ function arrancarServidor(intento = 1) {
   instance.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
       if (config.autoFreePort && intento <= 2) {
-        console.log(`âš ï¸ Puerto ${config.port} ocupado. Liberando instancia anterior del POS...`);
+        console.log(`⚠️ Puerto ${config.port} ocupado. Liberando instancia anterior del POS...`);
         liberarPuertoProcesoPrevio(config.port);
         setTimeout(() => arrancarServidor(intento + 1), 600);
         return;
       }
-      console.error(`\nâš ï¸ El puerto ${config.port} ya estÃ¡ en uso por otra instancia del servidor POS.`);
-      console.error('   Si el servidor ya estÃ¡ activo, no es necesario iniciar otra instancia.');
-      console.error('   Para forzar la liberaciÃ³n automÃ¡tica del puerto, define AUTO_FREE_PORT=1 en el entorno.');
+      console.error(`\n⚠️ El puerto ${config.port} ya está en uso por otra instancia del servidor POS.`);
+      console.error('   Si el servidor ya esta¡ activo, no es necesario iniciar otra instancia.');
+      console.error('   Para forzar la liberacion automatica del puerto, define AUTO_FREE_PORT=1 en el entorno.');
       process.exit(1);
     } else {
       throw err;
@@ -1657,7 +2342,7 @@ function arrancarServidor(intento = 1) {
   });
 }
 
-// ðŸš€ FunciÃ³n asÃ­ncrona de inicio que ejecuta migraciones y arranca Express
+// 🚀 Función asíncrona de inicio que ejecuta migraciones y arranca Express
 const inicializarAplicacion = async () => {
   try {
     await runMigrations(db);
@@ -1667,6 +2352,40 @@ const inicializarAplicacion = async () => {
   } catch (err) {
     console.warn('âš ï¸ No fue posible completar migraciones iniciales. El servidor arrancarÃ¡ en modo degradado:', err.message);
   }
+
+  iniciarTelegramBot({
+    token: config.telegramBotToken,
+    ownerChatId: config.telegramOwnerChatId,
+    aplicarEstado: (id, estado) => cambiarEstadoSolicitud(id, estado, null, 'telegram'),
+    listarPendientes: async () => (await db.query(
+      `SELECT id, plan_nombre, propietario, negocio, telefono, email, creado_en
+         FROM solicitudes_licencia
+        WHERE estado = 'Pendiente'
+        ORDER BY creado_en`
+    )).rows,
+    obtenerSolicitud: obtenerSolicitudPorId,
+    listarFacturas: async () => (await db.query(
+      `SELECT id, numero_factura, plan_nombre, propietario, negocio, monto, moneda, estado, pagada_en, creado_en
+         FROM solicitudes_licencia
+        WHERE numero_factura IS NOT NULL
+        ORDER BY pagada_en DESC NULLS LAST, creado_en DESC`
+    )).rows,
+    resumenDueno: async () => {
+      const [devices, solicitudes, facturas] = await Promise.all([
+        db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE estado = 'Activo')::int AS activos FROM dispositivos"),
+        db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE estado = 'Pendiente')::int AS pendientes, COUNT(*) FILTER (WHERE estado = 'Pagada')::int AS pagadas FROM solicitudes_licencia"),
+        db.query('SELECT COUNT(*)::int AS total, COALESCE(SUM(monto), 0)::numeric AS monto_total FROM solicitudes_licencia WHERE numero_factura IS NOT NULL'),
+      ]);
+      return {
+        dispositivos: devices.rows[0],
+        solicitudes: solicitudes.rows[0],
+        facturas: facturas.rows[0],
+        claveMaestra: config.licenseActivationKey || '',
+      };
+    },
+    generarClave: generarClaveLicencia,
+    validarClave: validarClaveLicencia,
+  });
 
   arrancarServidor();
 };

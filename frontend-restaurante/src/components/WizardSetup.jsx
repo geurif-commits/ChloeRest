@@ -3,7 +3,7 @@ import { aplicarPersonalizacion, fondoLogin } from '../personalizacion.js';
 
 const TEMAS = [
   { id: 'noche', name: 'Noche', color: '#00f576' },
-  { id: 'oceano', name: 'Océano', color: '#00b4d8' },
+  { id: 'oceano', name: 'Oceano', color: '#00b4d8' },
   { id: 'lava', name: 'Lava', color: '#ff6b35' },
   { id: 'esmeralda', name: 'Esmeralda', color: '#2dc653' },
   { id: 'amatista', name: 'Amatista', color: '#a855f7' },
@@ -11,7 +11,7 @@ const TEMAS = [
 ];
 
 function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
-  const urlBase = apiUrl || 'http://localhost:3000';
+  const urlBase = apiUrl;
   const [paso, setPaso] = useState(0);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
@@ -233,3 +233,4 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
 }
 
 export default WizardSetup;
+

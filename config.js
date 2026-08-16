@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -28,7 +29,11 @@ function findEnvFile(startDir) {
   return null;
 }
 
-const appRoot = process.pkg ? path.dirname(process.execPath) : process.cwd();
+const moduleDir = (typeof import.meta !== 'undefined' && import.meta.url)
+  ? path.dirname(fileURLToPath(import.meta.url))
+  : (typeof __dirname !== 'undefined' ? __dirname : process.cwd());
+const appRoot = process.pkg ? path.dirname(process.execPath) : 
+moduleDir;
 const dotenvPath = findEnvFile(appRoot) || findEnvFile(process.cwd());
 if (dotenvPath) loadEnvFile(dotenvPath);
 
@@ -67,7 +72,10 @@ export const config = {
   supervisorAuthorizationMinutes: Number(process.env.SUPERVISOR_AUTHORIZATION_MINUTES || process.env.SUPERVISOR_AUTH_MINUTES || 5),
   licenseActivationKey: process.env.LICENSE_ACTIVATION_KEY || null,
   bootstrapAdminPin: process.env.BOOTSTRAP_ADMIN_PIN || null,
-  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ownerPin: process.env.OWNER_PIN || null,
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
+  telegramOwnerChatId: process.env.TELEGRAM_OWNER_CHAT_ID || null,
+  corsOrigins: (process.env.CORS_ORIGINS || 'https://chloerestaurant.lat,https://www.chloerestaurant.lat,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173').split(',').map((origin) => origin.trim()).filter(Boolean),
   autoFreePort: process.env.AUTO_FREE_PORT === '1',
   login: {
     maxAttempts: Number(process.env.LOGIN_MAX_ATTEMPTS || 5),

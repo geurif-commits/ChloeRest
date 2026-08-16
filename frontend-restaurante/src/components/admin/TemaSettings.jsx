@@ -4,7 +4,7 @@ import { toastAviso } from '../Toast.jsx';
 
 const TEMAS = [
   { id: 'noche', name: 'Noche', color: '#00f576', desc: 'Oscuro con acentos dorados/verdes' },
-  { id: 'oceano', name: 'Océano', color: '#00b4d8', desc: 'Oscuro con tonos azul marino' },
+  { id: 'oceano', name: 'Oceano', color: '#00b4d8', desc: 'Oscuro con tonos azul marino' },
   { id: 'lava', name: 'Lava', color: '#ff6b35', desc: 'Oscuro con tonos rojizos/naranjas' },
   { id: 'esmeralda', name: 'Esmeralda', color: '#2dc653', desc: 'Oscuro con tonos verdes' },
   { id: 'amatista', name: 'Amatista', color: '#a855f7', desc: 'Oscuro con tonos púrpura' },
@@ -12,13 +12,28 @@ const TEMAS = [
 ];
 
 const ESTILOS_LOGIN = [
-  { id: 'moderno', name: 'Moderno', icon: '✨', desc: 'Dividido: logo/reloj a la izquierda y teclado PIN a la derecha.' },
-  { id: 'minimal', name: 'Mínimo', icon: '⬛', desc: 'Sin cuadro contenedor. Solo logo, PIN y teclado centrados.' },
-  { id: 'clasico', name: 'Clásico', icon: '📦', desc: 'El cuadro tradicional con todo centrado.' },
+  {
+    id: 'moderno',
+    name: 'Moderno',
+    icon: '?',
+    desc: 'Dividido: logo/reloj a la izquierda y teclado PIN a la derecha.',
+  },
+  {
+    id: 'minimal',
+    name: 'M�nimo',
+    icon: '?',
+    desc: 'Sin cuadro contenedor. Solo logo, PIN y teclado centrados.',
+  },
+  {
+    id: 'clasico',
+    name: 'Cl�sico',
+    icon: '??',
+    desc: 'El cuadro tradicional con todo centrado.',
+  },
 ];
 
 export default function TemaSettings({ apiUrl }) {
-  const urlBase = apiUrl || 'http://localhost:3000';
+  const urlBase = apiUrl;
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [config, setConfig] = useState({
@@ -85,9 +100,15 @@ export default function TemaSettings({ apiUrl }) {
       fd.append('color_secundario', config.color_secundario);
       fd.append('opacidad_fondo', '1');
       const res = await fetch(`${urlBase}/api/configuracion/sistema`, { method: 'PUT', body: fd });
-      if (res.ok) { toastAviso('✅ Tema guardado correctamente.'); }
-      else { const d = await res.json(); toastAviso(`❌ ${d.error || 'Error al guardar.'}`); }
-    } catch { toastAviso('⚠️ Error de conexión.'); }
+     if (res.ok) {
+  toastAviso('? Tema guardado correctamente.');
+} else {
+  const d = await res.json();
+  toastAviso(`? ${d.error || 'Error al guardar.'}`);
+}
+} catch {
+  toastAviso('?? Error de conexi�n.');
+}
     finally { setGuardando(false); }
   };
 
@@ -95,8 +116,8 @@ export default function TemaSettings({ apiUrl }) {
 
   return (
     <form onSubmit={guardar} className="tema-settings">
-      <h3 className="tema-settings__title">🎨 Tema del Sistema</h3>
-      <p className="tema-settings__desc">Selecciona un tema visual para toda la aplicación. El modo "Claro" usa fondo blanco para ambientes con mucha iluminación.</p>
+      <h3 className="tema-settings__title">?? Tema del Sistema</h3>
+      <p className="tema-settings__desc">Selecciona un tema visual para toda la aplicacionn. El modo "Claro" usa fondo blanco para ambientes con mucha iluminacion.</p>
 
       <div className="tema-grid">
         {TEMAS.map((tema) => (
@@ -109,7 +130,7 @@ export default function TemaSettings({ apiUrl }) {
         ))}
       </div>
 
-      <h3 className="tema-settings__subtitle">✏️ Colores Personalizados</h3>
+      <h3 className="tema-settings__subtitle">??? Colores Personalizados</h3>
       <div className="tema-colors">
         <div className="tema-color-field">
           <label>Color Principal (acentos, botones)</label>
@@ -127,7 +148,7 @@ export default function TemaSettings({ apiUrl }) {
         </div>
       </div>
 
-      <h3 className="tema-settings__subtitle">🔐 Estilo de Pantalla de PIN</h3>
+      <h3 className="tema-settings__subtitle">??? Estilo de Pantalla de PIN</h3>
       <div className="tema-login-styles">
         {ESTILOS_LOGIN.map((estilo) => (
           <button type="button" key={estilo.id} className={`tema-login-btn ${config.estilo_login === estilo.id ? 'activo' : ''}`} onClick={() => cambiar('estilo_login', estilo.id)}>
@@ -139,8 +160,9 @@ export default function TemaSettings({ apiUrl }) {
       </div>
 
       <button type="submit" disabled={guardando} className="tema-save-btn">
-        {guardando ? 'Guardando...' : '💾 Guardar Tema'}
+        {guardando ? 'Guardando...' : '?? Guardar Tema'}
       </button>
     </form>
   );
 }
+

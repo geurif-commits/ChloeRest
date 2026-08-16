@@ -206,6 +206,104 @@ const migrations = [{
     CREATE INDEX IF NOT EXISTS idx_historial_cierres_fecha ON historial_cierres(fecha_cierre DESC);
     CREATE INDEX IF NOT EXISTS idx_historial_cierres_usuario ON historial_cierres(usuario_id);
   `,
+}, {
+  id: '011_dispositivos',
+  sql: `
+    CREATE TABLE IF NOT EXISTS dispositivos (
+      id SERIAL PRIMARY KEY,
+      device_id VARCHAR(100) NOT NULL UNIQUE,
+      nombre VARCHAR(200),
+      navegador TEXT,
+      ip VARCHAR(100),
+      estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+      intentos_fallidos INTEGER NOT NULL DEFAULT 0,
+      activado_en TIMESTAMP,
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ultimo_acceso TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_dispositivos_estado ON dispositivos(estado);
+  `,
+}, {
+  id: '012_planes_solicitudes_y_duracion',
+  sql: `
+    ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS licencia_duracion VARCHAR(20);
+    ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS licencia_vencimiento TIMESTAMP;
+
+    CREATE TABLE IF NOT EXISTS planes_licencia (
+      id SERIAL PRIMARY KEY,
+      nombre VARCHAR(80) NOT NULL,
+      duracion_codigo VARCHAR(10) NOT NULL,
+      precio NUMERIC(10,2) NOT NULL DEFAULT 0,
+      moneda VARCHAR(10) NOT NULL DEFAULT 'RD$',
+      destacado BOOLEAN NOT NULL DEFAULT FALSE,
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      orden INTEGER NOT NULL DEFAULT 0,
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO planes_licencia (nombre, duracion_codigo, precio, moneda, destacado, orden)
+    VALUES
+      ('Mensual', '30D', 29, 'RD$', FALSE, 1),
+      ('Trimestral', '90D', 79, 'RD$', FALSE, 2),
+      ('Semestral', '6M', 149, 'RD$', FALSE, 3),
+      ('Anual', '12M', 249, 'RD$', TRUE, 4),
+      ('Bianual', '24M', 449, 'RD$', FALSE, 5),
+      ('Vitalicia', 'L', 499, 'RD$', FALSE, 6);
+
+    CREATE TABLE IF NOT EXISTS solicitudes_licencia (
+      id SERIAL PRIMARY KEY,
+      plan_id INTEGER REFERENCES planes_licencia(id) ON DELETE SET NULL,
+      plan_nombre VARCHAR(80),
+      propietario VARCHAR(200) NOT NULL,
+      negocio VARCHAR(200) NOT NULL,
+      telefono VARCHAR(50) NOT NULL,
+      email VARCHAR(200) NOT NULL,
+      provincia VARCHAR(80),
+      notas TEXT,
+      estado VARCHAR(20) NOT NULL DEFAULT 'Pendiente',
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atendida_en TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_solicitudes_licencia_estado ON solicitudes_licencia(estado);
+  `,
+}, {
+  id: '013_metodos_pago',
+  sql: `
+    CREATE TABLE IF NOT EXISTS metodos_pago (
+      id SERIAL PRIMARY KEY,
+      tipo VARCHAR(20) NOT NULL,
+      nombre VARCHAR(100) NOT NULL,
+      titular VARCHAR(200),
+      detalle TEXT,
+      dato1 VARCHAR(255),
+      dato2 VARCHAR(255),
+      dato3 VARCHAR(255),
+      activo BOOLEAN NOT NULL DEFAULT TRUE,
+      orden INTEGER NOT NULL DEFAULT 0,
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_metodos_pago_tipo ON metodos_pago(tipo);
+  `,
+}, {
+  id: '014_pagos_solicitudes',
+  sql: `
+    ALTER TABLE metodos_pago ADD COLUMN IF NOT EXISTS link_pago VARCHAR(500);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS metodo_pago VARCHAR(100);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS token_pago VARCHAR(64);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS comprobante VARCHAR(255);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS pagada_en TIMESTAMP;
+    CREATE INDEX IF NOT EXISTS idx_solicitudes_licencia_token ON solicitudes_licencia(token_pago);
+  `,
+}, {
+  id: '015_facturas_activacion_y_limite_dispositivos',
+  sql: `
+    ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS clave_activacion VARCHAR(200);
+    CREATE INDEX IF NOT EXISTS idx_dispositivos_clave_activacion ON dispositivos(clave_activacion);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS numero_factura VARCHAR(30);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS monto NUMERIC(10,2);
+    ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS moneda VARCHAR(10) NOT NULL DEFAULT 'RD$';
+    CREATE INDEX IF NOT EXISTS idx_solicitudes_licencia_numero_factura ON solicitudes_licencia(numero_factura);
+  `,
 }];
 
 export async function runMigrations(pool) {
@@ -286,6 +384,15 @@ export async function runMigrations(pool) {
        WHERE id = 1 AND setup_completado = FALSE AND $1 = FALSE`,
       [esInstalacionNueva]
     );
+
+    // Backfill histórico: los dispositivos ya activos se asumen activados con la clave maestra.
+    // Así el límite de 2 dispositivos por clave también respeta a los dispositivos previos.
+    if (config.licenseActivationKey) {
+      await client.query(
+        `UPDATE dispositivos SET clave_activacion = $1 WHERE estado = 'Activo' AND clave_activacion IS NULL`,
+        [config.licenseActivationKey]
+      );
+    }
   } finally {
     client.release();
   }

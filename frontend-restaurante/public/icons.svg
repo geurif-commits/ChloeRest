@@ -1,1 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="36" fill="#111827"/><path d="M70 45a72 72 0 1 0 0 166" fill="none" stroke="#D4AF37" stroke-width="16" stroke-linecap="round"/><path d="M132 52v120" stroke="#F472B6" stroke-width="12" stroke-linecap="round"/><path d="M120 58h36c28 0 46 18 46 39s-18 39-46 39h-36" fill="none" stroke="#F472B6" stroke-width="12"/><text x="128" y="228" font-size="22" text-anchor="middle" fill="#D4AF37" font-family="Arial">ChloeRest</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="gold" x1="20%" y1="10%" x2="85%" y2="90%">
+      <stop offset="0" stop-color="#FFF3B0"/>
+      <stop offset=".28" stop-color="#FFD45A"/>
+      <stop offset=".55" stop-color="#F5A623"/>
+      <stop offset=".82" stop-color="#FFD866"/>
+      <stop offset="1" stop-color="#B86A00"/>
+    </linearGradient>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#172A46"/>
+      <stop offset=".7" stop-color="#081221"/>
+      <stop offset="1" stop-color="#02050A"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000" flood-opacity=".7"/>
+    </filter>
+  </defs>
+
+  <circle cx="128" cy="128" r="124" fill="url(#bg)"/>
+  <circle cx="128" cy="128" r="116" fill="none" stroke="url(#gold)" stroke-width="7"/>
+  <circle cx="128" cy="128" r="106" fill="none" stroke="#D99A2B" stroke-opacity=".28" stroke-width="1.5"/>
+
+  <!-- Chef hat / crown -->
+  <path d="M86 73 C76 67 78 51 91 47 C91 33 103 24 116 30 C123 16 143 18 149 32 C163 25 178 36 175 50 C188 53 190 69 179 76 L179 86 L86 86 Z"
+        fill="#F7F7F4" stroke="url(#gold)" stroke-width="4" filter="url(#shadow)"/>
+  <path d="M91 74 H175 V89 H91 Z" fill="url(#gold)" opacity=".96"/>
+  <path d="M112 56 L128 46 L144 56 L138 69 H118 Z" fill="none" stroke="#B7770C" stroke-width="3"/>
+  <path d="M128 48 L128 68 M116 55 L140 55" stroke="#B7770C" stroke-width="3"/>
+
+  <!-- Main C -->
+  <path d="M178 91
+           C160 77 132 70 105 79
+           C72 90 55 119 61 150
+           C67 183 95 204 128 205
+           C151 206 173 196 188 179
+           L166 160
+           C157 171 144 178 129 178
+           C107 178 90 163 88 142
+           C86 120 101 101 123 97
+           C142 94 158 102 168 115 Z"
+        fill="none" stroke="url(#gold)" stroke-width="20" stroke-linecap="round"
+        stroke-linejoin="round" filter="url(#shadow)"/>
+
+  <!-- Fork -->
+  <path d="M124 108 V165 M116 108 V127 M124 108 V127 M132 108 V127 M116 127 Q124 135 132 127"
+        fill="none" stroke="#FFF4C4" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Leaf -->
+  <path d="M105 145 C91 135 88 121 91 113 C105 116 114 126 113 140 C112 144 109 147 105 145 Z"
+        fill="url(#gold)" stroke="#F8D778" stroke-width="2"/>
+  <path d="M92 116 L108 141" stroke="#8D5A09" stroke-width="2"/>
+
+  <!-- Signature swoosh -->
+  <path d="M89 172 C112 151 144 151 171 132 C184 123 190 113 187 103"
+        fill="none" stroke="url(#gold)" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Small sparkle -->
+  <path d="M194 80 v18 M185 89 h18" stroke="#FFE79A" stroke-width="4" stroke-linecap="round"/>
+</svg>

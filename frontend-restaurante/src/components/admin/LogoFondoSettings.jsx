@@ -3,7 +3,7 @@ import { aplicarPersonalizacion, fondoLogin } from '../../personalizacion.js';
 import { toastAviso } from '../Toast.jsx';
 
 export default function LogoFondoSettings({ apiUrl }) {
-  const urlBase = apiUrl || 'http://localhost:3000';
+  const urlBase = apiUrl;
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [config, setConfig] = useState({
@@ -158,3 +158,4 @@ export default function LogoFondoSettings({ apiUrl }) {
     </div>
   );
 }
+

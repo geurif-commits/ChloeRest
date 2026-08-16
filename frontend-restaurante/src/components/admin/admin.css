@@ -183,6 +183,27 @@
   color: var(--admin-text-dim);
 }
 
+/* --- Botones de acción de solicitudes (coloridos) --- */
+.btn-solicitud {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  margin-right: 6px;
+  transition: transform 0.15s, filter 0.15s;
+  color: #000;
+}
+.btn-solicitud:hover { transform: translateY(-1px); filter: brightness(1.1); }
+.btn-solicitud.pagada { background: linear-gradient(135deg, #32d35b, #00b852); }
+.btn-solicitud.atender { background: linear-gradient(135deg, #00e5ff, #0088ff); }
+.btn-solicitud.rechazar { background: linear-gradient(135deg, #ff6b6b, #e53935); color: #fff; }
+.btn-solicitud.reabrir { background: linear-gradient(135deg, #ffb74d, #f57c00); }
+
 /* --- Ayuda de Formulario --- */
 .form-ayuda {
   display: block;
