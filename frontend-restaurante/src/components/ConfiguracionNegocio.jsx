@@ -15,7 +15,10 @@ function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
     duracion_meses: 0,
     logo_url: '',
     cobrar_itbis: true,
-    cobrar_propina: true
+    cobrar_propina: true,
+    mesa_color_disponible: '#00f576',
+    mesa_color_ocupada: '#ff4444',
+    mesa_color_reservada: '#d6a44d'
   });
   const [archivoLogo, setArchivoLogo] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -184,6 +187,9 @@ function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
     dataToSend.append('duracion_meses', formData.duracion_meses);
     dataToSend.append('cobrar_itbis', formData.cobrar_itbis);
     dataToSend.append('cobrar_propina', formData.cobrar_propina);
+    dataToSend.append('mesa_color_disponible', formData.mesa_color_disponible);
+    dataToSend.append('mesa_color_ocupada', formData.mesa_color_ocupada);
+    dataToSend.append('mesa_color_reservada', formData.mesa_color_reservada);
     
     if (archivoLogo) {
       dataToSend.append('logo_archivo', archivoLogo);
@@ -444,6 +450,31 @@ function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
               <label style={{fontSize: '0.75rem', color: '#9494ad', display: 'block', marginBottom: '4px'}}>Nombre para "Bar"</label>
               <input type="text" name="nombre_bar" value={formData.nombre_bar} onChange={handleChange} placeholder="Ej: Barra" style={{width: '100%', padding: '8px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px', fontSize: '0.85rem'}} />
             </div>
+          </div>
+        </div>
+
+        {/* COLORES DE MESAS */}
+        <div style={{background: '#0a0a0f', padding: '15px', borderRadius: '12px', border: '1px solid #2a2a38'}}>
+          <label style={{color: '#00b4d8', fontWeight: 'bold', display: 'block', marginBottom: '10px', fontSize: '0.9rem'}}>🪑 Colores de Mesas</label>
+          <div style={{display: 'flex', gap: '16px', flexWrap: 'wrap'}}>
+            {[
+              { key: 'mesa_color_disponible', label: 'Disponible', defaultColor: '#00f576' },
+              { key: 'mesa_color_ocupada', label: 'Ocupada', defaultColor: '#ff4444' },
+              { key: 'mesa_color_reservada', label: 'Reservada', defaultColor: '#d6a44d' },
+            ].map(({ key, label, defaultColor }) => (
+              <div key={key} style={{display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '150px'}}>
+                <input
+                  type="color"
+                  value={formData[key] || defaultColor}
+                  onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                  style={{width: '36px', height: '36px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: 'transparent'}}
+                />
+                <div>
+                  <span style={{color: '#fff', fontSize: '0.85rem', fontWeight: '600'}}>{label}</span>
+                  <span style={{color: '#9494ad', fontSize: '0.75rem', display: 'block'}}>{formData[key] || defaultColor}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

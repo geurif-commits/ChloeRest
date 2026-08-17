@@ -50,6 +50,7 @@ const esElectron = () => {
     (
       window.location.protocol === 'file:' ||
       !window.location.hostname ||
+      window.location.hostname === '127.0.0.1' ||
       (
         typeof navigator !== 'undefined' &&
         /electron/i.test(navigator.userAgent)

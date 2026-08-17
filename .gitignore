@@ -14,3 +14,4 @@ ServidorPOS.exe
 !.env.example
 node_modules/
 dist/
+test-login.json

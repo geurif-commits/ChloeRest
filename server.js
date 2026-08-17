@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,25 +11,25 @@ import { runMigrations } from './migrations.js';
 import { registrarAuditoria } from './audit.js';
 import { iniciarTelegramBot, notificarSolicitud, notificarPago } from './telegramBot.js';
 
-// â”€â”€ Exception handlers (PM2 reinicia en <2s si el proceso cae) â”€â”€
+// ── Exception handlers (PM2 reinicia en <2s si el proceso cae) ──
 process.on('uncaughtException', (err) => {
-  console.error('ðŸ’¥ uncaughtException:', err);
+  console.error('💥 uncaughtException:', err);
 });
 process.on('unhandledRejection', (reason) => {
-  console.error('ðŸ’¥ unhandledRejection:', reason);
+  console.error('💥 unhandledRejection:', reason);
 });
 
 // Graceful shutdown para PM2
 process.on('SIGTERM', () => {
-  console.log('ðŸ›‘ SIGTERM recibido, cerrando servidor...');
+  console.log('🛑 SIGTERM recibido, cerrando servidor...');
   process.exit(0);
 });
 process.on('SIGINT', () => {
-  console.log('ðŸ›‘ SIGINT recibido, cerrando servidor...');
+  console.log('🛑 SIGINT recibido, cerrando servidor...');
   process.exit(0);
 });
 
-const ROLES_OPERACION = ['Administrador', 'Cajero', 'Camarero', 'CapitÃ¡n de Camareros'];
+const ROLES_OPERACION = ['Administrador', 'Cajero', 'Camarero', 'Capitán de Camareros'];
 const ROLES_USUARIO = [...ROLES_OPERACION, 'Cocina', 'Bar'];
 const ROLES_CAJA = ['Administrador', 'Cajero'];
 const ROLES_ADMIN = ['Administrador'];
@@ -63,7 +63,7 @@ const uploadCsv = multer({
   },
 });
 
-// â”€â”€ ValidaciÃ³n de firma real de archivos de imagen (magic bytes) â”€â”€
+// ── Validación de firma real de archivos de imagen (magic bytes) ──
 function esImagenValida(ruta) {
   const fd = fs.openSync(ruta, 'r');
   try {
@@ -83,7 +83,7 @@ function esImagenValida(ruta) {
 function validarImagenSubida(req, _res, next) {
   if (req.file && !esImagenValida(req.file.path)) {
     try { fs.unlinkSync(req.file.path); } catch {}
-    const error = httpError(400, 'El archivo subido no es una imagen vÃ¡lida (JPG, PNG o WEBP).');
+    const error = httpError(400, 'El archivo subido no es una imagen válida (JPG, PNG o WEBP).');
     return next(error);
   }
   return next();
@@ -95,7 +95,7 @@ function validarImagenesSubidas(req, _res, next) {
   for (const archivo of archivos) {
     if (!esImagenValida(archivo.path)) {
       try { fs.unlinkSync(archivo.path); } catch {}
-      const error = httpError(400, 'El archivo subido no es una imagen vÃ¡lida (JPG, PNG o WEBP).');
+      const error = httpError(400, 'El archivo subido no es una imagen válida (JPG, PNG o WEBP).');
       return next(error);
     }
   }
@@ -214,7 +214,7 @@ function httpError(status, message) {
   return error;
 }
 
-// â”€â”€ Limitador de intentos de PIN (anti fuerza bruta) â”€â”€
+// ── Limitador de intentos de PIN (anti fuerza bruta) ──
 const loginLimiter = {
   intentos: new Map(),
   maxAttempts: config.login.maxAttempts,
@@ -244,7 +244,7 @@ function registrarIntentoFallido(ip) {
   if (record.count >= loginLimiter.maxAttempts) {
     record.bloqueadoHasta = now + loginLimiter.lockoutMs;
     record.count = 0;
-    console.warn(`âš ï¸ IP ${ip} bloqueada temporalmente tras ${loginLimiter.maxAttempts} intentos fallidos.`);
+    console.warn(`⚠️ IP ${ip} bloqueada temporalmente tras ${loginLimiter.maxAttempts} intentos fallidos.`);
   }
   loginLimiter.intentos.set(ip, record);
 }
@@ -255,7 +255,7 @@ function registrarIntentoExitoso(ip) {
 
 function positiveInteger(value, field) {
   const numeric = Number(value);
-  if (!Number.isInteger(numeric) || numeric <= 0) throw httpError(400, `${field} no es vÃ¡lido.`);
+  if (!Number.isInteger(numeric) || numeric <= 0) throw httpError(400, `${field} no es válido.`);
   return numeric;
 }
 
@@ -441,17 +441,17 @@ async function cobrarCuenta({ cuentaId, actor, body, req }) {
   const montoPago2 = Number(body.monto_pago_2 || 0);
   const bancoPago2 = body.banco_pago_2 || null;
   const tipoComprobante = ['B01', 'B02', 'e-CF'].includes(body.tipo_comprobante) ? body.tipo_comprobante : 'B02';
-  if (!allowedMethods.includes(metodoPago)) throw httpError(400, 'MÃ©todo de pago no vÃ¡lido.');
+  if (!allowedMethods.includes(metodoPago)) throw httpError(400, 'Método de pago no válido.');
   if (metodoPago === 'Tarjeta' && !/^\d{4}$/.test(String(body.tarjeta_ultimos_4 || ''))) {
-    throw httpError(400, 'Debes indicar los Ãºltimos cuatro dÃ­gitos de la tarjeta.');
+    throw httpError(400, 'Debes indicar los últimos cuatro dígitos de la tarjeta.');
   }
-  if (metodoPago2 && !allowedMethods.includes(metodoPago2)) throw httpError(400, 'MÃ©todo de pago 2 no vÃ¡lido.');
+  if (metodoPago2 && !allowedMethods.includes(metodoPago2)) throw httpError(400, 'Método de pago 2 no válido.');
   if (metodoPago2 === 'Transferencia' && montoPago2 <= 0) throw httpError(400, 'Indica el monto de la transferencia.');
-  if (metodoPago2 === metodoPago) throw httpError(400, 'No puedes repetir el mismo mÃ©todo de pago en pago mixto.');
+  if (metodoPago2 === metodoPago) throw httpError(400, 'No puedes repetir el mismo método de pago en pago mixto.');
 
   return transaction(async (client) => {
     const account = await client.query('SELECT * FROM cuentas WHERE id = $1 AND estado = $2 FOR UPDATE', [cuentaId, 'Abierta']);
-    if (!account.rowCount) throw httpError(404, 'La cuenta no estÃ¡ abierta o no existe.');
+    if (!account.rowCount) throw httpError(404, 'La cuenta no está abierta o no existe.');
 
     const totals = await calcularTotales(client, cuentaId);
     await descontarInventario(client, totals.detalles);
@@ -492,12 +492,12 @@ async function cobrarCuenta({ cuentaId, actor, body, req }) {
 app.get('/api/health', route(async (_req, res) => {
   try {
     await db.query('SELECT 1');
-    // Obtener Ãºltima migraciÃ³n aplicada
+    // Obtener última migración aplicada
     const migRes = await db.query("SELECT id FROM app_migrations ORDER BY ejecutada_en DESC LIMIT 1");
     const ultimaMig = migRes.rowCount ? migRes.rows[0].id : 'ninguna';
     res.json({ estado: 'ok', version: '2.0.0', baseDeDatos: 'conectada', migracion: ultimaMig });
   } catch (error) {
-    console.warn('âš ï¸ Health check con base de datos degradada:', error.message);
+    console.warn('⚠️ Health check con base de datos degradada:', error.message);
     res.json({ estado: 'ok', version: '2.0.0', baseDeDatos: 'degradada' });
   }
 }));
@@ -547,12 +547,12 @@ app.get('/api/licencia/verificar', route(async (_req, res) => {
   const result = await db.query('SELECT fecha_instalacion, duracion_meses, licencia_bloqueada FROM negocio_config ORDER BY id LIMIT 1');
   if (!result.rowCount) return res.json({ bloqueado: false, esNuevo: true });
   const negocio = result.rows[0];
-  if (negocio.licencia_bloqueada) return res.json({ bloqueado: true, motivo: 'La licencia se encuentra suspendida.', contacto: 'ComunÃ­cate con soporte tÃ©cnico.' });
+  if (negocio.licencia_bloqueada) return res.json({ bloqueado: true, motivo: 'La licencia se encuentra suspendida.', contacto: 'Comunícate con soporte técnico.' });
   if (negocio.duracion_meses === -1) return res.json({ bloqueado: false, tipo: 'Vitalicia' });
   const daysAllowed = negocio.duracion_meses > 0 ? negocio.duracion_meses * 30 : 7;
   const elapsedDays = (Date.now() - new Date(negocio.fecha_instalacion).getTime()) / 86400000;
   if (elapsedDays > daysAllowed) {
-    return res.json({ bloqueado: true, motivo: 'El perÃ­odo de licencia ha finalizado.', contacto: 'ComunÃ­cate con soporte tÃ©cnico.' });
+    return res.json({ bloqueado: true, motivo: 'El período de licencia ha finalizado.', contacto: 'Comunícate con soporte técnico.' });
   }
   return res.json({ bloqueado: false, diasRestantes: Math.ceil(daysAllowed - elapsedDays) });
 }));
@@ -1109,7 +1109,7 @@ app.post('/api/login/camarero', route(async (req, res) => {
   return res.json(session);
 }));
 
-// â”€â”€ PersonalizaciÃ³n del sistema (pÃºblico: se consume antes del login y en el wizard) â”€â”€
+// ── Personalización del sistema (público: se consume antes del login y en el wizard) ──
 app.get('/api/configuracion/sistema', route(async (_req, res) => {
   const result = await db.query('SELECT * FROM configuracion_sistema WHERE id = 1');
   const row = result.rows[0];
@@ -1184,7 +1184,7 @@ app.post('/api/setup/completar', uploadImagenesSistema, validarImagenesSubidas, 
   const nombre = String(req.body.nombre_negocio || '').trim() || null;
   const slogan = String(req.body.slogan || '').trim() || null;
 
-  // Primera ejecuciÃ³n: si no existe ningÃºn usuario activo, crear el administrador del cliente
+  // Primera ejecución: si no existe ningún usuario activo, crear el administrador del cliente
   const users = await db.query("SELECT COUNT(*)::int AS total FROM usuarios WHERE estado = 'Activo'");
   if (users.rows[0].total === 0) {
     const adminNombre = String(req.body.admin_nombre || 'Administrador Sistema').trim();
@@ -1202,7 +1202,7 @@ app.post('/api/setup/completar', uploadImagenesSistema, validarImagenesSubidas, 
   if (fondo) await db.query('UPDATE configuracion_sistema SET fondo_login_url = $1 WHERE id = 1', [fondo]);
   if (logo) await db.query('UPDATE configuracion_sistema SET logo_url = $1 WHERE id = 1', [logo]);
 
-  res.json({ mensaje: 'PersonalizaciÃ³n completada correctamente.', setup_completado: true });
+  res.json({ mensaje: 'Personalización completada correctamente.', setup_completado: true });
 }));
 
 // ── SSE: Endpoints PÚBLICOS (antes de authenticate; EventSource no soporta headers) ──
@@ -1287,10 +1287,10 @@ app.put('/api/configuracion/sistema', requireRoles(...ROLES_ADMIN), uploadImagen
     [nombre, slogan, tema, primario, secundario, Number.isFinite(opacidad) ? opacidad : Number(row.opacidad_fondo || 1), fondo, logo, estiloLogin]
   );
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ACTUALIZAR_PERSONALIZACION', entidad: 'configuracion_sistema', ip: clientIp(req) });
-  res.json({ mensaje: 'PersonalizaciÃ³n del sistema actualizada.' });
+  res.json({ mensaje: 'Personalización del sistema actualizada.' });
 }));
 
-// â”€â”€ Endpoints de Divisas â”€â”€
+// ── Endpoints de Divisas ──
 app.get('/api/divisas', route(async (_req, res) => {
   const result = await db.query('SELECT tasa_usd, tasa_eur FROM negocio_config ORDER BY id LIMIT 1');
   const row = result.rows[0] || {};
@@ -1303,8 +1303,8 @@ app.get('/api/divisas', route(async (_req, res) => {
 app.post('/api/divisas', requireRoles('Administrador', 'Cajero'), route(async (req, res) => {
   const tasaUsd = Number(req.body.tasa_usd);
   const tasaEur = Number(req.body.tasa_eur);
-  if (!Number.isFinite(tasaUsd) || tasaUsd <= 0) throw httpError(400, 'Tasa USD no vÃ¡lida (debe ser mayor a 0).');
-  if (!Number.isFinite(tasaEur) || tasaEur <= 0) throw httpError(400, 'Tasa EUR no vÃ¡lida (debe ser mayor a 0).');
+  if (!Number.isFinite(tasaUsd) || tasaUsd <= 0) throw httpError(400, 'Tasa USD no válida (debe ser mayor a 0).');
+  if (!Number.isFinite(tasaEur) || tasaEur <= 0) throw httpError(400, 'Tasa EUR no válida (debe ser mayor a 0).');
 
   const current = await db.query('SELECT id FROM negocio_config ORDER BY id LIMIT 1');
   if (current.rowCount > 0) {
@@ -1363,6 +1363,9 @@ app.post('/api/negocio/config', requireRoles(...ROLES_ADMIN), upload.single('log
   const duration = Number(body.duracion_meses || 0);
   const unblock = (duration > 0 || duration === -1);
   const values = [body.nombre_comercial?.trim(), body.razon_social?.trim(), body.rnc?.trim(), body.telefono?.trim(), body.direccion?.trim(), body.provincia?.trim(), body.regimen_fiscal?.trim(), body.nombre_cocina?.trim() || 'Cocina', body.nombre_bar?.trim() || 'Bar', duration, logo, body.cobrar_itbis === 'true' || body.cobrar_itbis === true, body.cobrar_propina === 'true' || body.cobrar_propina === true];
+  const mesaDisp = body.mesa_color_disponible?.trim() || '#00f576';
+  const mesaOcup = body.mesa_color_ocupada?.trim() || '#ff4444';
+  const mesaRes = body.mesa_color_reservada?.trim() || '#d6a44d';
   if (values.slice(0, 5).some((value) => !value)) throw httpError(400, 'Completa los datos obligatorios del negocio.');
   const current = await db.query('SELECT id, logo_url FROM negocio_config ORDER BY id LIMIT 1');
   if (current.rowCount) {
@@ -1371,21 +1374,22 @@ app.post('/api/negocio/config', requireRoles(...ROLES_ADMIN), upload.single('log
       `UPDATE negocio_config 
        SET nombre_comercial=$1, razon_social=$2, rnc=$3, telefono=$4, direccion=$5, provincia=$6, 
            regimen_fiscal=$7, nombre_cocina=$8, nombre_bar=$9, duracion_meses=$10, logo_url=$11, 
-           cobrar_itbis=$12, cobrar_propina=$13
+           cobrar_itbis=$12, cobrar_propina=$13,
+           mesa_color_disponible=$15, mesa_color_ocupada=$16, mesa_color_reservada=$17
            ${unblock ? ', licencia_bloqueada = FALSE, fecha_instalacion = CURRENT_TIMESTAMP' : ''} 
        WHERE id=$14`,
-      [...values, current.rows[0].id]
+      [...values, current.rows[0].id, mesaDisp, mesaOcup, mesaRes]
     );
   } else {
     await db.query(
       `INSERT INTO negocio_config 
-       (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis, cobrar_propina, licencia_bloqueada, fecha_instalacion) 
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Activa',$12,$13, FALSE, CURRENT_TIMESTAMP)`,
-      values
+       (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis, cobrar_propina, licencia_bloqueada, fecha_instalacion, mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Activa',$12,$13, FALSE, CURRENT_TIMESTAMP,$15,$16,$17)`,
+      [...values, mesaDisp, mesaOcup, mesaRes]
     );
   }
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ACTUALIZAR_NEGOCIO', entidad: 'negocio_config', ip: clientIp(req) });
-  res.json({ mensaje: 'ConfiguraciÃ³n de negocio y licencia actualizada.', bloqueado: !unblock });
+  res.json({ mensaje: 'Configuración de negocio y licencia actualizada.', bloqueado: !unblock });
 }));
 
 // ──── CRUD Cuentas Bancarias ────
@@ -1397,7 +1401,7 @@ app.get('/api/cuentas-bancarias', requireRoles(...ROLES_CAJA), route(async (_req
 app.post('/api/cuentas-bancarias', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
   const { nombre_banco, tipo_cuenta, numero_cuenta, titular } = req.body;
   if (!nombre_banco?.trim() || !numero_cuenta?.trim() || !titular?.trim()) {
-    throw httpError(400, 'Banco, nÃºmero de cuenta y titular son obligatorios.');
+    throw httpError(400, 'Banco, número de cuenta y titular son obligatorios.');
   }
   const result = await db.query(
     `INSERT INTO cuentas_bancarias (nombre_banco, tipo_cuenta, numero_cuenta, titular)
@@ -1432,7 +1436,7 @@ app.delete('/api/cuentas-bancarias/:id', requireRoles(...ROLES_ADMIN), route(asy
 
 app.get('/api/mesas', route(async (req, res) => {
   // Aislamiento por camarero: solo ve sus mesas ocupadas + las disponibles.
-  // Supervisores (Admin, Cajero, CapitÃ¡n de Camareros) ven el mapa completo.
+  // Supervisores (Admin, Cajero, Capitán de Camareros) ven el mapa completo.
   if (req.user.rol === 'Camarero') {
     const result = await db.query(
       `SELECT m.*, u.nombre AS camarero FROM mesas m LEFT JOIN usuarios u ON u.id = m.camarero_id
@@ -1447,7 +1451,7 @@ app.get('/api/mesas', route(async (req, res) => {
 
 app.post('/api/mesas/generar', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
   const quantity = positiveInteger(req.body.cantidad, 'Cantidad');
-  if (quantity > 100) throw httpError(400, 'No se pueden crear mÃ¡s de 100 mesas a la vez.');
+  if (quantity > 100) throw httpError(400, 'No se pueden crear más de 100 mesas a la vez.');
   await transaction(async (client) => {
     const current = await client.query("SELECT COALESCE(MAX(NULLIF(regexp_replace(nombre_numero, '\\D', '', 'g'), '')::int), 0) AS total FROM mesas");
     const startingAt = Number(current.rows[0].total);
@@ -1473,7 +1477,7 @@ app.put('/api/mesas/:id', requireRoles(...ROLES_ADMIN), route(async (req, res) =
 app.delete('/api/mesas/:id', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
   const id = positiveInteger(req.params.id, 'Mesa');
   const result = await db.query("DELETE FROM mesas WHERE id = $1 AND estado <> 'Ocupada'", [id]);
-  if (!result.rowCount) throw httpError(409, 'La mesa no existe o estÃ¡ ocupada.');
+  if (!result.rowCount) throw httpError(409, 'La mesa no existe o está ocupada.');
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ELIMINAR_MESA', entidad: 'mesas', entidadId: id, ip: clientIp(req) });
   notificarMesas('mesa_actualizada');
   res.json({ mensaje: 'Mesa eliminada.' });
@@ -1484,7 +1488,7 @@ app.post('/api/mesas/:id/abrir', requireRoles(...ROLES_OPERACION), route(async (
   await transaction(async (client) => {
     const table = await client.query('SELECT id, estado FROM mesas WHERE id = $1 FOR UPDATE', [mesaId]);
     if (!table.rowCount) throw httpError(404, 'Mesa no encontrada.');
-    if (table.rows[0].estado === 'Ocupada') throw httpError(409, 'La mesa ya estÃ¡ ocupada.');
+    if (table.rows[0].estado === 'Ocupada') throw httpError(409, 'La mesa ya está ocupada.');
     const enPreparacion = await client.query(
       `SELECT 1 FROM cuenta_detalles cd
        JOIN cuentas c ON c.id = cd.cuenta_id
@@ -1495,7 +1499,7 @@ app.post('/api/mesas/:id/abrir', requireRoles(...ROLES_OPERACION), route(async (
       [mesaId]
     );
     if (!enPreparacion.rowCount) {
-      throw httpError(409, "La mesa no puede pasar a 'Ocupada': debe tener al menos una comanda enviada a Cocina/Bar en preparaciÃ³n.");
+      throw httpError(409, "La mesa no puede pasar a 'Ocupada': debe tener al menos una comanda enviada a Cocina/Bar en preparación.");
     }
     const existing = await cuentaAbiertaParaMesa(client, mesaId, true);
     if (existing) throw httpError(409, 'La mesa ya tiene una cuenta abierta.');
@@ -1515,7 +1519,7 @@ app.post('/api/mesas/trasladar', requireRoles(...ROLES_OPERACION), route(async (
     const tables = await client.query('SELECT id, estado FROM mesas WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE', [ids]);
     if (tables.rowCount !== 2) throw httpError(404, 'Una de las mesas no existe.');
     const destination = tables.rows.find((table) => table.id === destinationId);
-    if (destination.estado !== 'Disponible') throw httpError(409, 'La mesa de destino no estÃ¡ disponible.');
+    if (destination.estado !== 'Disponible') throw httpError(409, 'La mesa de destino no está disponible.');
     const account = await cuentaAbiertaParaMesa(client, originId, true);
     if (!account) throw httpError(409, 'La mesa de origen no tiene una cuenta abierta.');
     if (req.user.rol === 'Camarero' && account.camarero_id !== req.user.id) throw httpError(403, 'Solo puedes trasladar tus propias mesas.');
@@ -1532,7 +1536,7 @@ app.get('/api/mesas/:id/cuenta', route(async (req, res) => {
   const mesaId = positiveInteger(req.params.id, 'Mesa');
   const account = await cuentaAbiertaParaMesa(db, mesaId);
   if (!account) return res.json([]);
-  if (req.user.rol === 'Camarero' && account.camarero_id !== req.user.id) throw httpError(403, 'Solo el camarero que abriÃ³ la mesa puede ver esta cuenta.');
+  if (req.user.rol === 'Camarero' && account.camarero_id !== req.user.id) throw httpError(403, 'Solo el camarero que abrió la mesa puede ver esta cuenta.');
   const details = await db.query(`SELECT cd.id, cd.cantidad, cd.precio_unitario AS precio, p.nombre FROM cuenta_detalles cd JOIN productos p ON p.id = cd.producto_id WHERE cd.cuenta_id = $1 AND cd.anulado_en IS NULL ORDER BY cd.id`, [account.id]);
   return res.json(details.rows);
 }));
@@ -1543,7 +1547,7 @@ app.post('/api/mesas/:id/acceder', requireRoles('Camarero'), route(async (req, r
   assertValidPin(req.body.pin);
   const mesa = await db.query('SELECT id, estado FROM mesas WHERE id = $1', [mesaId]);
   if (!mesa.rowCount) throw httpError(404, 'Mesa no encontrada.');
-  if (mesa.rows[0].estado !== 'Ocupada') throw httpError(409, 'La mesa no estÃ¡ ocupada.');
+  if (mesa.rows[0].estado !== 'Ocupada') throw httpError(409, 'La mesa no está ocupada.');
   const account = await cuentaAbiertaParaMesa(db, mesaId);
   if (!account) throw httpError(409, 'La mesa no tiene una cuenta abierta.');
   const propietario = await db.query('SELECT nombre FROM usuarios WHERE id = $1', [account.camarero_id]);
@@ -1562,12 +1566,12 @@ app.post('/api/mesas/:id/acceder', requireRoles('Camarero'), route(async (req, r
 app.post(['/api/mesas/:id/pedido', '/api/mesas/:id/pedidos'], requireRoles(...ROLES_OPERACION), route(async (req, res) => {
   const mesaId = positiveInteger(req.params.id, 'Mesa');
   const order = Array.isArray(req.body.comanda) ? req.body.comanda : (Array.isArray(req.body.productos) ? req.body.productos : []);
-  if (!order.length || order.length > 50) throw httpError(400, 'La comanda no es vÃ¡lida o estÃ¡ vacÃ­a.');
+  if (!order.length || order.length > 50) throw httpError(400, 'La comanda no es válida o está vacía.');
   const requested = new Map();
   for (const item of order) {
     const productId = positiveInteger(item.id || item.producto_id, 'Producto');
     const quantity = positiveInteger(item.cantidad, 'Cantidad');
-    if (quantity > 100) throw httpError(400, 'La cantidad mÃ¡xima por producto es 100.');
+    if (quantity > 100) throw httpError(400, 'La cantidad máxima por producto es 100.');
     requested.set(productId, (requested.get(productId) || 0) + quantity);
   }
   await transaction(async (client) => {
@@ -1580,10 +1584,10 @@ app.post(['/api/mesas/:id/pedido', '/api/mesas/:id/pedidos'], requireRoles(...RO
       await client.query("UPDATE mesas SET estado = 'Ocupada', camarero_id = $1 WHERE id = $2", [req.user.id, mesaId]);
       account = newAcc.rows[0];
     } else if (req.user.rol === 'Camarero' && account.camarero_id !== req.user.id) {
-      throw httpError(403, 'Solo el camarero que abriÃ³ la mesa puede tomar pedidos de esta cuenta.');
+      throw httpError(403, 'Solo el camarero que abrió la mesa puede tomar pedidos de esta cuenta.');
     }
     const products = await client.query("SELECT id, precio FROM productos WHERE estado = 'Activo' AND id = ANY($1::int[])", [[...requested.keys()]]);
-    if (products.rowCount !== requested.size) throw httpError(400, 'Uno o mÃ¡s productos ya no estÃ¡n disponibles.');
+    if (products.rowCount !== requested.size) throw httpError(400, 'Uno o más productos ya no están disponibles.');
     for (const product of products.rows) await client.query('INSERT INTO cuenta_detalles (cuenta_id, producto_id, cantidad, precio_unitario) VALUES ($1, $2, $3, $4)', [account.id, product.id, requested.get(product.id), product.precio]);
     await registrarAuditoria(client, { usuarioId: req.user.id, accion: 'AGREGAR_PEDIDO', entidad: 'cuentas', entidadId: account.id, detalle: { items: [...requested] }, ip: clientIp(req) });
   });
@@ -1597,7 +1601,7 @@ app.post(['/api/mesas/:id/cobrar', '/api/mesas/:id/cerrar', '/api/cuentas/:id/co
     "SELECT id FROM cuentas WHERE (id = $1 OR (mesa_id = $1 AND estado = 'Abierta')) ORDER BY (estado = 'Abierta') DESC, id DESC LIMIT 1",
     [targetId]
   );
-  if (!result.rowCount) throw httpError(404, 'No se encontrÃ³ una cuenta abierta para esta mesa.');
+  if (!result.rowCount) throw httpError(404, 'No se encontró una cuenta abierta para esta mesa.');
   const receipt = await cobrarCuenta({ cuentaId: result.rows[0].id, actor: req.user, body: req.body, req });
   res.json({ mensaje: 'Pago procesado e inventario actualizado.', ncf: receipt.comprobante, comprobante: receipt.comprobante, totales: receipt });
 }));
@@ -1607,11 +1611,11 @@ app.post('/api/autorizar', requireRoles(...ROLES_OPERACION), route(async (req, r
   verificarRateLimit(ip);
   const detailId = positiveInteger(req.body.detalle_id, 'Detalle');
   assertValidPin(req.body.pin);
-  const result = await db.query("SELECT id, nombre, rol, pin_hash FROM usuarios WHERE estado = 'Activo' AND rol IN ('Administrador', 'CapitÃ¡n de Camareros') AND pin_hash IS NOT NULL");
+  const result = await db.query("SELECT id, nombre, rol, pin_hash FROM usuarios WHERE estado = 'Activo' AND rol IN ('Administrador', 'Capitán de Camareros') AND pin_hash IS NOT NULL");
   const supervisor = result.rows.find((user) => verifyPin(req.body.pin, user.pin_hash));
   if (!supervisor) {
     registrarIntentoFallido(ip);
-    return res.status(401).json({ error: 'PIN invÃ¡lido o sin permisos de supervisor.' });
+    return res.status(401).json({ error: 'PIN inválido o sin permisos de supervisor.' });
   }
   registrarIntentoExitoso(ip);
   const token = signSupervisorAuthorization({ supervisorId: supervisor.id, action: 'ANULAR_DETALLE', detailId });
@@ -1622,12 +1626,12 @@ app.post('/api/autorizar', requireRoles(...ROLES_OPERACION), route(async (req, r
 app.delete('/api/cuenta_detalles/:id', requireRoles(...ROLES_OPERACION), route(async (req, res) => {
   const detailId = positiveInteger(req.params.id, 'Detalle');
   const authorization = verifySupervisorAuthorization(req.get('X-Supervisor-Authorization'), { action: 'ANULAR_DETALLE', detailId });
-  if (!authorization) throw httpError(403, 'Se requiere una autorizaciÃ³n vigente de supervisor.');
+  if (!authorization) throw httpError(403, 'Se requiere una autorización vigente de supervisor.');
   await transaction(async (client) => {
     const detail = await client.query(`SELECT cd.id, cd.cuenta_id, c.estado FROM cuenta_detalles cd JOIN cuentas c ON c.id = cd.cuenta_id WHERE cd.id = $1 AND cd.anulado_en IS NULL FOR UPDATE`, [detailId]);
     if (!detail.rowCount) throw httpError(404, 'El detalle no existe o ya fue anulado.');
     if (detail.rows[0].estado !== 'Abierta') throw httpError(409, 'No se pueden anular productos de una cuenta cerrada.');
-    await client.query('UPDATE cuenta_detalles SET anulado_en = CURRENT_TIMESTAMP, anulado_por = $1, motivo_anulacion = $2 WHERE id = $3', [authorization.supervisorId, String(req.body?.motivo || 'AnulaciÃ³n autorizada'), detailId]);
+    await client.query('UPDATE cuenta_detalles SET anulado_en = CURRENT_TIMESTAMP, anulado_por = $1, motivo_anulacion = $2 WHERE id = $3', [authorization.supervisorId, String(req.body?.motivo || 'Anulación autorizada'), detailId]);
     await registrarAuditoria(client, { usuarioId: req.user.id, accion: 'ANULAR_DETALLE', entidad: 'cuenta_detalles', entidadId: detailId, detalle: { supervisorId: authorization.supervisorId }, ip: clientIp(req) });
   });
   res.json({ mensaje: 'Producto anulado correctamente.' });
@@ -1641,7 +1645,7 @@ app.get('/api/productos', route(async (_req, res) => {
 app.post('/api/productos', requireRoles(...ROLES_ADMIN), upload.single('imagen_archivo'), validarImagenSubida, route(async (req, res) => {
   const name = String(req.body.nombre || '').trim();
   const price = money(req.body.precio);
-  if (!name || !Number.isFinite(price) || price < 0) throw httpError(400, 'Nombre y precio vÃ¡lido son obligatorios.');
+  if (!name || !Number.isFinite(price) || price < 0) throw httpError(400, 'Nombre y precio válido son obligatorios.');
   const image = req.file ? uploadUrl(req, req.file) : String(req.body.imagen_url || '').trim() || null;
   const result = await db.query("INSERT INTO productos (nombre, precio, imagen_url, categoria, estado) VALUES ($1, $2, $3, $4, 'Activo') RETURNING id", [name, price, image, String(req.body.categoria || 'Cocina')]);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CREAR_PRODUCTO', entidad: 'productos', entidadId: result.rows[0].id, ip: clientIp(req) });
@@ -1654,7 +1658,7 @@ app.post('/api/productos/importar', requireRoles(...ROLES_ADMIN), uploadCsv.sing
   fs.unlinkSync(req.file.path);
 
   const lines = csvContent.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
-  if (lines.length < 2) throw httpError(400, 'El archivo CSV estÃ¡ vacÃ­o o no contiene datos.');
+  if (lines.length < 2) throw httpError(400, 'El archivo CSV está vacío o no contiene datos.');
 
   const header = parseCsvLine(lines[0]).map((value) => value.toLowerCase());
   const expected = ['nombre', 'precio', 'categoria', 'imagen_url'];
@@ -1673,14 +1677,14 @@ app.post('/api/productos/importar', requireRoles(...ROLES_ADMIN), uploadCsv.sing
     const categoria = String(row[indexes.categoria] || 'Cocina').trim() || 'Cocina';
     const imagen_url = String(row[indexes.imagen_url] || '').trim() || null;
     if (!nombre || !Number.isFinite(precio) || precio < 0) {
-      invalidRows.push({ linea: rowIndex + 1, datos: row, error: 'Nombre o precio invÃ¡lido.' });
+      invalidRows.push({ linea: rowIndex + 1, datos: row, error: 'Nombre o precio inválido.' });
       continue;
     }
     insertable.push([nombre, precio, imagen_url, categoria]);
   }
 
   if (!insertable.length) {
-    return res.status(400).json({ error: 'No se encontraron filas vÃ¡lidas para importar.', invalidRows });
+    return res.status(400).json({ error: 'No se encontraron filas válidas para importar.', invalidRows });
   }
 
   const queryText = 'INSERT INTO productos (nombre, precio, imagen_url, categoria, estado) VALUES ' + insertable.map((_, idx) => `($${idx * 4 + 1}, $${idx * 4 + 2}, $${idx * 4 + 3}, $${idx * 4 + 4}, \'Activo\')`).join(', ');
@@ -1688,14 +1692,14 @@ app.post('/api/productos/importar', requireRoles(...ROLES_ADMIN), uploadCsv.sing
   await db.query(queryText, queryParams);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'IMPORTAR_PRODUCTOS', entidad: 'productos', detalle: { insertados: insertable.length, invalidRows: invalidRows.length }, ip: clientIp(req) });
 
-  res.json({ mensaje: 'ImportaciÃ³n completada.', insertados: insertable.length, invalidRows });
+  res.json({ mensaje: 'Importación completada.', insertados: insertable.length, invalidRows });
 }));
 
 app.put('/api/productos/:id', requireRoles(...ROLES_ADMIN), upload.single('imagen_archivo'), validarImagenSubida, route(async (req, res) => {
   const id = positiveInteger(req.params.id, 'Producto');
   const name = String(req.body.nombre || '').trim();
   const price = money(req.body.precio);
-  if (!name || !Number.isFinite(price) || price < 0) throw httpError(400, 'Nombre y precio vÃ¡lido son obligatorios.');
+  if (!name || !Number.isFinite(price) || price < 0) throw httpError(400, 'Nombre y precio válido son obligatorios.');
   const values = [name, price, String(req.body.categoria || 'Cocina'), id];
   let sql = 'UPDATE productos SET nombre = $1, precio = $2, categoria = $3';
   if (req.file) { values.splice(3, 0, uploadUrl(req, req.file)); sql += ', imagen_url = $4 WHERE id = $5'; } else if (String(req.body.imagen_url || '').trim()) { values.splice(3, 0, String(req.body.imagen_url).trim()); sql += ', imagen_url = $4 WHERE id = $5'; } else sql += ' WHERE id = $4';
@@ -1710,7 +1714,7 @@ app.delete('/api/productos/:id', requireRoles(...ROLES_ADMIN), route(async (req,
   const result = await db.query("UPDATE productos SET estado = 'Inactivo' WHERE id = $1 AND estado = 'Activo'", [id]);
   if (!result.rowCount) throw httpError(404, 'Producto no encontrado.');
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'DESACTIVAR_PRODUCTO', entidad: 'productos', entidadId: id, ip: clientIp(req) });
-  res.json({ mensaje: 'Producto eliminado del menÃº.' });
+  res.json({ mensaje: 'Producto eliminado del menú.' });
 }));
 
 app.get('/api/menu-configuracion', requireRoles(...ROLES_OPERACION), route(async (_req, res) => {
@@ -1765,7 +1769,7 @@ app.get('/api/usuarios', requireRoles(...ROLES_ADMIN), route(async (_req, res) =
 app.post('/api/usuarios', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
   const name = String(req.body.nombre || '').trim();
   const role = String(req.body.rol || 'Camarero');
-  if (!name || !ROLES_USUARIO.includes(role)) throw httpError(400, 'Usuario o rol no vÃ¡lido.');
+  if (!name || !ROLES_USUARIO.includes(role)) throw httpError(400, 'Usuario o rol no válido.');
   assertValidPin(req.body.pin);
   const result = await db.query("INSERT INTO usuarios (nombre, rol, pin, pin_hash, estado) VALUES ($1, $2, NULL, $3, 'Activo') RETURNING id", [name, role, hashPin(req.body.pin)]);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CREAR_USUARIO', entidad: 'usuarios', entidadId: result.rows[0].id, detalle: { role }, ip: clientIp(req) });
@@ -1776,7 +1780,7 @@ app.put('/api/usuarios/:id', requireRoles(...ROLES_ADMIN), route(async (req, res
   const id = positiveInteger(req.params.id, 'Usuario');
   const name = String(req.body.nombre || '').trim();
   const role = String(req.body.rol || 'Camarero');
-  if (!name || !ROLES_USUARIO.includes(role)) throw httpError(400, 'Usuario o rol no vÃ¡lido.');
+  if (!name || !ROLES_USUARIO.includes(role)) throw httpError(400, 'Usuario o rol no válido.');
   if (id === req.user.id && role !== 'Administrador') throw httpError(400, 'No puedes quitarte tu propio rol de administrador.');
   const params = [name, role, id];
   let sql = 'UPDATE usuarios SET nombre = $1, rol = $2';
@@ -1841,16 +1845,16 @@ app.get('/api/reportes/facturas/filtro', requireRoles(...ROLES_ADMIN), route(asy
   const parametros = [];
   const esFechaValida = (f) => typeof f === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(f) && !Number.isNaN(Date.parse(f));
   if (desde) {
-    if (!esFechaValida(desde)) throw httpError(400, 'La fecha inicial (desde) no es vÃ¡lida.');
+    if (!esFechaValida(desde)) throw httpError(400, 'La fecha inicial (desde) no es válida.');
     parametros.push(desde); condiciones.push(`c.fecha_cierre::date >= $${parametros.length}::date`);
   }
   if (hasta) {
-    if (!esFechaValida(hasta)) throw httpError(400, 'La fecha final (hasta) no es vÃ¡lida.');
+    if (!esFechaValida(hasta)) throw httpError(400, 'La fecha final (hasta) no es válida.');
     parametros.push(hasta); condiciones.push(`c.fecha_cierre::date <= $${parametros.length}::date`);
   }
   const metodosValidos = ['Efectivo', 'Tarjeta', 'Transferencia'];
   if (metodo_pago && metodo_pago !== 'Todos') {
-    if (!metodosValidos.includes(metodo_pago)) throw httpError(400, 'MÃ©todo de pago no vÃ¡lido.');
+    if (!metodosValidos.includes(metodo_pago)) throw httpError(400, 'Método de pago no válido.');
     parametros.push(metodo_pago); condiciones.push(`c.metodo_pago = $${parametros.length}`);
   }
   const where = `WHERE ${condiciones.join(' AND ')}`;
@@ -1905,7 +1909,7 @@ app.get('/api/caja/estado', requireRoles(...ROLES_CAJA), route(async (_req, res)
 
 app.post('/api/caja/apertura', requireRoles(...ROLES_CAJA), route(async (req, res) => {
   const initialAmount = money(req.body.monto_inicial);
-  if (!Number.isFinite(initialAmount) || initialAmount < 0) throw httpError(400, 'El monto inicial de apertura debe ser un nÃºmero mayor o igual a 0.');
+  if (!Number.isFinite(initialAmount) || initialAmount < 0) throw httpError(400, 'El monto inicial de apertura debe ser un número mayor o igual a 0.');
   const notes = String(req.body.notas || '').trim();
   await db.query("UPDATE aperturas_caja SET estado = 'Cerrada' WHERE fecha::date = CURRENT_DATE");
   const result = await db.query(
@@ -1991,7 +1995,7 @@ app.get('/api/dgii/config', requireRoles(...ROLES_ADMIN), route(async (_req, res
     client_id: '',
     client_secret: '',
     clave_certificado: '',
-    estado_ecf: 'Pendiente de CertificaciÃ³n'
+    estado_ecf: 'Pendiente de Certificación'
   });
 }));
 
@@ -2004,18 +2008,18 @@ app.post('/api/dgii/config', requireRoles(...ROLES_ADMIN), route(async (req, res
        SET rnc_emisor=$1, razon_social_emisor=$2, ambiente=$3, url_servicio_dgii=$4, 
            client_id=$5, client_secret=$6, clave_certificado=$7, estado_ecf=$8, actualizado_en=CURRENT_TIMESTAMP 
        WHERE id=$9`,
-      [rnc_emisor, razon_social_emisor, ambiente || 'Pruebas', url_servicio_dgii, client_id, client_secret, clave_certificado, estado_ecf || 'Pendiente de CertificaciÃ³n', current.rows[0].id]
+      [rnc_emisor, razon_social_emisor, ambiente || 'Pruebas', url_servicio_dgii, client_id, client_secret, clave_certificado, estado_ecf || 'Pendiente de Certificación', current.rows[0].id]
     );
   } else {
     await db.query(
       `INSERT INTO dgii_config 
        (rnc_emisor, razon_social_emisor, ambiente, url_servicio_dgii, client_id, client_secret, clave_certificado, estado_ecf) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [rnc_emisor, razon_social_emisor, ambiente || 'Pruebas', url_servicio_dgii, client_id, client_secret, clave_certificado, estado_ecf || 'Pendiente de CertificaciÃ³n']
+      [rnc_emisor, razon_social_emisor, ambiente || 'Pruebas', url_servicio_dgii, client_id, client_secret, clave_certificado, estado_ecf || 'Pendiente de Certificación']
     );
   }
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'ACTUALIZAR_DGII_ECF', entidad: 'dgii_config', ip: clientIp(req) });
-  res.json({ mensaje: 'ConfiguraciÃ³n de FacturaciÃ³n ElectrÃ³nica e-CF (DGII) guardada correctamente.' });
+  res.json({ mensaje: 'Configuración de Facturación Electrónica e-CF (DGII) guardada correctamente.' });
 }));
 
 app.post('/api/caja/arqueo', requireRoles(...ROLES_CAJA), route(async (req, res) => {
@@ -2076,10 +2080,10 @@ app.get('/api/inventario', requireRoles(...ROLES_ADMIN), route(async (_req, res)
 app.post('/api/inventario', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
   const name = String(req.body.nombre || '').trim();
   const stock = money(req.body.stock_actual || 0);
-  if (!name || !Number.isFinite(stock) || stock < 0) throw httpError(400, 'Nombre y stock vÃ¡lido son obligatorios.');
+  if (!name || !Number.isFinite(stock) || stock < 0) throw httpError(400, 'Nombre y stock válido son obligatorios.');
   const result = await db.query("INSERT INTO ingredientes (numero_articulo, nombre, categoria, stock_actual, unidad_medida) VALUES (CONCAT('ART-', LPAD(nextval(pg_get_serial_sequence('ingredientes','id'))::text, 4, '0')), $1, $2, $3, $4) RETURNING numero_articulo, id", [name, String(req.body.categoria || 'General'), stock, String(req.body.unidad_medida || 'Unidades')]);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CREAR_INSUMO', entidad: 'ingredientes', entidadId: result.rows[0].id, ip: clientIp(req) });
-  res.status(201).json({ mensaje: 'Ãtem de inventario registrado.', numero_articulo: result.rows[0].numero_articulo });
+  res.status(201).json({ mensaje: 'Ítem de inventario registrado.', numero_articulo: result.rows[0].numero_articulo });
 }));
 
 app.post('/api/pedidos/llevar', requireRoles(...ROLES_OPERACION), route(async (req, res) => {
@@ -2224,11 +2228,11 @@ app.get('/api/inventario/movimientos', requireRoles(...ROLES_ADMIN), route(async
   res.json(result.rows);
 }));
 
-// â”€â”€ Servir Frontend compilado (dist/) en producciÃ³n â”€â”€
-// Orden de resoluciÃ³n:
+// ── Servir Frontend compilado (dist/) en producción ──
+// Orden de resolución:
 //  1) <appRoot>/frontend-restaurante/dist  (dev / proyecto completo)
 //  2) <exe>/dist                           (exe junto a una carpeta dist)
-//  3) /snapshot/frontend-restaurante/dist  (dist embebido dentro del exe por pkg â†’ autocontenido)
+//  3) /snapshot/frontend-restaurante/dist  (dist embebido dentro del exe por pkg → autocontenido)
 let frontendDist = path.resolve(config.appRoot, 'frontend-restaurante', 'dist');
 if (!fs.existsSync(frontendDist)) {
   frontendDist = path.resolve(config.appRoot, 'dist');
@@ -2256,7 +2260,7 @@ if (fs.existsSync(frontendDist)) {
 
   // Catch-all: cualquier ruta no-API devuelve index.html (SPA routing)
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads') || req.path.startsWith('/assets/')) {
       return next();
     }
 
@@ -2311,7 +2315,7 @@ function liberarPuertoProcesoPrevio(port) {
         if (pid && pid !== process.pid && esProcesoDelPos(pid)) {
           try {
             process.kill(pid, 'SIGKILL');
-            console.log(`âš¡ Liberado proceso anterior del POS (PID ${pid}) que ocupaba el puerto ${port}.`);
+            console.log(`⚡ Liberado proceso anterior del POS (PID ${pid}) que ocupaba el puerto ${port}.`);
           } catch (e) {}
         }
       }
@@ -2347,10 +2351,10 @@ const inicializarAplicacion = async () => {
   try {
     await runMigrations(db);
     if (!config.hasPersistentSessionSecret) {
-      console.warn('APP_SESSION_SECRET no estÃ¡ configurado: las sesiones se invalidarÃ¡n al reiniciar el servidor.');
+      console.warn('APP_SESSION_SECRET no está configurado: las sesiones se invalidarán al reiniciar el servidor.');
     }
   } catch (err) {
-    console.warn('âš ï¸ No fue posible completar migraciones iniciales. El servidor arrancarÃ¡ en modo degradado:', err.message);
+    console.warn('⚠️ No fue posible completar migraciones iniciales. El servidor arrancará en modo degradado:', err.message);
   }
 
   iniciarTelegramBot({
@@ -2371,20 +2375,103 @@ const inicializarAplicacion = async () => {
         ORDER BY pagada_en DESC NULLS LAST, creado_en DESC`
     )).rows,
     resumenDueno: async () => {
-      const [devices, solicitudes, facturas] = await Promise.all([
+      const [devices, solicitudes, facturas, planes, negocio] = await Promise.all([
         db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE estado = 'Activo')::int AS activos FROM dispositivos"),
         db.query("SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE estado = 'Pendiente')::int AS pendientes, COUNT(*) FILTER (WHERE estado = 'Pagada')::int AS pagadas FROM solicitudes_licencia"),
         db.query('SELECT COUNT(*)::int AS total, COALESCE(SUM(monto), 0)::numeric AS monto_total FROM solicitudes_licencia WHERE numero_factura IS NOT NULL'),
+        db.query('SELECT COUNT(*)::int AS total FROM planes_licencia WHERE activo = TRUE'),
+        db.query('SELECT nombre_comercial, duracion_meses, licencia_bloqueada FROM negocio_config ORDER BY id LIMIT 1'),
       ]);
       return {
         dispositivos: devices.rows[0],
         solicitudes: solicitudes.rows[0],
+        planes: planes.rows[0],
+        negocio: negocio.rows[0] || null,
         facturas: facturas.rows[0],
         claveMaestra: config.licenseActivationKey || '',
       };
     },
     generarClave: generarClaveLicencia,
     validarClave: validarClaveLicencia,
+    listarDispositivos: async () => (await db.query(
+      `SELECT id, device_id, nombre, navegador, ip, estado, licencia_duracion, licencia_vencimiento, activado_en, ultimo_acceso, creado_en
+         FROM dispositivos ORDER BY creado_en DESC`
+    )).rows,
+    obtenerDispositivo: async (id) => (await db.query(
+      `SELECT id, device_id, nombre, navegador, ip, estado, intentos_fallidos, licencia_duracion, licencia_vencimiento, activado_en, ultimo_acceso, creado_en
+         FROM dispositivos WHERE id = $1`,
+      [id]
+    )).rows[0] || null,
+    cambiarEstadoDispositivo: async (id, estado) => {
+      const result = await db.query(
+        `UPDATE dispositivos SET estado = $1::VARCHAR,
+            activado_en = CASE WHEN $1::VARCHAR = 'Activo' THEN COALESCE(activado_en, CURRENT_TIMESTAMP) ELSE activado_en END,
+            intentos_fallidos = 0
+         WHERE id = $2 RETURNING id, device_id`,
+        [estado, id]
+      );
+      if (!result.rowCount) return { error: 'Dispositivo no encontrado.' };
+      return { ok: true };
+    },
+    eliminarDispositivo: async (id) => {
+      const result = await db.query('DELETE FROM dispositivos WHERE id = $1 RETURNING id', [id]);
+      if (!result.rowCount) return { error: 'Dispositivo no encontrado.' };
+      return { ok: true };
+    },
+    listarPlanes: async () => (await db.query(
+      'SELECT id, nombre, duracion_codigo, precio, moneda, destacado, activo, orden FROM planes_licencia ORDER BY orden, id'
+    )).rows,
+    crearPlan: async (datos) => {
+      const nombre = String(datos.nombre || '').trim();
+      const duracion = String(datos.duracion_codigo || '').trim().toUpperCase();
+      const precio = Number(datos.precio);
+      const moneda = String(datos.moneda || 'RD$').trim() || 'RD$';
+      if (!nombre) return { error: 'El nombre del plan es obligatorio.' };
+      if (!parsearDuracion(duracion)) return { error: 'Duración inválida. Usa por ejemplo 30D, 6M, 12M o L.' };
+      if (!Number.isFinite(precio) || precio < 0) return { error: 'Precio inválido.' };
+      const result = await db.query(
+        `INSERT INTO planes_licencia (nombre, duracion_codigo, precio, moneda, activo)
+         VALUES ($1, $2, $3, $4, true) RETURNING *`,
+        [nombre, duracion, precio, moneda]
+      );
+      return { ok: true, plan: result.rows[0] };
+    },
+    actualizarPlan: async (id, cambios) => {
+      const result = await db.query(
+        `UPDATE planes_licencia
+            SET precio = COALESCE($1, precio), activo = COALESCE($2, activo)
+          WHERE id = $3 RETURNING *`,
+        [cambios.precio != null ? Number(cambios.precio) : null, cambios.activo != null ? Boolean(cambios.activo) : null, id]
+      );
+      if (!result.rowCount) return { error: 'Plan no encontrado.' };
+      return { ok: true };
+    },
+    eliminarPlan: async (id) => {
+      const result = await db.query('DELETE FROM planes_licencia WHERE id = $1 RETURNING id', [id]);
+      if (!result.rowCount) return { error: 'Plan no encontrado.' };
+      return { ok: true };
+    },
+    obtenerNegocio: async () => {
+      const result = await db.query('SELECT nombre_comercial, rnc, duracion_meses, licencia_bloqueada, fecha_instalacion FROM negocio_config ORDER BY id LIMIT 1');
+      return result.rows[0] || null;
+    },
+    obtenerIngresos: async (dias) => {
+      const result = await db.query(
+        `SELECT COUNT(*)::int AS total, COALESCE(SUM(monto), 0)::numeric AS monto
+           FROM solicitudes_licencia
+          WHERE numero_factura IS NOT NULL AND pagada_en >= NOW() - ($1 || ' days')::INTERVAL`,
+        [String(dias)]
+      );
+      return result.rows[0] || { total: 0, monto: 0 };
+    },
+    listarMetodos: async () => (await db.query(
+      'SELECT id, tipo, nombre, dato1, activo FROM metodos_pago ORDER BY orden, id'
+    )).rows,
+    eliminarSolicitud: async (id) => {
+      const result = await db.query('DELETE FROM solicitudes_licencia WHERE id = $1 RETURNING id', [id]);
+      if (!result.rowCount) return { error: 'Solicitud no encontrada.' };
+      return { ok: true };
+    },
   });
 
   arrancarServidor();

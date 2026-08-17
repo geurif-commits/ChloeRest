@@ -1,9 +1,7 @@
-// Bot de Telegram para notificaciones y gestión de solicitudes de licencia.
+// Bot de Telegram para administración completa del sistema ChloeRestaurant.
 // Configuración (variables de entorno):
 //   TELEGRAM_BOT_TOKEN      → token del bot creado en @BotFather
 //   TELEGRAM_OWNER_CHAT_ID  → ID del chat de Telegram del propietario
-// Si no se define TELEGRAM_OWNER_CHAT_ID, el primer chat que le escriba al bot
-// queda registrado como propietario.
 
 const API_BASE = 'https://api.telegram.org';
 const LIMITE_TEXTO = 4000;
@@ -13,13 +11,26 @@ let ownerChatId = '';
 let activo = false;
 let offset = 0;
 
-let aplicarEstado = null;
+// ──── Funciones de datos (inyectadas desde server.js) ────
 let listarPendientes = null;
 let obtenerSolicitud = null;
 let listarFacturas = null;
 let resumenDueno = null;
 let generarClave = null;
 let validarClave = null;
+let cambiarEstado = null;
+let listarDispositivos = null;
+let obtenerDispositivo = null;
+let cambiarEstadoDispositivo = null;
+let eliminarDispositivo = null;
+let listarPlanes = null;
+let crearPlan = null;
+let actualizarPlan = null;
+let eliminarPlan = null;
+let obtenerNegocio = null;
+let obtenerIngresos = null;
+let listarMetodos = null;
+let eliminarSolicitud = null;
 
 export function telegramActivo() {
   return activo;
@@ -28,13 +39,25 @@ export function telegramActivo() {
 export function iniciarTelegramBot(opciones = {}) {
   token = String(opciones.token || '').trim();
   ownerChatId = String(opciones.ownerChatId || '').trim();
-  aplicarEstado = opciones.aplicarEstado;
+  cambiarEstado = opciones.cambiarEstado;
   listarPendientes = opciones.listarPendientes;
   obtenerSolicitud = opciones.obtenerSolicitud;
   listarFacturas = opciones.listarFacturas;
   resumenDueno = opciones.resumenDueno;
   generarClave = opciones.generarClave;
   validarClave = opciones.validarClave;
+  listarDispositivos = opciones.listarDispositivos;
+  obtenerDispositivo = opciones.obtenerDispositivo;
+  cambiarEstadoDispositivo = opciones.cambiarEstadoDispositivo;
+  eliminarDispositivo = opciones.eliminarDispositivo;
+  listarPlanes = opciones.listarPlanes;
+  crearPlan = opciones.crearPlan;
+  actualizarPlan = opciones.actualizarPlan;
+  eliminarPlan = opciones.eliminarPlan;
+  obtenerNegocio = opciones.obtenerNegocio;
+  obtenerIngresos = opciones.obtenerIngresos;
+  listarMetodos = opciones.listarMetodos;
+  eliminarSolicitud = opciones.eliminarSolicitud;
 
   if (!token) {
     console.log('Telegram: TELEGRAM_BOT_TOKEN no configurado. Bot inactivo.');
@@ -216,98 +239,225 @@ export function notificarTexto(texto) {
 // ──── Comandos ────
 
 const AYUDA = [
-  '🤖 <b>ChloeRestaurant — Bot del Propietario</b>',
+  '🤖 <b>ChloeRestaurant — Panel de Administración</b>',
   '',
-  '<b>Consultas</b>',
+  '<b>📊 Consultas</b>',
   '/resumen — estado general del sistema',
-  '/pendientes — lista de solicitudes pendientes',
-  '/solicitud &lt;id&gt; — detalle de una solicitud',
-  '/facturas — facturas emitidas',
+  '/reporte — reporte completo',
+  '/ingresos [días] — facturación (ej: /ingresos 30)',
   '',
-  '<b>Acciones sobre solicitudes</b>',
+  '<b>📨 Solicitudes</b>',
+  '/pendientes — solicitudes pendientes',
+  '/solicitud &lt;id&gt; — detalle de una solicitud',
   '/pagada &lt;id&gt; — confirmar pago (genera factura)',
   '/atender &lt;id&gt; — marcar como atendida',
-  '/rechazar &lt;id&gt; — rechazar la solicitud',
+  '/rechazar &lt;id&gt; — rechazar solicitud',
   '/reabrir &lt;id&gt; — volver a pendiente',
+  '/eliminar &lt;id&gt; — eliminar solicitud',
   '',
-  '<b>Claves de licencia</b>',
-  '/clave &lt;duración&gt; — genera una clave (ej: /clave 30D, /clave 12M, /clave L)',
-  '/verificar &lt;clave&gt; — valida una clave CHLOE-...',
+  '<b>💻 Dispositivos</b>',
+  '/dispositivos — listar todos',
+  '/dispositivo &lt;id&gt; — detalle',
+  '/activar-dev &lt;id&gt; — activar dispositivo',
+  '/desactivar-dev &lt;id&gt; — desactivar dispositivo',
+  '',
+  '<b>💰 Facturas</b>',
+  '/facturas — facturas emitidas',
+  '',
+  '<b>📋 Planes</b>',
+  '/planes — listar planes',
+  '/plan crear &lt;nombre&gt; &lt;dur&gt; &lt;precio&gt; [moneda]',
+  '/plan precio &lt;id&gt; &lt;nuevo precio&gt;',
+  '/plan activar &lt;id&gt;',
+  '/plan desactivar &lt;id&gt;',
+  '/plan eliminar &lt;id&gt;',
+  '',
+  '<b>🔑 Claves</b>',
+  '/clave &lt;duración&gt; — generar clave (ej: /clave 30D)',
+  '/verificar &lt;clave&gt; — validar clave CHLOE-...',
+  '',
+  '<b>🏪 Negocio</b>',
+  '/negocio — información del negocio',
+  '/metodos — métodos de pago',
   '',
   'Solo el propietario puede usar este bot.',
 ].join('\n');
 
 async function manejarComando(chatId, texto) {
   const partes = texto.split(/\s+/);
-  const comando = (partes[0] || '').toLowerCase();
+  const cmd = (partes[0] || '').toLowerCase();
   const arg = partes.slice(1).join(' ').trim();
+  const args = partes.slice(1);
 
-  switch (comando) {
+  switch (cmd) {
+    // ── Base ──
     case '/start':
     case '/ayuda':
     case '/help':
       await enviar(chatId, AYUDA);
       break;
+    // ── Consultas ──
     case '/resumen':
-      await comandoResumen(chatId);
+      await cmdResumen(chatId);
       break;
+    case '/reporte':
+      await cmdReporte(chatId);
+      break;
+    case '/ingresos':
+      await cmdIngresos(chatId, arg);
+      break;
+    // ── Solicitudes ──
     case '/pendientes':
     case '/solicitudes':
-      await comandoPendientes(chatId);
+      await cmdPendientes(chatId);
       break;
     case '/solicitud':
     case '/info':
-      await comandoSolicitud(chatId, arg);
-      break;
-    case '/facturas':
-      await comandoFacturas(chatId);
+      await cmdSolicitud(chatId, arg);
       break;
     case '/pagada':
     case '/activar':
-      await comandoEstado(chatId, arg, 'Pagada');
+      await cmdEstado(chatId, arg, 'Pagada');
       break;
     case '/atender':
-      await comandoEstado(chatId, arg, 'Atendida');
+      await cmdEstado(chatId, arg, 'Atendida');
       break;
     case '/rechazar':
-      await comandoEstado(chatId, arg, 'Rechazada');
+      await cmdEstado(chatId, arg, 'Rechazada');
       break;
     case '/reabrir':
-      await comandoEstado(chatId, arg, 'Pendiente');
+      await cmdEstado(chatId, arg, 'Pendiente');
       break;
+    case '/eliminar':
+      await cmdEliminar(chatId, arg);
+      break;
+    // ── Facturas ──
+    case '/facturas':
+      await cmdFacturas(chatId);
+      break;
+    // ── Dispositivos ──
+    case '/dispositivos':
+      await cmdDispositivos(chatId);
+      break;
+    case '/dispositivo':
+      await cmdDispositivo(chatId, arg);
+      break;
+    case '/activar-dev':
+      await cmdCambiarEstadoDev(chatId, arg, 'Activo');
+      break;
+    case '/desactivar-dev':
+      await cmdCambiarEstadoDev(chatId, arg, 'Inactivo');
+      break;
+    // ── Planes ──
+    case '/planes':
+      await cmdPlanes(chatId);
+      break;
+    case '/plan':
+      await cmdPlan(chatId, args);
+      break;
+    // ── Claves ──
     case '/clave':
-      await comandoClave(chatId, arg);
+      await cmdClave(chatId, arg);
       break;
     case '/verificar':
-      await comandoVerificar(chatId, arg);
+      await cmdVerificar(chatId, arg);
+      break;
+    // ── Negocio ──
+    case '/negocio':
+      await cmdNegocio(chatId);
+      break;
+    case '/metodos':
+      await cmdMetodos(chatId);
       break;
     default:
       await enviar(chatId, '❓ Comando no reconocido. Usa /ayuda para ver las opciones.');
   }
 }
 
-async function comandoResumen(chatId) {
+// ══════════════════════════════════════════════════════════════════
+// COMANDOS DE CONSULTA
+// ══════════════════════════════════════════════════════════════════
+
+async function cmdResumen(chatId) {
   if (!resumenDueno) return;
   const r = await resumenDueno();
   const lineas = [
     '📊 <b>Resumen del sistema</b>',
-    `💻 Dispositivos activos: <b>${r.dispositivos?.activos ?? 0}</b> / ${r.dispositivos?.total ?? 0}`,
-    `📨 Solicitudes pendientes: <b>${r.solicitudes?.pendientes ?? 0}</b>`,
-    `✅ Solicitudes pagadas: <b>${r.solicitudes?.pagadas ?? 0}</b>`,
-    `🧾 Facturas emitidas: <b>${r.facturas?.total ?? 0}</b> (${fmtMonto(null, r.facturas?.monto_total)})`,
-    `🗝️ Clave maestra: <code>${escaparHTML(r.claveMaestra || '—')}</code>`,
+    '───────────────────',
+    `💻 Dispositivos: <b>${r.dispositivos?.activos ?? 0}</b> activos / ${r.dispositivos?.total ?? 0} total`,
+    `📨 Solicitudes: <b>${r.solicitudes?.pendientes ?? 0}</b> pendientes / ${r.solicitudes?.pagadas ?? 0} pagadas`,
+    `🧾 Facturas: <b>${r.facturas?.total ?? 0}</b> (${fmtMonto(null, r.facturas?.monto_total)})`,
+    `📋 Planes: <b>${r.planes?.total ?? 0}</b> activos`,
+    `🏪 Negocio: ${escaparHTML(r.negocio?.nombre_comercial || 'No configurado')}`,
+    `📜 Licencia: ${r.negocio?.duracion_meses === -1 ? 'Vitalicia' : `${r.negocio?.duracion_meses || 0} meses`}`,
   ].join('\n');
   await enviar(chatId, lineas);
 }
 
-async function comandoPendientes(chatId) {
+async function cmdReporte(chatId) {
+  if (!resumenDueno || !listarPendientes || !listarFacturas || !listarDispositivos) return;
+  const [r, pendientes, facturas, dispositivos] = await Promise.all([
+    resumenDueno(),
+    listarPendientes(),
+    listarFacturas(),
+    listarDispositivos(),
+  ]);
+  const activos = (dispositivos || []).filter(d => d.estado === 'Activo').length;
+  const pendientesDev = (dispositivos || []).filter(d => d.estado === 'Pendiente').length;
+  const inactivosDev = (dispositivos || []).filter(d => d.estado === 'Inactivo').length;
+  const lineas = [
+    '📈 <b>REPORTE COMPLETO</b>',
+    '═══════════════════════',
+    '',
+    '💻 <b>DISPOSITIVOS</b>',
+    `   Activos: <b>${activos}</b> · Pendientes: ${pendientesDev} · Inactivos: ${inactivosDev}`,
+    '',
+    '📨 <b>SOLICITUDES</b>',
+    `   Pendientes: <b>${pendientes?.length ?? 0}</b>`,
+    `   Pagadas: <b>${r.solicitudes?.pagadas ?? 0}</b>`,
+    '',
+    '🧾 <b>FACTURAS</b>',
+    `   Total: <b>${facturas?.length ?? 0}</b> · Monto total: ${fmtMonto(null, r.facturas?.monto_total)}`,
+    '',
+    '📋 <b>PLANES</b>',
+    `   Activos: <b>${r.planes?.total ?? 0}</b>`,
+    '',
+    '═══════════════════════',
+    '🕐 Reporte generado: ' + fmtFecha(new Date().toISOString()),
+  ].join('\n');
+  await enviar(chatId, lineas);
+}
+
+async function cmdIngresos(chatId, arg) {
+  if (!obtenerIngresos) return;
+  const dias = arg ? Number(arg) : 30;
+  if (!Number.isFinite(dias) || dias <= 0 || dias > 365) {
+    await enviar(chatId, 'ℹ️ Uso: /ingresos [días] — ej: /ingresos 30, /ingresos 7');
+    return;
+  }
+  const datos = await obtenerIngresos(dias);
+  const lineas = [
+    `💰 <b>Ingresos últimos ${dias} días</b>`,
+    '───────────────────',
+    `   Facturas: <b>${datos.total}</b>`,
+    `   Monto total: <b>${fmtMonto(null, datos.monto)}</b>`,
+    `   Promedio por factura: ${fmtMonto(null, datos.total > 0 ? Number(datos.monto) / datos.total : 0)}`,
+  ].join('\n');
+  await enviar(chatId, lineas);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COMANDOS DE SOLICITUDES
+// ══════════════════════════════════════════════════════════════════
+
+async function cmdPendientes(chatId) {
   if (!listarPendientes) return;
   const filas = (await listarPendientes()) || [];
   if (!filas.length) {
     await enviar(chatId, '✅ No hay solicitudes pendientes en este momento.');
     return;
   }
-  const lineas = ['📨 <b>Solicitudes pendientes (${filas.length})</b>', ''];
+  const lineas = [`📨 <b>Solicitudes pendientes (${filas.length})</b>`, ''];
   for (const f of filas) {
     lineas.push(
       `<b>#${f.id}</b> · ${escaparHTML(f.plan_nombre || 'Sin plan')}`,
@@ -320,7 +470,7 @@ async function comandoPendientes(chatId) {
   await enviar(chatId, lineas.join('\n'));
 }
 
-async function comandoSolicitud(chatId, arg) {
+async function cmdSolicitud(chatId, arg) {
   if (!obtenerSolicitud) return;
   const id = Number(arg);
   if (!Number.isInteger(id) || id <= 0) {
@@ -334,6 +484,7 @@ async function comandoSolicitud(chatId, arg) {
   }
   const lineas = [
     `📋 <b>Solicitud #${f.id}</b>`,
+    '───────────────────',
     `👤 <b>Propietario:</b> ${escaparHTML(f.propietario)}`,
     `🏪 <b>Negocio:</b> ${escaparHTML(f.negocio)}`,
     `📞 <b>Teléfono:</b> ${escaparHTML(f.telefono)}`,
@@ -351,33 +502,15 @@ async function comandoSolicitud(chatId, arg) {
   await enviar(chatId, lineas);
 }
 
-async function comandoFacturas(chatId) {
-  if (!listarFacturas) return;
-  const filas = (await listarFacturas()) || [];
-  if (!filas.length) {
-    await enviar(chatId, '🧾 Aún no hay facturas emitidas.');
-    return;
-  }
-  const lineas = [`🧾 <b>Facturas emitidas (${filas.length})</b>`, ''];
-  for (const f of filas) {
-    lineas.push(
-      `<b>${escaparHTML(f.numero_factura)}</b> · ${fmtMonto(f.moneda, f.monto)}`,
-      `   ${escaparHTML(f.propietario)} — ${escaparHTML(f.negocio)} · ${escaparHTML(f.plan_nombre || 'Sin plan')}`,
-      `   🕐 ${fmtFecha(f.pagada_en || f.creado_en)}`,
-      ''
-    );
-  }
-  await enviar(chatId, lineas.join('\n'));
-}
-
-async function comandoEstado(chatId, arg, estado) {
-  if (!aplicarEstado) return;
+async function cmdEstado(chatId, arg, estado) {
+  if (!cambiarEstado) return;
   const id = Number(arg);
   if (!Number.isInteger(id) || id <= 0) {
-    await enviar(chatId, `ℹ️ Uso: /${estado === 'Pendiente' ? 'reabrir' : comandoParaEstado(estado)} &lt;id&gt;`);
+    const cmd = estado === 'Pendiente' ? 'reabrir' : estado === 'Pagada' ? 'pagada' : estado.toLowerCase();
+    await enviar(chatId, `ℹ️ Uso: /${cmd} &lt;id&gt;`);
     return;
   }
-  const resultado = await aplicarEstado(id, estado);
+  const resultado = await cambiarEstado(id, estado);
   if (!resultado || resultado.error) {
     await enviar(chatId, `❌ No se pudo marcar la solicitud #${id}: ${escaparHTML(resultado?.error || 'error desconocido')}`);
     return;
@@ -393,18 +526,214 @@ async function comandoEstado(chatId, arg, estado) {
   await enviar(chatId, lineas);
 }
 
-function comandoParaEstado(estado) {
-  if (estado === 'Pagada') return 'pagada';
-  if (estado === 'Atendida') return 'atender';
-  if (estado === 'Rechazada') return 'rechazar';
-  return 'reabrir';
+async function cmdEliminar(chatId, arg) {
+  if (!eliminarSolicitud) return;
+  const id = Number(arg);
+  if (!Number.isInteger(id) || id <= 0) {
+    await enviar(chatId, 'ℹ️ Uso: /eliminar &lt;id&gt; — Elimina una solicitud de prueba.');
+    return;
+  }
+  const resultado = await eliminarSolicitud(id);
+  if (!resultado || resultado.error) {
+    await enviar(chatId, `❌ No se pudo eliminar la solicitud #${id}: ${escaparHTML(resultado?.error || 'error desconocido')}`);
+    return;
+  }
+  await enviar(chatId, `🗑️ Solicitud #${id} eliminada correctamente.`);
 }
 
-async function comandoClave(chatId, arg) {
+// ══════════════════════════════════════════════════════════════════
+// COMANDOS DE DISPOSITIVOS
+// ══════════════════════════════════════════════════════════════════
+
+async function cmdDispositivos(chatId) {
+  if (!listarDispositivos) return;
+  const filas = (await listarDispositivos()) || [];
+  if (!filas.length) {
+    await enviar(chatId, '💻 No hay dispositivos registrados.');
+    return;
+  }
+  const activos = filas.filter(d => d.estado === 'Activo').length;
+  const pendientes = filas.filter(d => d.estado === 'Pendiente').length;
+  const inactivos = filas.filter(d => d.estado === 'Inactivo').length;
+  const lineas = [
+    `💻 <b>Dispositivos (${filas.length})</b>`,
+    `   Activos: <b>${activos}</b> · Pendientes: ${pendientes} · Inactivos: ${inactivos}`,
+    '',
+  ];
+  for (const d of filas.slice(0, 15)) {
+    const icono = d.estado === 'Activo' ? '🟢' : d.estado === 'Pendiente' ? '🟡' : '🔴';
+    lineas.push(
+      `${icono} <b>#${d.id}</b> ${escaparHTML(d.nombre || d.device_id?.slice(0, 8) || 'Sin nombre')} · ${d.estado}`,
+      `   📜 ${escaparHTML(d.licencia_duracion || '—')} · 🕐 ${fmtFecha(d.activado_en || d.creado_en)}`,
+      `   /dispositivo ${d.id}`,
+      ''
+    );
+  }
+  if (filas.length > 15) lineas.push(`... y ${filas.length - 15} más`);
+  await enviar(chatId, lineas.join('\n'));
+}
+
+async function cmdDispositivo(chatId, arg) {
+  if (!obtenerDispositivo) return;
+  const id = Number(arg);
+  if (!Number.isInteger(id) || id <= 0) {
+    await enviar(chatId, 'ℹ️ Uso: /dispositivo &lt;id&gt;');
+    return;
+  }
+  const d = await obtenerDispositivo(id);
+  if (!d) {
+    await enviar(chatId, `❌ No existe el dispositivo #${id}.`);
+    return;
+  }
+  const restante = d.licencia_vencimiento
+    ? Math.ceil((new Date(d.licencia_vencimiento).getTime() - Date.now()) / 86400000)
+    : null;
+  const lineas = [
+    `💻 <b>Dispositivo #${d.id}</b>`,
+    '───────────────────',
+    `📌 <b>Estado:</b> ${d.estado}`,
+    `📛 <b>Nombre:</b> ${escaparHTML(d.nombre || 'Sin nombre')}`,
+    `🔑 <b>ID:</b> <code>${escaparHTML(d.device_id || '—')}</code>`,
+    `🌐 <b>IP:</b> ${escaparHTML(d.ip || '—')}`,
+    `🖥️ <b>Navegador:</b> ${escaparHTML(d.navegador || '—')}`,
+    `📜 <b>Licencia:</b> ${d.licencia_duracion === 'L' ? 'Vitalicia' : escaparHTML(d.licencia_duracion || '—')}`,
+    d.licencia_vencimiento ? `📅 <b>Vence:</b> ${fmtFecha(d.licencia_vencimiento)}${restante != null ? ` (${restante}d)` : ''}` : '',
+    `🕐 <b>Activado:</b> ${fmtFecha(d.activado_en)}`,
+    `⏰ <b>Último acceso:</b> ${fmtFecha(d.ultimo_acceso)}`,
+    `❌ <b>Intentos fallidos:</b> ${d.intentos_fallidos || 0}`,
+  ].filter(Boolean).join('\n');
+  const acciones = d.estado === 'Activo'
+    ? `\n💡 /desactivar-dev ${d.id} — desactivar`
+    : `\n💡 /activar-dev ${d.id} — activar`;
+  await enviar(chatId, lineas + acciones);
+}
+
+async function cmdCambiarEstadoDev(chatId, arg, estado) {
+  if (!cambiarEstadoDispositivo) return;
+  const id = Number(arg);
+  if (!Number.isInteger(id) || id <= 0) {
+    await enviar(chatId, `ℹ️ Uso: /${estado === 'Activo' ? 'activar-dev' : 'desactivar-dev'} &lt;id&gt;`);
+    return;
+  }
+  const resultado = await cambiarEstadoDispositivo(id, estado);
+  if (!resultado || resultado.error) {
+    await enviar(chatId, `❌ No se pudo actualizar el dispositivo #${id}: ${escaparHTML(resultado?.error || 'error desconocido')}`);
+    return;
+  }
+  await enviar(chatId, `✅ Dispositivo #${id} marcado como ${estado}.`);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COMANDOS DE PLANES
+// ══════════════════════════════════════════════════════════════════
+
+async function cmdPlanes(chatId) {
+  if (!listarPlanes) return;
+  const filas = (await listarPlanes()) || [];
+  if (!filas.length) {
+    await enviar(chatId, '📋 No hay planes de licencia configurados.');
+    return;
+  }
+  const lineas = [`📋 <b>Planes de licencia (${filas.length})</b>`, ''];
+  for (const p of filas) {
+    const icono = p.activo ? '🟢' : '🔴';
+    const dest = p.destacado ? ' ⭐' : '';
+    lineas.push(
+      `${icono} <b>#${p.id}</b> ${escaparHTML(p.nombre)}${dest}`,
+      `   ${escaparHTML(p.duracion_codigo)} · ${fmtMonto(p.moneda, p.precio)}`,
+      ''
+    );
+  }
+  await enviar(chatId, lineas.join('\n'));
+}
+
+async function cmdPlan(chatId, args) {
+  if (!listarPlanes || !crearPlan || !actualizarPlan || !eliminarPlan) return;
+  const sub = (args[0] || '').toLowerCase();
+
+  if (sub === 'crear') {
+    const [, nombre, duracion, precio, moneda] = args;
+    if (!nombre || !duracion || !precio) {
+      await enviar(chatId, 'ℹ️ Uso: /plan crear &lt;nombre&gt; &lt;duración&gt; &lt;precio&gt; [moneda]\nEj: /plan crear Anual 12M 249 RD$');
+      return;
+    }
+    const resultado = crearPlan({ nombre, duracion_codigo: duracion.toUpperCase(), precio: Number(precio), moneda: moneda || 'RD$' });
+    if (resultado?.error) {
+      await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
+      return;
+    }
+    await enviar(chatId, `✅ Plan "${escaparHTML(nombre)}" creado (${escaparHTML(duracion)} ${fmtMonto(moneda || 'RD$', precio)}).`);
+    return;
+  }
+
+  if (sub === 'precio') {
+    const [, idStr, precioStr] = args;
+    const id = Number(idStr);
+    const precio = Number(precioStr);
+    if (!Number.isInteger(id) || !Number.isFinite(precio) || precio < 0) {
+      await enviar(chatId, 'ℹ️ Uso: /plan precio &lt;id&gt; &lt;nuevo precio&gt;');
+      return;
+    }
+    const resultado = actualizarPlan(id, { precio });
+    if (resultado?.error) {
+      await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
+      return;
+    }
+    await enviar(chatId, `✅ Plan #${id} actualizado a ${fmtMonto(null, precio)}.`);
+    return;
+  }
+
+  if (sub === 'activar' || sub === 'desactivar') {
+    const id = Number(args[1]);
+    if (!Number.isInteger(id) || id <= 0) {
+      await enviar(chatId, `ℹ️ Uso: /plan ${sub} &lt;id&gt;`);
+      return;
+    }
+    const resultado = actualizarPlan(id, { activo: sub === 'activar' });
+    if (resultado?.error) {
+      await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
+      return;
+    }
+    await enviar(chatId, `✅ Plan #${id} ${sub === 'activar' ? 'activado' : 'desactivado'}.`);
+    return;
+  }
+
+  if (sub === 'eliminar') {
+    const id = Number(args[1]);
+    if (!Number.isInteger(id) || id <= 0) {
+      await enviar(chatId, 'ℹ️ Uso: /plan eliminar &lt;id&gt;');
+      return;
+    }
+    const resultado = eliminarPlan(id);
+    if (resultado?.error) {
+      await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
+      return;
+    }
+    await enviar(chatId, `🗑️ Plan #${id} eliminado.`);
+    return;
+  }
+
+  await enviar(chatId, [
+    '📋 <b>Gestión de planes</b>',
+    '',
+    '/planes — listar todos',
+    '/plan crear &lt;nombre&gt; &lt;dur&gt; &lt;precio&gt; [moneda]',
+    '/plan precio &lt;id&gt; &lt;nuevo precio&gt;',
+    '/plan activar &lt;id&gt;',
+    '/plan desactivar &lt;id&gt;',
+    '/plan eliminar &lt;id&gt;',
+  ].join('\n'));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COMANDOS DE CLAVES
+// ══════════════════════════════════════════════════════════════════
+
+async function cmdClave(chatId, arg) {
   if (!generarClave) return;
   const dur = arg.toUpperCase();
   if (!dur) {
-    await enviar(chatId, 'ℹ️ Uso: /clave &lt;duración&gt; — ej: /clave 30D, /clave 90D, /clave 12M, /clave L');
+    await enviar(chatId, 'ℹ️ Uso: /clave &lt;duración&gt;\nDuraciones: 7D, 15D, 30D, 60D, 90D, 6M, 12M, 24M, L (vitalicia)\nEj: /clave 30D');
     return;
   }
   const resultado = generarClave(dur);
@@ -421,7 +750,7 @@ async function comandoClave(chatId, arg) {
   ].join('\n'));
 }
 
-async function comandoVerificar(chatId, arg) {
+async function cmdVerificar(chatId, arg) {
   if (!validarClave) return;
   if (!arg) {
     await enviar(chatId, 'ℹ️ Uso: /verificar CHLOE-30D-XXXXX-XXXXX-XXXXX-XXXXX');
@@ -436,4 +765,46 @@ async function comandoVerificar(chatId, arg) {
     '✅ <b>Clave VÁLIDA</b>',
     `Duración: <b>${escaparHTML(resultado.duracion || 'Vitalicia')}</b>`,
   ].join('\n'));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// COMANDOS DE NEGOCIO
+// ══════════════════════════════════════════════════════════════════
+
+async function cmdNegocio(chatId) {
+  if (!obtenerNegocio) return;
+  const n = await obtenerNegocio();
+  if (!n) {
+    await enviar(chatId, '❌ No se pudo obtener la información del negocio.');
+    return;
+  }
+  const lineas = [
+    '🏪 <b>Información del negocio</b>',
+    '───────────────────',
+    `📛 <b>Nombre:</b> ${escaparHTML(n.nombre_comercial || 'No configurado')}`,
+    `📋 <b>RNC:</b> ${escaparHTML(n.rnc || 'No configurado')}`,
+    `📜 <b>Licencia:</b> ${n.duracion_meses === -1 ? 'Vitalicia' : `${n.duracion_meses || 0} meses`}`,
+    `🔒 <b>Bloqueado:</b> ${n.licencia_bloqueada ? 'Sí' : 'No'}`,
+    n.fecha_instalacion ? `🕐 <b>Instalado:</b> ${fmtFecha(n.fecha_instalacion)}` : '',
+  ].filter(Boolean).join('\n');
+  await enviar(chatId, lineas);
+}
+
+async function cmdMetodos(chatId) {
+  if (!listarMetodos) return;
+  const filas = (await listarMetodos()) || [];
+  if (!filas.length) {
+    await enviar(chatId, '💳 No hay métodos de pago configurados.');
+    return;
+  }
+  const lineas = [`💳 <b>Métodos de pago (${filas.length})</b>`, ''];
+  for (const m of filas) {
+    const icono = m.activo ? '🟢' : '🔴';
+    lineas.push(
+      `${icono} <b>${escaparHTML(m.nombre)}</b> · ${escaparHTML(m.tipo)}`,
+      m.dato1 ? `   ${escaparHTML(m.dato1)}` : '',
+      ''
+    );
+  }
+  await enviar(chatId, lineas.join('\n'));
 }

@@ -23,7 +23,6 @@ function PedidoTicket({
     <div
       className="pedido-ticket"
       style={{
-        width: isMobile ? '100vw' : '420px',
         display: !isMobile || mobileTab === 'cuenta' ? 'flex' : 'none',
         height: isMobile ? 'auto' : '100vh',
         flex: isMobile ? 1 : 'none',

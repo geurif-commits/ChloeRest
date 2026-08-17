@@ -22,7 +22,8 @@ import { esElectronApp } from '../../configApi.js';
 import { obtenerDeviceId } from '../../utils/dispositivo.js';
 import './login-screen.css';
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH_DEFAULT = 4;
+const PIN_LENGTH_MAX = 12;
 
 function Icon({ children, className = '' }) {
   return (
@@ -51,6 +52,10 @@ export default function LoginScreen({
   const [fondoActual, setFondoActual] = useState(
     configSistema?.fondo_login_url || fondoPredeterminado
   );
+
+  const pinLength = configSistema?.owner_pin_longitud > 0
+    ? configSistema.owner_pin_longitud
+    : PIN_LENGTH_DEFAULT;
 
   const nombreNegocio =
     configSistema?.nombre_negocio || 'Chloe Restaurant';
@@ -200,14 +205,14 @@ const bgFondo =
       if (cargando) return;
 
       setPin((actual) => {
-        if (actual.length >= PIN_LENGTH) {
+        if (actual.length >= pinLength) {
           return actual;
         }
 
         return `${actual}${numero}`;
       });
     },
-    [cargando]
+    [cargando, pinLength]
   );
 
   const borrarNumero = useCallback(() => {
@@ -264,7 +269,7 @@ const bgFondo =
 
   useEffect(() => {
     if (
-      pin.length === PIN_LENGTH &&
+      pin.length === pinLength &&
       !cargando
     ) {
       iniciarSesion(pin);
@@ -570,10 +575,10 @@ const bgFondo =
 
           <div
             className="pin-dots"
-            aria-label={`${pin.length} de ${PIN_LENGTH} dígitos ingresados`}
+            aria-label={`${pin.length} de ${pinLength} dígitos ingresados`}
           >
             {Array.from(
-              { length: PIN_LENGTH },
+              { length: pinLength },
               (_, index) => (
                 <span
                   key={index}

@@ -9,9 +9,9 @@ import { toastAviso } from '../components/Toast.jsx';
 
 function colorEstadoMesa(estado) {
   switch (estado) {
-    case 'Disponible': return 'var(--green)';
-    case 'Ocupada': return 'var(--red)';
-    case 'Reservada': return 'var(--gold)';
+    case 'Disponible': return 'var(--mesa-disponible, #00f576)';
+    case 'Ocupada': return 'var(--mesa-ocupada, #ff4444)';
+    case 'Reservada': return 'var(--mesa-reservada, #d6a44d)';
     default: return 'var(--muted)';
   }
 }
@@ -21,13 +21,13 @@ function MesaSvg({ estado }) {
   return (
     <svg width="74" height="74" viewBox="0 0 100 100" fill="none" aria-hidden="true" className="mesa-table__svg">
       {/* sillas */}
-      <rect x="42" y="5" width="16" height="13" rx="3.5" fill={color} opacity="0.4" />
-      <rect x="42" y="82" width="16" height="13" rx="3.5" fill={color} opacity="0.4" />
-      <rect x="5" y="42" width="13" height="16" rx="3.5" fill={color} opacity="0.4" />
-      <rect x="82" y="42" width="13" height="16" rx="3.5" fill={color} opacity="0.4" />
+      <rect x="35" y="8" width="30" height="10" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
+      <rect x="35" y="82" width="30" height="10" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
+      <rect x="8" y="35" width="10" height="30" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
+      <rect x="82" y="35" width="10" height="30" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
       {/* superficie de la mesa */}
-      <rect x="24" y="32" width="52" height="36" rx="8" stroke={color} strokeWidth="3" fill="rgba(255,255,255,0.03)" />
-      <circle cx="50" cy="50" r="3.5" fill={color} opacity="0.75" />
+      <rect x="25" y="25" width="50" height="50" rx="6" stroke={color} strokeWidth="3" fill="rgba(255,255,255,0.03)" />
+      <circle cx="50" cy="50" r="3" fill={color} opacity="0.6" />
     </svg>
   );
 }

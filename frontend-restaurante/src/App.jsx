@@ -113,11 +113,16 @@ function AppContent() {
         const data = await res.json();
 
         if (!cancelado) {
+          let negocioData = null;
+          try {
+            const resNeg = await fetch(`${apiUrl}/api/negocio/config`);
+            if (resNeg.ok) negocioData = await resNeg.json();
+          } catch {}
 
           setConfigSistema(data);
           setServidorOnline(true);
 
-          aplicarPersonalizacion(data);
+          aplicarPersonalizacion(data, negocioData);
         }
 
       } catch (e) {
@@ -167,6 +172,13 @@ function AppContent() {
 
       try {
 
+        // Timeout de 8s para que no quede colgado en Electron
+        const controller = new AbortController();
+        const timer = setTimeout(
+          () => controller.abort(),
+          8000
+        );
+
         const res = await fetch(
           `${apiUrl}/api/dispositivo/registrar`,
           {
@@ -176,9 +188,12 @@ function AppContent() {
             },
             body: JSON.stringify(
               obtenerInfoDispositivo()
-            )
+            ),
+            signal: controller.signal
           }
         );
+
+        clearTimeout(timer);
 
         if (cancelado) {
           return;
@@ -253,9 +268,20 @@ function AppContent() {
 
           intentos++;
 
-          const res = await fetch(
-            `${apiUrl}/api/licencia/verificar`
+          // Timeout de 8s por intento para que Electron no quede
+          // colgado si el backend tarda o no responde.
+          const controller = new AbortController();
+          const timer = setTimeout(
+            () => controller.abort(),
+            8000
           );
+
+          const res = await fetch(
+            `${apiUrl}/api/licencia/verificar`,
+            { signal: controller.signal }
+          );
+
+          clearTimeout(timer);
 
           if (cancelado) {
             return;
@@ -889,6 +915,45 @@ function AppContent() {
   // LANDING
   // ==========================================================
 
+  // Si el dispositivo ya tiene licencia activa y el setup está
+  // completado, saltamos el LandingScreen y vamos directo al login.
+  if (
+    configCargada &&
+    configSistema?.setup_completado &&
+    dispositivoActivado === true &&
+    !verificandoDispositivo
+  ) {
+
+    return (
+      <>
+        <ToastContainer />
+
+        <LoginScreen
+          apiUrl={apiUrl}
+          configSistema={configSistema}
+          onLogin={(data) => {
+
+            guardarSesion(data.token);
+
+            setDispositivoActivado(true);
+
+            setUsuario(data.usuario);
+
+            setVistaActiva('landing');
+          }}
+          onVerKDS={(tipo) => {
+            setViendoKDS(tipo);
+          }}
+          servidorOnline={servidorOnline}
+          onChangeServer={limpiarServidor}
+          onVolver={() => {
+            setVistaActiva('landing');
+          }}
+        />
+      </>
+    );
+  }
+
   if (configCargada) {
 
     return (
@@ -969,7 +1034,47 @@ function AppContent() {
 // ============================================================
 
 function App() {
-  return <AppContent />;
+  const [isMaximized, setIsMaximized] = useState(false);
+
+  useEffect(() => {
+    if (!esElectronApp()) return;
+    const check = () => {
+      window.electronPOS?.estaMaximizada?.().then?.(setIsMaximized);
+    };
+    check();
+    const id = setInterval(check, 2000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!esElectronApp()) return <AppContent />;
+
+  return (
+    <>
+      <AppContent />
+      <div style={{
+        position: 'fixed', top: '10px', right: '10px', zIndex: 99999,
+        display: 'flex', gap: '4px', background: 'rgba(20,20,27,0.85)',
+        borderRadius: '8px', padding: '4px', border: '1px solid rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(8px)', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+      }}>
+        <button onClick={() => window.electronPOS?.minimizarVentana()} title="Minimizar" style={{
+          width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+          background: 'transparent', color: '#9494ad', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
+        }}>─</button>
+        <button onClick={() => window.electronPOS?.maximizarVentana()} title={isMaximized ? 'Restaurar' : 'Maximizar'} style={{
+          width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+          background: 'transparent', color: '#9494ad', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem',
+        }}>{isMaximized ? '❐' : '□'}</button>
+        <button onClick={() => window.electronPOS?.cerrarVentana()} title="Cerrar" style={{
+          width: '28px', height: '28px', borderRadius: '6px', border: 'none',
+          background: 'transparent', color: '#ff5252', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
+        }}>✕</button>
+      </div>
+    </>
+  );
 }
 
 export default App;

@@ -304,6 +304,13 @@ const migrations = [{
     ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS moneda VARCHAR(10) NOT NULL DEFAULT 'RD$';
     CREATE INDEX IF NOT EXISTS idx_solicitudes_licencia_numero_factura ON solicitudes_licencia(numero_factura);
   `,
+}, {
+  id: '016_colores_mesa_configurables',
+  sql: `
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS mesa_color_disponible VARCHAR(20) NOT NULL DEFAULT '#00f576';
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS mesa_color_ocupada VARCHAR(20) NOT NULL DEFAULT '#ff4444';
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS mesa_color_reservada VARCHAR(20) NOT NULL DEFAULT '#d6a44d';
+  `,
 }];
 
 export async function runMigrations(pool) {

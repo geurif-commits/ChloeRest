@@ -263,6 +263,22 @@ function createWindow() {
     app.quit();
   });
 
+  // Controles de ventana
+  ipcMain.on('ventana-minimizar', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+  });
+  ipcMain.on('ventana-maximizar', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+    }
+  });
+  ipcMain.on('ventana-cerrar', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+  });
+  ipcMain.handle('ventana-esta-maximizada', () => {
+    return mainWindow && !mainWindow.isDestroyed() ? mainWindow.isMaximized() : false;
+  });
+
   // Abrir el link de pago (pasarela) en el navegador externo del cliente.
   ipcMain.handle('abrir-link-pago', async (_event, url) => {
     try {

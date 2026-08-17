@@ -24,7 +24,7 @@ function aColorRgba(hex, alpha) {
  *  - colores personalizados como variables CSS (:root)
  *  - guarda el tema como preferencia local
  */
-export function aplicarPersonalizacion(config) {
+export function aplicarPersonalizacion(config, negocioConfig) {
   if (!config) return;
   const tema = config.tema_activo || 'noche';
   document.documentElement.setAttribute('data-theme', tema);
@@ -34,20 +34,29 @@ export function aplicarPersonalizacion(config) {
 
   document.getElementById(VAR_STYLE_ID)?.remove();
 
+  const cssVars = [];
   if (primario) {
     const glow = aColorRgba(primario, 0.3) || primario;
     const hover = oscurecerColor(primario);
+    cssVars.push(
+      `--accent: ${primario} !important;`,
+      `--accent-hover: ${secundario || hover} !important;`,
+      `--accent-secondary: ${secundario || hover} !important;`,
+      `--accent-glow: ${glow} !important;`,
+      `--success: ${primario} !important;`
+    );
+  }
+
+  if (negocioConfig) {
+    if (negocioConfig.mesa_color_disponible) cssVars.push(`--mesa-disponible: ${negocioConfig.mesa_color_disponible};`);
+    if (negocioConfig.mesa_color_ocupada) cssVars.push(`--mesa-ocupada: ${negocioConfig.mesa_color_ocupada};`);
+    if (negocioConfig.mesa_color_reservada) cssVars.push(`--mesa-reservada: ${negocioConfig.mesa_color_reservada};`);
+  }
+
+  if (cssVars.length) {
     const style = document.createElement('style');
     style.id = VAR_STYLE_ID;
-    style.textContent = `
-      :root, [data-theme="${tema}"] {
-        --accent: ${primario} !important;
-        --accent-hover: ${secundario || hover} !important;
-        --accent-secondary: ${secundario || hover} !important;
-        --accent-glow: ${glow} !important;
-        --success: ${primario} !important;
-      }
-    `;
+    style.textContent = `:root, [data-theme="${tema}"] { ${cssVars.join('\n')} }`;
     document.head.appendChild(style);
   }
 }
