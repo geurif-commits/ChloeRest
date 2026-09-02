@@ -14,6 +14,7 @@ import { runWithRequestContext } from './db.js';
 import { validarRNC, normalizarRNC } from './lib/rnc.js';
 import { construirECF } from './lib/ecf.js';
 import { formatearFila607, formatearFila606, serializarTXT, serializarCSV, COLS_607, COLS_606 } from './lib/dgii.js';
+import { route, httpError, positiveInteger, money, clientIp, parseCsvLine } from './lib/core.js';
 
 // ── Exception handlers (PM2 reinicia en <2s si el proceso cae) ──
 process.on('uncaughtException', (err) => {
@@ -264,40 +265,6 @@ setInterval(() => {
   }
 }, 20000);
 
-function route(handler) {
-  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-}
-
-function parseCsvLine(line) {
-  const values = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      values.push(current);
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  values.push(current);
-  return values.map((value) => value.trim());
-}
-
-function httpError(status, message) {
-  const error = new Error(message);
-  error.status = status;
-  return error;
-}
-
 // ── Limitador de intentos de PIN (anti fuerza bruta) ──
 const loginLimiter = {
   intentos: new Map(),
@@ -335,20 +302,6 @@ function registrarIntentoFallido(ip) {
 
 function registrarIntentoExitoso(ip) {
   loginLimiter.intentos.delete(ip);
-}
-
-function positiveInteger(value, field) {
-  const numeric = Number(value);
-  if (!Number.isInteger(numeric) || numeric <= 0) throw httpError(400, `${field} no es válido.`);
-  return numeric;
-}
-
-function money(value) {
-  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-}
-
-function clientIp(req) {
-  return req.ip || req.socket.remoteAddress || null;
 }
 
 function uploadUrl(req, file) {
@@ -3290,8 +3243,9 @@ app.post('/api/inventario', requireRoles(...ROLES_ADMIN), route(async (req, res)
   const name = String(req.body.nombre || '').trim();
   const stock = money(req.body.stock_actual || 0);
   const stockMinimo = money(req.body.stock_minimo || 0);
+  const costoUnitario = money(req.body.costo_unitario || 0);
   if (!name || !Number.isFinite(stock) || stock < 0) throw httpError(400, 'Nombre y stock válido son obligatorios.');
-  const result = await db.query("INSERT INTO ingredientes (numero_articulo, nombre, categoria, stock_actual, unidad_medida, stock_minimo) VALUES (CONCAT('ART-', LPAD(nextval(pg_get_serial_sequence('ingredientes','id'))::text, 4, '0')), $1, $2, $3, $4, $5) RETURNING numero_articulo, id", [name, String(req.body.categoria || 'General'), stock, String(req.body.unidad_medida || 'Unidades'), stockMinimo]);
+  const result = await db.query("INSERT INTO ingredientes (numero_articulo, nombre, categoria, stock_actual, unidad_medida, stock_minimo, costo_unitario) VALUES (CONCAT('ART-', LPAD(nextval(pg_get_serial_sequence('ingredientes','id'))::text, 4, '0')), $1, $2, $3, $4, $5, $6) RETURNING numero_articulo, id", [name, String(req.body.categoria || 'General'), stock, String(req.body.unidad_medida || 'Unidades'), stockMinimo, costoUnitario]);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CREAR_INSUMO', entidad: 'ingredientes', entidadId: result.rows[0].id, ip: clientIp(req) });
   res.status(201).json({ mensaje: 'Ítem de inventario registrado.', numero_articulo: result.rows[0].numero_articulo });
 }));
@@ -3681,7 +3635,7 @@ app.get('/api/dgii/reporte-606', adminODueno, route(async (req, res) => {
   const gastos = await db.query(
     `SELECT
        im.id, im.cantidad, im.motivo, im.fecha,
-       i.nombre AS ingrediente_nombre
+       i.nombre AS ingrediente_nombre, i.costo_unitario
      FROM inventario_movimientos im
      JOIN ingredientes i ON i.id = im.ingrediente_id
      WHERE im.tipo_movimiento IN ('Entrada', 'Ajuste Positivo')

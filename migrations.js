@@ -651,6 +651,14 @@ const migrations = [{
       WHERE nc.empresa_id = cs.empresa_id AND nc.nombre_comercial IS NOT NULL;
     `,
   },
+  {
+    id: '038_costo_unitario_ingredientes',
+    sql: `
+      -- Costo unitario real de cada insumo: se usa en el reporte DGII 606 (compras)
+      -- para reportar el monto real en lugar de un valor fijo arbitrario.
+      ALTER TABLE ingredientes ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(10,2) NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 export async function runMigrations(pool) {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());
