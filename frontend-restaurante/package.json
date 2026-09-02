@@ -1,7 +1,7 @@
 {
   "name": "chloerestaurant",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "ChloeRestaurant — Sistema de gestión para restaurantes",
   "author": "ChloeRestaurant",
   "type": "module",
@@ -12,8 +12,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "electron:start": "electron .",
-    "predist": "node -e \"const fs=require('fs'); const path=require('path'); const srcExe=path.resolve(process.cwd(),'..','ServidorPOS.exe'); const dstExe=path.resolve(process.cwd(),'ServidorPOS.exe'); if(fs.existsSync(srcExe)){ fs.copyFileSync(srcExe,dstExe); } const srcCjs=path.resolve(process.cwd(),'..','bundle.cjs'); const dstCjs=path.resolve(process.cwd(),'ServidorPOS.cjs'); if(fs.existsSync(srcCjs)){ fs.copyFileSync(srcCjs,dstCjs); } const srcEnv=path.resolve(process.cwd(),'..','.env.electron'); const dstEnv=path.resolve(process.cwd(),'.env'); if(fs.existsSync(srcEnv)){ fs.copyFileSync(srcEnv,dstEnv); } const dstPg=path.resolve(process.cwd(),'build','postgresql-installer.exe'); if(!fs.existsSync(dstPg)){ const pgCandidates=[path.resolve(process.cwd(),'..','postgresql-18.4-2-windows-x64.exe'),'C:/Users/Administrador/Downloads/postgresql-18.4-2-windows-x64.exe']; for(const c of pgCandidates){ if(fs.existsSync(c)){ fs.mkdirSync(path.dirname(dstPg),{recursive:true}); fs.copyFileSync(c,dstPg); break; } } }\"",
-    "dist": "vite build && npm run predist && electron-builder && npm run postdist",
+    "electron:pack": "npm run build:server --prefix .. && vite build && npm run predist && electron-builder --dir",
+    "predist": "node -e \"const fs=require('fs'); const path=require('path'); const srcExe=path.resolve(process.cwd(),'..','ServidorPOS.exe'); const dstExe=path.resolve(process.cwd(),'ServidorPOS.exe'); if(fs.existsSync(srcExe)){ fs.copyFileSync(srcExe,dstExe); } const srcCjs=path.resolve(process.cwd(),'..','bundle.cjs'); const dstCjs=path.resolve(process.cwd(),'ServidorPOS.cjs'); if(fs.existsSync(srcCjs)){ fs.copyFileSync(srcCjs,dstCjs); } const srcEnv=path.resolve(process.cwd(),'..','.env.electron'); const dstEnv=path.resolve(process.cwd(),'.env'); if(fs.existsSync(srcEnv)){ fs.copyFileSync(srcEnv,dstEnv); } const dstPg=path.resolve(process.cwd(),'build','postgresql-installer.exe'); if(!fs.existsSync(dstPg)){ const pgCandidates=[path.resolve(process.cwd(),'..','postgresql-18.4-2-windows-x64.exe'),'C:/Users/Administrador/Downloads/postgresql-18.4-2-windows-x64.exe','C:/Users/Administrador/Downloads/Programs/postgresql-18.4-2-windows-x64.exe']; for(const c of pgCandidates){ if(fs.existsSync(c)){ fs.mkdirSync(path.dirname(dstPg),{recursive:true}); fs.copyFileSync(c,dstPg); break; } } }\"",
+    "dist": "npm run build:server --prefix .. && vite build && npm run predist && electron-builder && npm run postdist",
     "postdist": "node -e \"const fs=require('fs'); const path=require('path'); const fileExe=path.resolve(process.cwd(),'ServidorPOS.exe'); if(fs.existsSync(fileExe)){ fs.unlinkSync(fileExe); } const fileCjs=path.resolve(process.cwd(),'ServidorPOS.cjs'); if(fs.existsSync(fileCjs)){ fs.unlinkSync(fileCjs); } const fileEnv=path.resolve(process.cwd(),'.env'); if(fs.existsSync(fileEnv)){ fs.unlinkSync(fileEnv); } const filePg=path.resolve(process.cwd(),'build','postgresql-installer.exe'); if(fs.existsSync(filePg)){ fs.unlinkSync(filePg); }\""
   },
   "dependencies": {
@@ -22,17 +23,21 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "oxlint": "^1.71.0",
+    "sharp": "^0.35.4",
+    "tailwindcss": "^4.3.3",
     "vite": "^8.1.1"
   },
   "build": {
     "appId": "com.chloerestaurant.pos",
     "productName": "ChloeRestaurant",
+    "compression": "normal",
     "directories": {
       "output": "release",
       "buildResources": "build"
