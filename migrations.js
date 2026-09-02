@@ -629,6 +629,28 @@ const migrations = [{
       ALTER TABLE licencias ADD COLUMN IF NOT EXISTS vencimiento TIMESTAMP;
     `,
   },
+  {
+    id: '036_stock_minimo_inventario',
+    sql: `
+      ALTER TABLE ingredientes ADD COLUMN IF NOT EXISTS stock_minimo NUMERIC(10,2) NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    id: '037_sincronizar_configuracion_negocio',
+    sql: `
+      -- Sincronizar logo_url: negocio_config es la fuente canónica de datos del negocio.
+      UPDATE configuracion_sistema cs
+      SET logo_url = COALESCE(nc.logo_url, cs.logo_url)
+      FROM negocio_config nc
+      WHERE nc.empresa_id = cs.empresa_id AND nc.logo_url IS NOT NULL;
+
+      -- Sincronizar nombre: negocio_config.nombre_comercial es la fuente canónica.
+      UPDATE configuracion_sistema cs
+      SET nombre_negocio = COALESCE(nc.nombre_comercial, cs.nombre_negocio)
+      FROM negocio_config nc
+      WHERE nc.empresa_id = cs.empresa_id AND nc.nombre_comercial IS NOT NULL;
+    `,
+  },
 ];
 export async function runMigrations(pool) {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());

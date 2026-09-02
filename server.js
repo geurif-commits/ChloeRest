@@ -11,6 +11,9 @@ import { runMigrations } from './migrations.js';
 import { registrarAuditoria } from './audit.js';
 import { iniciarTelegramBot, notificarSolicitud, notificarPago, enviarClaveActivacion, telegramActivo, validarWebhookSecret, procesarActualizacionWebhook } from './telegramBot.js';
 import { runWithRequestContext } from './db.js';
+import { validarRNC, normalizarRNC } from './lib/rnc.js';
+import { construirECF } from './lib/ecf.js';
+import { formatearFila607, formatearFila606, serializarTXT, serializarCSV, COLS_607, COLS_606 } from './lib/dgii.js';
 
 // ── Exception handlers (PM2 reinicia en <2s si el proceso cae) ──
 process.on('uncaughtException', (err) => {
@@ -346,144 +349,6 @@ function money(value) {
 
 function clientIp(req) {
   return req.ip || req.socket.remoteAddress || null;
-}
-
-// ── Validación de RNC/Cédula (DGII) ──
-function validarRNC(rnc) {
-  const clean = String(rnc || '').replace(/[^0-9]/g, '');
-  if (clean.length === 9) return validarRNCModulo11(clean);
-  if (clean.length === 11) return validarRNCModulo10(clean);
-  return false;
-}
-
-function validarRNCModulo10(rnc) {
-  const weights = [7, 9, 8, 6, 5, 4, 3, 2];
-  let sum = 0;
-  for (let i = 0; i < 8; i++) sum += parseInt(rnc[i]) * weights[i];
-  const checkDigit = (10 - (sum % 10)) % 10;
-  return checkDigit === parseInt(rnc[8]);
-}
-
-function validarRNCModulo11(rnc) {
-  const weights = [7, 8, 9, 4, 5, 6, 7, 8, 9];
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += parseInt(rnc[i]) * weights[i];
-  const remainder = sum % 11;
-  const checkDigit = remainder === 0 ? 0 : remainder === 1 ? 1 : 11 - remainder;
-  return checkDigit === parseInt(rnc[9]) && parseInt(rnc[10]) === 0;
-}
-
-function normalizarRNC(rnc) {
-  return String(rnc || '').replace(/[^0-9]/g, '').substring(0, 11);
-}
-
-// ── Construcción de e-CF según especificación DGII ──
-function construirECF({ tipoECF, ncf, cfg, rncReceptor, razonSocialReceptor, detalles, fechaEmision, tipoPago, fechaVencimientoSecuencia }) {
-  const rncEmisor = normalizarRNC(cfg.rnc_emisor);
-  const razonSocial = cfg.razon_social_emisor || cfg.rnc_emisor || '';
-  const direccion = cfg.direccion_emisor || '';
-  const fecha = fechaEmision || new Date().toLocaleDateString('es-DO', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-  const fechaVenc = fechaVencimientoSecuencia || '31-12-2028';
-
-  let montoGravado = 0;
-  let montoExento = 0;
-  let totalItbis = 0;
-  const items = detalles.map((d, idx) => {
-    const cantidad = Number(d.cantidad);
-    const precio = Number(d.precio_unitario);
-    const tasaItbis = Number(d.tasa_itbis ?? 18);
-    const montoItem = money(cantidad * precio);
-    const esExento = tasaItbis === 0;
-
-    let montoGravadoItem = 0;
-    let montoItbisItem = 0;
-    if (!esExento) {
-      montoGravadoItem = money(montoItem / (1 + tasaItbis / 100));
-      montoItbisItem = money(montoGravadoItem * tasaItbis / 100);
-      montoGravado += montoGravadoItem;
-      totalItbis += montoItbisItem;
-    } else {
-      montoExento += montoItem;
-    }
-
-    return {
-      NumeroLinea: idx + 1,
-      IndicadorFacturacion: esExento ? 4 : 1,
-      NombreItem: d.producto_nombre || d.descripcion || 'Item',
-      IndicadorBienoServicio: 1,
-      CantidadItem: cantidad,
-      PrecioUnitarioItem: precio,
-      MontoItem: montoItem,
-      ...(esExento ? {} : {
-        ITBIS: {
-          TasaItbis: tasaItbis,
-          MontoItbis: montoItbisItem,
-        },
-        MontoGravado: montoGravadoItem,
-      }),
-    };
-  });
-
-  const montoTotal = money(montoGravado + montoExento + totalItbis);
-
-  const encabezado = {
-    Version: '1.0',
-    IdDoc: {
-      TipoeCF: tipoECF,
-      eNCF: ncf,
-      FechaVencimientoSecuencia: fechaVenc,
-      IndicadorEnvioDiferido: 1,
-      TipoIngresos: '01',
-      TipoPago: tipoPago || 1,
-    },
-    Emisor: {
-      RNCEmisor: rncEmisor,
-      RazonSocialEmisor: razonSocial,
-      DireccionEmisor: direccion,
-      FechaEmision: fecha,
-    },
-    Totales: {
-      MontoTotal: montoTotal,
-      ...(montoExento > 0 ? { MontoExento: montoExento } : {}),
-      ...(montoGravado > 0 ? {
-        MontoGravadoTotal: montoGravado,
-        MontoGravadoI1: montoGravado,
-        ITBIS1: 18,
-        TotalITBIS: totalItbis,
-        TotalITBIS1: totalItbis,
-      } : {}),
-    },
-  };
-
-  // E31 requiere comprador con RNC
-  if (tipoECF === 31) {
-    encabezado.Comprador = {
-      RNCComprador: normalizarRNC(rncReceptor),
-      RazonSocialComprador: razonSocialReceptor || 'Cliente',
-    };
-  }
-
-  // E32 requiere comprador si monto >= 250,000
-  if (tipoECF === 32) {
-    if (montoTotal >= 250000) {
-      encabezado.Comprador = {
-        RNCComprador: normalizarRNC(rncReceptor),
-        RazonSocialComprador: razonSocialReceptor || 'Cliente',
-      };
-    } else {
-      encabezado.Comprador = {
-        RNCComprador: normalizarRNC(rncReceptor) || '',
-        RazonSocialComprador: razonSocialReceptor || 'Cliente Final',
-      };
-    }
-  }
-
-  return {
-    ECF: {
-      Encabezado: encabezado,
-      DetallesItems: { Item: items },
-    },
-  };
 }
 
 function uploadUrl(req, file) {
@@ -2091,6 +1956,82 @@ app.get('/api/configuracion/sistema', route(async (req, res) => {
   });
 }));
 
+// ── Configuración consolidada (sistema + negocio) ──
+// Combina configuracion_sistema y negocio_config en una sola respuesta para
+// evitar consultas duplicadas en el frontend. negocio_config es la fuente
+// canónica de los datos del negocio.
+app.get('/api/configuracion/completa', route(async (req, res) => {
+  const deviceId = String(req.get('x-device-id') || '').trim();
+  let empresaId = null;
+  if (deviceId) {
+    const dev = await db.queryUnscoped('SELECT empresa_id FROM dispositivos WHERE device_id = $1', [deviceId]);
+    if (dev.rowCount && dev.rows[0].empresa_id) empresaId = dev.rows[0].empresa_id;
+  }
+
+  let cs;
+  if (empresaId) cs = await db.queryUnscoped('SELECT * FROM configuracion_sistema WHERE empresa_id = $1 ORDER BY id LIMIT 1', [empresaId]);
+  if (!cs || !cs.rowCount) cs = await db.queryUnscoped('SELECT * FROM configuracion_sistema ORDER BY id LIMIT 1');
+  const row = cs.rows[0];
+
+  let nc;
+  if (empresaId) nc = await db.queryUnscoped('SELECT * FROM negocio_config WHERE empresa_id = $1 ORDER BY id LIMIT 1', [empresaId]);
+  if (!nc || !nc.rowCount) nc = await db.queryUnscoped('SELECT * FROM negocio_config ORDER BY id LIMIT 1');
+  const negocio = nc.rows[0] || {};
+
+  if (!row) return res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', tiene_administrador: false });
+
+  const adminQuery = empresaId
+    ? "SELECT COUNT(*)::int AS total FROM usuarios WHERE estado = 'Activo' AND rol = 'Administrador' AND empresa_id = $1"
+    : "SELECT COUNT(*)::int AS total FROM usuarios WHERE estado = 'Activo' AND rol = 'Administrador'";
+  const admins = await db.queryUnscoped(adminQuery, empresaId ? [empresaId] : []);
+
+  res.json({
+    id: row.id,
+    empresa_id: row.empresa_id || empresaId || 1,
+    nombre_negocio: row.nombre_negocio || negocio.nombre_comercial || null,
+    slogan: row.slogan || null,
+    logo_url: row.logo_url || negocio.logo_url || null,
+    fondo_login_url: row.fondo_login_url || null,
+    tema_activo: row.tema_activo || 'noche',
+    estilo_login: row.estilo_login || 'moderno',
+    color_primario: row.color_primario || null,
+    color_secundario: row.color_secundario || null,
+    opacidad_fondo: Number(row.opacidad_fondo || 1),
+    login_theme: row.login_theme || 'chef_noir',
+    color_acento: row.color_acento || null,
+    fondo_tipo: row.fondo_tipo || 'imagen',
+    fondo_color: row.fondo_color || null,
+    fondo_gradiente: row.fondo_gradiente || null,
+    fondo_blur: Number(row.fondo_blur || 0),
+    setup_completado: !!row.setup_completado,
+    tiene_administrador: admins.rows[0].total > 0,
+    owner_pin_longitud: Number(row.owner_pin_longitud || 6),
+    negocio: {
+      nombre_comercial: negocio.nombre_comercial || null,
+      razon_social: negocio.razon_social || null,
+      rnc: negocio.rnc || null,
+      telefono: negocio.telefono || null,
+      direccion: negocio.direccion || null,
+      provincia: negocio.provincia || null,
+      regimen_fiscal: negocio.regimen_fiscal || null,
+      nombre_cocina: negocio.nombre_cocina || null,
+      nombre_bar: negocio.nombre_bar || null,
+      propietario: negocio.propietario || null,
+      email: negocio.email || null,
+      cobrar_itbis: !!negocio.cobrar_itbis,
+      cobrar_propina: !!negocio.cobrar_propina,
+      tasa_usd: Number(negocio.tasa_usd || 0),
+      tasa_eur: Number(negocio.tasa_eur || 0),
+      comanda_modo: negocio.comanda_modo || null,
+      ticket_font_family: negocio.ticket_font_family || null,
+      ticket_font_size: negocio.ticket_font_size || null,
+      ticket_logo_position: negocio.ticket_logo_position || null,
+      ticket_show_qr: !!negocio.ticket_show_qr,
+      ticket_margin: negocio.ticket_margin || null,
+    },
+  });
+}));
+
 // ── Registro del cliente nuevo (público: se consume desde la pantalla de bienvenida) ──
 app.post('/api/setup/registro', route(async (req, res) => {
   const propietario = String(req.body.propietario || '').trim();
@@ -3348,10 +3289,27 @@ app.get('/api/inventario', requireRoles(...ROLES_ADMIN), route(async (_req, res)
 app.post('/api/inventario', requireRoles(...ROLES_ADMIN), route(async (req, res) => {
   const name = String(req.body.nombre || '').trim();
   const stock = money(req.body.stock_actual || 0);
+  const stockMinimo = money(req.body.stock_minimo || 0);
   if (!name || !Number.isFinite(stock) || stock < 0) throw httpError(400, 'Nombre y stock válido son obligatorios.');
-  const result = await db.query("INSERT INTO ingredientes (numero_articulo, nombre, categoria, stock_actual, unidad_medida) VALUES (CONCAT('ART-', LPAD(nextval(pg_get_serial_sequence('ingredientes','id'))::text, 4, '0')), $1, $2, $3, $4) RETURNING numero_articulo, id", [name, String(req.body.categoria || 'General'), stock, String(req.body.unidad_medida || 'Unidades')]);
+  const result = await db.query("INSERT INTO ingredientes (numero_articulo, nombre, categoria, stock_actual, unidad_medida, stock_minimo) VALUES (CONCAT('ART-', LPAD(nextval(pg_get_serial_sequence('ingredientes','id'))::text, 4, '0')), $1, $2, $3, $4, $5) RETURNING numero_articulo, id", [name, String(req.body.categoria || 'General'), stock, String(req.body.unidad_medida || 'Unidades'), stockMinimo]);
   await registrarAuditoria(db, { usuarioId: req.user.id, accion: 'CREAR_INSUMO', entidad: 'ingredientes', entidadId: result.rows[0].id, ip: clientIp(req) });
   res.status(201).json({ mensaje: 'Ítem de inventario registrado.', numero_articulo: result.rows[0].numero_articulo });
+}));
+
+// Alertas de stock mínimo: ítems cuyo stock_actual está por debajo del mínimo
+app.get('/api/inventario/alertas', requireRoles(...ROLES_ADMIN), route(async (_req, res) => {
+  const result = await db.query(`
+    SELECT id, numero_articulo, nombre, categoria, stock_actual, stock_minimo, unidad_medida,
+           (stock_minimo - stock_actual) AS faltante
+    FROM ingredientes
+    WHERE stock_minimo > 0 AND stock_actual < stock_minimo
+    ORDER BY (stock_minimo - stock_actual) DESC
+  `);
+  const alertas = result.rows.map(r => ({
+    ...r,
+    nivel: r.stock_actual <= 0 ? 'agotado' : 'bajo',
+  }));
+  res.json({ alertas, total: alertas.length });
 }));
 
 app.post('/api/pedidos/llevar', requireRoles(...ROLES_OPERACION), route(async (req, res) => {
@@ -3686,69 +3644,20 @@ app.get('/api/dgii/reporte-607', adminODueno, route(async (req, res) => {
   );
 
   const periodo = `${anio}${mes}`;
-  const filas = ventas.rows.map((v) => {
-    const docCliente = String(v.rnc_cedula_cliente || '').replace(/[^0-9]/g, '');
-    let tipoId = '3';
-    if (docCliente.length === 9) tipoId = '1';
-    else if (docCliente.length === 11) tipoId = '2';
-
-    const f = new Date(v.fecha_cierre || v.fecha_apertura);
-    const fechaComp = `${f.getFullYear()}${String(f.getMonth() + 1).padStart(2, '0')}${String(f.getDate()).padStart(2, '0')}`;
-    const subtotal = Number(v.subtotal || 0).toFixed(2);
-    const itbis = Number(v.itbis || 0).toFixed(2);
-    const propina = Number(v.propina || 0).toFixed(2);
-
-    let efectivo = '0.00';
-    let tarjeta = '0.00';
-    let transferencia = '0.00';
-    const total = Number(v.total || 0).toFixed(2);
-
-    if (v.metodo_pago === 'Efectivo') efectivo = total;
-    else if (v.metodo_pago === 'Tarjeta') tarjeta = total;
-    else if (v.metodo_pago === 'Transferencia') transferencia = total;
-    else efectivo = Number(v.subtotal || 0).toFixed(2);
-
-    return {
-      rnc_cedula: docCliente || (v.ncf?.startsWith('B02') || v.ncf?.startsWith('E32') ? '' : '000000000'),
-      tipo_id: docCliente ? tipoId : '',
-      ncf: v.ncf || '',
-      ncf_modificado: '',
-      tipo_ingreso: '01',
-      fecha_comprobante: fechaComp,
-      fecha_retencion: '',
-      monto_facturado: subtotal,
-      itbis_facturado: itbis,
-      itbis_retenido: '0.00',
-      itbis_percibido: '0.00',
-      retencion_renta: '0.00',
-      isr_percibido: '0.00',
-      isc: '0.00',
-      otros_impuestos: propina,
-      propina_legal: propina,
-      efectivo,
-      cheque_transferencia: transferencia,
-      tarjeta,
-      venta_credito: '0.00',
-      bonos: '0.00',
-      permuta: '0.00',
-      otras_formas: '0.00',
-    };
-  });
+  const filas = ventas.rows.map(formatearFila607);
 
   if (formato === 'txt') {
-    const header = `607|${rncEmisor}|${periodo}|${filas.length}`;
-    const bodyLines = filas.map((r) => [
-      r.rnc_cedula, r.tipo_id, r.ncf, r.ncf_modificado, r.tipo_ingreso,
-      r.fecha_comprobante, r.fecha_retencion, r.monto_facturado, r.itbis_facturado,
-      r.itbis_retenido, r.itbis_percibido, r.retencion_renta, r.isr_percibido,
-      r.isc, r.otros_impuestos, r.propina_legal, r.efectivo, r.cheque_transferencia,
-      r.tarjeta, r.venta_credito, r.bonos, r.permuta, r.otras_formas
-    ].join('|'));
-
-    const txtContent = [header, ...bodyLines].join('\r\n');
+    const txtContent = serializarTXT('607', rncEmisor, periodo, filas, COLS_607);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="DGII_F_607_${rncEmisor}_${periodo}.txt"`);
     return res.send(txtContent);
+  }
+
+  if (formato === 'csv') {
+    const csvContent = serializarCSV(filas, COLS_607);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="DGII_F_607_${rncEmisor}_${periodo}.csv"`);
+    return res.send(csvContent);
   }
 
   res.json({
@@ -3781,52 +3690,20 @@ app.get('/api/dgii/reporte-606', adminODueno, route(async (req, res) => {
     [periodo]
   );
 
-  const filas = gastos.rows.map((g) => {
-    const f = new Date(g.fecha || Date.now());
-    const fechaComp = `${f.getFullYear()}${String(f.getMonth() + 1).padStart(2, '0')}${String(f.getDate()).padStart(2, '0')}`;
-    const monto = (50.00 * Number(g.cantidad || 1)).toFixed(2);
-    return {
-      rnc_cedula: '000000000',
-      tipo_id: '1',
-      tipo_bienes_servicios: '02',
-      ncf: `B010000000${g.id}`,
-      ncf_modificado: '',
-      fecha_comprobante: fechaComp,
-      fecha_pago: fechaComp,
-      monto_facturado_servicios: '0.00',
-      monto_facturado_bienes: monto,
-      total_monto_facturado: monto,
-      itbis_facturado: '0.00',
-      itbis_retenido: '0.00',
-      itbis_sujeto_proporcionalidad: '0.00',
-      itbis_llevado_al_costo: '0.00',
-      itbis_por_adelantar: '0.00',
-      itbis_percibido_compras: '0.00',
-      tipo_retencion_isr: '',
-      monto_retencion_renta: '0.00',
-      isr_percibido_compras: '0.00',
-      isc: '0.00',
-      otros_impuestos: '0.00',
-      propina_legal: '0.00',
-      forma_pago: '01'
-    };
-  });
+  const filas = gastos.rows.map(formatearFila606);
 
   if (formato === 'txt') {
-    const header = `606|${rncEmisor}|${periodo}|${filas.length}`;
-    const bodyLines = filas.map((r) => [
-      r.rnc_cedula, r.tipo_id, r.tipo_bienes_servicios, r.ncf, r.ncf_modificado,
-      r.fecha_comprobante, r.fecha_pago, r.monto_facturado_servicios, r.monto_facturado_bienes,
-      r.total_monto_facturado, r.itbis_facturado, r.itbis_retenido, r.itbis_sujeto_proporcionalidad,
-      r.itbis_llevado_al_costo, r.itbis_por_adelantar, r.itbis_percibido_compras,
-      r.tipo_retencion_isr, r.monto_retencion_renta, r.isr_percibido_compras,
-      r.isc, r.otros_impuestos, r.propina_legal, r.forma_pago
-    ].join('|'));
-
-    const txtContent = [header, ...bodyLines].join('\r\n');
+    const txtContent = serializarTXT('606', rncEmisor, periodo, filas, COLS_606);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="DGII_F_606_${rncEmisor}_${periodo}.txt"`);
     return res.send(txtContent);
+  }
+
+  if (formato === 'csv') {
+    const csvContent = serializarCSV(filas, COLS_606);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="DGII_F_606_${rncEmisor}_${periodo}.csv"`);
+    return res.send(csvContent);
   }
 
   res.json({

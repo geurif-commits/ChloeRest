@@ -239,3 +239,35 @@ Tras la auditoría se aplicaron mejoras concretas y verificadas:
 > **Nota honesta:** un "10/10" absoluto es aspiracional. El sistema ya está en un nivel alto
 > (seguridad fuerte, RLS, validación, observabilidad). Las mejoras de esta sección elevan la
 > robustez y la experiencia; los puntos 1–5 del plan futuro son los que cierran la brecha restante.
+
+---
+
+## 10. Plan completado (2026-09-02)
+
+Se ejecutaron todas las mejoras pendientes del plan:
+
+| # | Mejora | Estado | Validación |
+|---|--------|--------|-----------|
+| 1 | **Suite de pruebas automatizadas** (`node:test`) | ✅ | 19 tests, todos pasan |
+| 2 | **Alertas de stock mínimo** (columna `stock_minimo` + endpoint `/api/inventario/alertas`) | ✅ | 200 OK |
+| 3 | **Exportación CSV** en reportes DGII 606/607 | ✅ | 200 OK, `text/csv` |
+| 4 | **Unificar configuración** (migración 037 sincroniza `logo_url`/nombre + endpoint `/api/configuracion/completa`) | ✅ | 200 OK |
+| 5 | **Modularizar `server.js`** (extracción de helpers a `lib/rnc.js`, `lib/ecf.js`, `lib/dgii.js`) | ✅ | 3903 → 3710 líneas, tests OK |
+| 6 | **Corrección bug validación RNC** (módulo 11 de 9 dígitos) | ✅ | Tests unitarios |
+
+### Detalle de la modularización
+- `lib/rnc.js`: validación RNC/Cédula (módulo 10 y 11) + normalización.
+- `lib/ecf.js`: construcción de e-CF (31/32/33/34) según especificación DGII.
+- `lib/dgii.js`: formateo y serialización de reportes 606/607 (JSON/TXT/CSV).
+
+### Migraciones nuevas
+- `036_stock_minimo_inventario`: columna `stock_minimo` en `ingredientes`.
+- `037_sincronizar_configuracion_negocio`: sincroniza `logo_url` y nombre entre
+  `configuracion_sistema` y `negocio_config` (negocio_config es la fuente canónica).
+
+### Nota sobre la modularización completa en routers
+La extracción de **routers por dominio** (mover bloques de rutas a archivos separados) es un
+refactor de mayor riesgo que requiere la cobertura de tests ya creada. Se optó por una
+modularización segura de los **helpers de negocio puros**, que reduce el monolito sin mover
+rutas ni cambiar ningún endpoint. La migración a routers completos puede hacerse de forma
+incremental ahora que existe la suite de tests.
