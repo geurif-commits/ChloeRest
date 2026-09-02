@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { obtenerSesion } from '../../api.js';
+import SafeImage from '../SafeImage.jsx';
 
 const bebidasClave = ['bar', 'bebida', 'cerveza', 'ron', 'whiskey', 'vino', 'vodka', 'jugo', 'cóctel', 'coctel', 'refresco', 'agua', 'licor'];
 
@@ -92,7 +93,7 @@ function ProductoGrid({
             {productosFiltrados.map((prod) => (
               <div key={prod.id} onClick={() => onAgregarProducto(prod)} className="pedido-producto">
                 <div className="pedido-producto__img">
-                  {prod.imagen_url ? <img src={prod.imagen_url} alt={prod.nombre} /> : <span className="pedido-producto__placeholder">🍽️</span>}
+                  {prod.imagen_url ? <SafeImage src={prod.imagen_url} alt={prod.nombre} className="pedido-producto__image" /> : <SafeImage src="/favicon.svg" alt="" className="pedido-producto__image pedido-producto__image--fallback" />}
                 </div>
                 <h4 className="pedido-producto__name">{prod.nombre}</h4>
                 <span className="pedido-producto__price">RD$ {formatearRD(prod.precio)}</span>

@@ -1,0 +1,580 @@
+/* ================================================================
+   CHLOERESTAURANT POS — WELCOME & REGISTRATION (LUXURY REDESIGN)
+   Pixel-perfect, aligned within margins, fully responsive
+   ================================================================ */
+
+.welcome-screen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(0, 245, 118, 0.08), transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(214, 164, 77, 0.09), transparent 45%),
+    linear-gradient(180deg, #07090f 0%, #0c1220 50%, #070a11 100%);
+  color: #f0f4f8;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-sizing: border-box;
+}
+
+.welcome-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.welcome-layout {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 32px;
+  width: 100%;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .welcome-layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 12px 0;
+  }
+}
+
+/* ================================================================
+   LEFT COLUMN - PRESENTATION & PLANS
+   ================================================================ */
+
+.welcome-left {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.welcome-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.welcome-brand-badge {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  border: 1px solid rgba(214, 164, 77, 0.4);
+  background: linear-gradient(145deg, rgba(214, 164, 77, 0.2), rgba(214, 164, 77, 0.05));
+  box-shadow: 0 0 20px rgba(214, 164, 77, 0.15);
+  flex-shrink: 0;
+}
+
+.welcome-brand-badge img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.welcome-brand-tag {
+  color: #d6a44d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 2px 0;
+}
+
+.welcome-header h1 {
+  color: #fff;
+  font-size: 1.45rem;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.welcome-hero-title {
+  color: #fff;
+  font-size: clamp(1.4rem, 2.4vw, 1.85rem);
+  font-weight: 800;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.welcome-hero-subtitle {
+  color: #94a3b8;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* License acquisition panel */
+.welcome-license-panel {
+  background: rgba(14, 20, 34, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+}
+
+.welcome-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.welcome-panel-header svg {
+  color: #d6a44d;
+}
+
+.welcome-panel-text {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  margin: 0 0 16px 0;
+  line-height: 1.45;
+}
+
+.welcome-panel-text strong {
+  color: #00f576;
+}
+
+.welcome-plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.welcome-plan-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  padding: 12px 10px;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  color: #fff;
+}
+
+.welcome-plan-card:hover {
+  border-color: rgba(214, 164, 77, 0.4);
+  background: rgba(214, 164, 77, 0.06);
+  transform: translateY(-2px);
+}
+
+.welcome-plan-card.selected {
+  border-color: #00f576;
+  background: rgba(0, 245, 118, 0.1);
+  box-shadow: 0 0 16px rgba(0, 245, 118, 0.2);
+}
+
+.welcome-plan-card.plan-highlight {
+  border-color: rgba(214, 164, 77, 0.4);
+}
+
+.welcome-plan-badge {
+  position: absolute;
+  top: -8px;
+  background: linear-gradient(135deg, #d6a44d, #b8862a);
+  color: #050b14;
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.welcome-plan-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.welcome-plan-price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #00f576;
+}
+
+.welcome-plan-card.selected .welcome-plan-name {
+  color: #00f576;
+}
+
+.welcome-plan-duration {
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+
+/* ================================================================
+   RIGHT COLUMN - REGISTRATION FORM
+   ================================================================ */
+
+.welcome-form-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.welcome-form-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(18, 24, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 28px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(20px);
+  box-sizing: border-box;
+}
+
+.welcome-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: all 0.2s ease;
+}
+
+.welcome-back-link:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.welcome-progress-bar {
+  margin-bottom: 16px;
+}
+
+.welcome-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.welcome-progress-header span {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #d6a44d;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.welcome-progress-header strong {
+  font-size: 0.8rem;
+  color: #e2e8f0;
+}
+
+.welcome-progress-track {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.welcome-progress-fill {
+  height: 100%;
+  width: 50%;
+  background: linear-gradient(90deg, #00f576, #00b852);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(0, 245, 118, 0.4);
+}
+
+.welcome-selected-plan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 245, 118, 0.35);
+  background: rgba(0, 245, 118, 0.08);
+  box-sizing: border-box;
+}
+
+.welcome-selected-plan span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.welcome-selected-plan span strong {
+  color: #00f576;
+}
+
+.welcome-btn-change {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.welcome-btn-change:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ================================================================
+   FORM FIELDS & INPUTS (PERFECT BOUNDS)
+   ================================================================ */
+
+.welcome-form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.welcome-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.welcome-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.welcome-label svg {
+  color: #d6a44d;
+}
+
+.welcome-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.welcome-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  background: rgba(10, 15, 26, 0.85);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.88rem;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.welcome-input:focus {
+  border-color: #00f576;
+  box-shadow: 0 0 0 3px rgba(0, 245, 118, 0.15);
+}
+
+.welcome-input-wrapper.with-prefix {
+  display: flex;
+  align-items: stretch;
+}
+
+.welcome-phone-prefix {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.welcome-input-wrapper.with-prefix .welcome-input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 0 10px 10px 0;
+  border-left: none;
+}
+
+.welcome-select-wrapper {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.welcome-select {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  background: rgba(10, 15, 26, 0.85);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.88rem;
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-family: inherit;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.welcome-select:focus {
+  border-color: #00f576;
+  box-shadow: 0 0 0 3px rgba(0, 245, 118, 0.15);
+}
+
+.welcome-select option {
+  background: #0d1220;
+  color: #fff;
+}
+
+.welcome-field-error {
+  color: #f87171;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.welcome-form-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #f87171;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.welcome-btn-submit {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #00f576 0%, #00b852 100%);
+  color: #050b14;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 8px 20px rgba(0, 245, 118, 0.25);
+  margin-top: 6px;
+  transition: transform 0.15s ease, filter 0.2s ease;
+}
+
+.welcome-btn-submit:not(:disabled):hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.welcome-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.welcome-trust-badges {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.welcome-trust-badges span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.welcome-trust-badges span svg {
+  color: #00f576;
+}
+
+/* ================================================================
+   SUCCESS / CONFIRMATION VIEW
+   ================================================================ */
+
+.welcome-sent-card {
+  background: rgba(18, 24, 42, 0.94);
+  border: 1px solid rgba(0, 245, 118, 0.4);
+  border-radius: 20px;
+  padding: 36px 28px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  margin: 0 auto;
+}
+
+.welcome-success-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: rgba(0, 245, 118, 0.12);
+  border: 1px solid rgba(0, 245, 118, 0.4);
+  display: grid;
+  place-items: center;
+  color: #00f576;
+}
+
+.welcome-sent-card h2 {
+  color: #fff;
+  font-size: 1.4rem;
+  margin: 0 0 8px 0;
+}
+
+.welcome-sent-card p {
+  color: #94a3b8;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0 0 20px 0;
+}

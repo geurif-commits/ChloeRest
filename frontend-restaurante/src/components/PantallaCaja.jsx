@@ -37,13 +37,19 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [verificandoPin, setVerificandoPin] = useState(false);
 
   const [configNegocio, setConfigNegocio] = useState({
-    nombre: 'ChloeRestaurant',
-    rnc: '130000001',
-    direccion: 'Av. Principal, La Romana',
-    telefono: '809-000-0000',
+    nombre: 'Mi Negocio',
+    rnc: '',
+    direccion: 'República Dominicana',
+    telefono: '',
     logo_url: '',
     cobrar_itbis: true,
-    cobrar_propina: true
+    cobrar_propina: true,
+    comanda_modo: 'kds',
+    ticket_font_family: 'monospace',
+    ticket_font_size: '12',
+    ticket_logo_position: 'top',
+    ticket_show_qr: true,
+    ticket_margin: 'normal'
   });
 
   const [cuentasBancarias, setCuentasBancarias] = useState([]);
@@ -306,8 +312,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       setConfigNegocio({
         nombre:
           data.nombre_comercial ||
+          data.nombre_negocio ||
           data.nombre ||
-          'ChloeRestaurant',
+          'Mi Negocio',
 
         rnc:
           data.rnc ||
@@ -329,7 +336,25 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           data.cobrar_itbis ?? true,
 
         cobrar_propina:
-          data.cobrar_propina ?? true
+          data.cobrar_propina ?? true,
+
+        comanda_modo:
+          data.comanda_modo || 'kds',
+
+        ticket_font_family:
+          data.ticket_font_family || 'monospace',
+
+        ticket_font_size:
+          data.ticket_font_size || '12',
+
+        ticket_logo_position:
+          data.ticket_logo_position || 'top',
+
+        ticket_show_qr:
+          data.ticket_show_qr ?? true,
+
+        ticket_margin:
+          data.ticket_margin || 'normal'
       });
     } catch (error) {
       console.error(
@@ -415,9 +440,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   };
 
   const verificarPinMesa = async () => {
-    if (!pinVerificacion || pinVerificacion.length < 4) {
+    if (!/^\d{6}$/.test(pinVerificacion)) {
       return toastAviso(
-        'Ingresa tu PIN de acceso.'
+        'Ingresa tu PIN de acceso de 6 dígitos.'
       );
     }
 
@@ -740,7 +765,15 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           rncCliente,
 
           fecha:
-            new Date().toLocaleString()
+            new Date().toLocaleString(),
+
+          ticketConfig: {
+            font_family: configNegocio.ticket_font_family,
+            font_size: configNegocio.ticket_font_size,
+            logo_position: configNegocio.ticket_logo_position,
+            show_qr: configNegocio.ticket_show_qr,
+            margin: configNegocio.ticket_margin
+          }
         });
 
         toastExito(
@@ -904,7 +937,15 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       total,
 
       fecha:
-        new Date().toLocaleString()
+        new Date().toLocaleString(),
+
+      ticketConfig: {
+        font_family: configNegocio.ticket_font_family,
+        font_size: configNegocio.ticket_font_size,
+        logo_position: configNegocio.ticket_logo_position,
+        show_qr: configNegocio.ticket_show_qr,
+        margin: configNegocio.ticket_margin
+      }
     });
   };
 
@@ -936,7 +977,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           display: flex !important;
           flex-direction: column !important;
           width: 100% !important;
-          height: 100vh !important;
+          height: 100dvh !important;
           min-height: 0 !important;
           overflow: hidden !important;
         }
@@ -1019,7 +1060,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         .caja-main--horizontal {
           width: 100% !important;
           min-width: 0 !important;
-          height: calc(100vh - 64px) !important;
+          height: calc(100dvh - 64px) !important;
           min-height: 0 !important;
           flex: 1 1 auto !important;
         }
@@ -2248,7 +2289,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                       '0 0 16px 0'
                   }}
                 >
-                  Ingresa tu PIN
+                  Ingresa tu PIN de 6 dígitos
                   para acceder a{' '}
                   <strong
                     style={{

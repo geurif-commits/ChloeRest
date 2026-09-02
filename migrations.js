@@ -1,5 +1,6 @@
 import { hashPin } from './auth.js';
 import { config } from './config.js';
+import crypto from 'node:crypto';
 
 const migrations = [{
   id: '001_security_and_audit',
@@ -310,13 +311,334 @@ const migrations = [{
     ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS mesa_color_disponible VARCHAR(20) NOT NULL DEFAULT '#00f576';
     ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS mesa_color_ocupada VARCHAR(20) NOT NULL DEFAULT '#ff4444';
     ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS mesa_color_reservada VARCHAR(20) NOT NULL DEFAULT '#d6a44d';
-  `,
-}];
+`,
 
+}, {
+  id: '018_owner_pin_hash',
+  sql: `
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS owner_pin_hash VARCHAR(200);
+  `,
+}, {
+  id: '019_negocio_comanda_ticket_y_pin_length',
+  sql: `
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS owner_pin_longitud INTEGER NOT NULL DEFAULT 6;
+
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS comanda_modo VARCHAR(20) NOT NULL DEFAULT 'kds';
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS ticket_font_family VARCHAR(50) NOT NULL DEFAULT 'Inter';
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS ticket_font_size VARCHAR(10) NOT NULL DEFAULT '12';
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS ticket_logo_position VARCHAR(20) NOT NULL DEFAULT 'top';
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS ticket_show_qr BOOLEAN NOT NULL DEFAULT TRUE;
+    ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS ticket_margin VARCHAR(20) NOT NULL DEFAULT 'normal';
+  `,
+}, {
+  id: '020_normalizar_uploads_https',
+  sql: `
+    DO $$
+    BEGIN
+      BEGIN
+        UPDATE configuracion_sistema SET logo_url = REPLACE(logo_url,'http://','https://') WHERE logo_url LIKE 'http://%';
+      EXCEPTION WHEN OTHERS THEN NULL; END;
+      BEGIN
+        UPDATE configuracion_sistema SET fondo_login_url = REPLACE(fondo_login_url,'http://','https://') WHERE fondo_login_url LIKE 'http://%';
+      EXCEPTION WHEN OTHERS THEN NULL; END;
+      BEGIN
+        UPDATE negocio_config SET logo_url = REPLACE(logo_url,'http://','https://') WHERE logo_url LIKE 'http://%';
+      EXCEPTION WHEN OTHERS THEN NULL; END;
+      BEGIN
+        UPDATE productos SET imagen_url = REPLACE(imagen_url,'http://','https://') WHERE imagen_url LIKE 'http://%';
+      EXCEPTION WHEN OTHERS THEN NULL; END;
+      BEGIN
+        UPDATE categorias SET imagen_url = REPLACE(imagen_url,'http://','https://') WHERE imagen_url LIKE 'http://%';
+      EXCEPTION WHEN OTHERS THEN NULL; END;
+    END $$;
+  `,
+}, {
+  id: '021_login_apariencia_premium',
+  sql: `
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS login_theme VARCHAR(30) NOT NULL DEFAULT 'chef_noir';
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS color_acento VARCHAR(20);
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS fondo_tipo VARCHAR(20) NOT NULL DEFAULT 'imagen';
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS fondo_color VARCHAR(20);
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS fondo_gradiente VARCHAR(250);
+    ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS fondo_blur INTEGER NOT NULL DEFAULT 0;
+  `,
+}, {
+  id: '022_ecf_algoback',
+  sql: `
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS proveedor_ecf VARCHAR(50) NOT NULL DEFAULT 'algoback';
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS algoback_api_key TEXT;
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS algoback_url TEXT NOT NULL DEFAULT 'https://api-dgii.algoback.com/ecf/procesar-factura';
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS algoback_ambiente VARCHAR(20) NOT NULL DEFAULT 'TEST';
+
+    CREATE TABLE IF NOT EXISTS e_cf_comprobantes (
+      id BIGSERIAL PRIMARY KEY,
+      cuenta_id INTEGER NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+      tipo_cf VARCHAR(5) NOT NULL,
+      ncf VARCHAR(50) NOT NULL,
+      track_id VARCHAR(100),
+      estado VARCHAR(30) NOT NULL DEFAULT 'Pendiente',
+      rnc_emisor VARCHAR(20),
+      rnc_receptor VARCHAR(20),
+      monto_total NUMERIC(12,2),
+      fecha_emision TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      enviado_en TIMESTAMP,
+      respuesta_json JSONB,
+      creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_e_cf_comprobantes_cuenta ON e_cf_comprobantes(cuenta_id);
+    CREATE INDEX IF NOT EXISTS idx_e_cf_comprobantes_track ON e_cf_comprobantes(track_id);
+    CREATE INDEX IF NOT EXISTS idx_e_cf_comprobantes_estado ON e_cf_comprobantes(estado);
+  `},
+{ id: '023_dgii_ecf_completo', sql: `
+    ALTER TABLE productos ADD COLUMN IF NOT EXISTS tasa_itbis NUMERIC(5,2) NOT NULL DEFAULT 18;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS ambiente VARCHAR(20) DEFAULT 'TEST';
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS fecha_limite_emision TIMESTAMP;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS tipo_emision INTEGER DEFAULT 1;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS codigo_seguridad VARCHAR(100);
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS qr_url TEXT;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS xml_firmado TEXT;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS motivo_anulacion TEXT;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS ncf_modificado VARCHAR(50);
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS tipo_pago INTEGER DEFAULT 1;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS monto_exento NUMERIC(12,2) DEFAULT 0;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS monto_gravado NUMERIC(12,2) DEFAULT 0;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS total_itbis NUMERIC(12,2) DEFAULT 0;
+    ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS total_propina NUMERIC(12,2) DEFAULT 0;
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS direccion_emisor TEXT;
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS telefono_emisor VARCHAR(30);
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS email_emisor VARCHAR(200);
+    ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS regimen_fiscal VARCHAR(100) DEFAULT 'Ordinario';
+  `},
+  {
+    id: '024_multiempresa_segura',
+    sql: `
+      CREATE TABLE IF NOT EXISTS empresas (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(200) NOT NULL,
+        slug VARCHAR(120) NOT NULL UNIQUE,
+        estado VARCHAR(20) NOT NULL DEFAULT 'Activa',
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS licencias (
+        id BIGSERIAL PRIMARY KEY,
+        empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        clave_hash CHAR(64) NOT NULL UNIQUE,
+        duracion_codigo VARCHAR(20) NOT NULL,
+        activa BOOLEAN NOT NULL DEFAULT TRUE,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        activada_en TIMESTAMP
+      );
+      INSERT INTO empresas (id, nombre, slug)
+      VALUES (1, 'LEGACY', 'legacy')
+      ON CONFLICT (id) DO NOTHING;
+      SELECT setval(pg_get_serial_sequence('empresas', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM empresas), 1), true);
+
+      DO $$
+      DECLARE tabla TEXT;
+      BEGIN
+        FOREACH tabla IN ARRAY ARRAY[
+          'usuarios', 'productos', 'ingredientes', 'clientes_frecuentes', 'mesas',
+          'cuentas', 'cuenta_detalles', 'negocio_config', 'menu_categorias',
+          'menu_guarniciones', 'menu_terminos', 'auditoria_operaciones',
+          'receta_productos', 'dgii_secuencias', 'inventario_movimientos',
+          'app_sessions', 'aperturas_caja', 'arqueos_caja', 'dgii_config',
+          'configuracion_sistema', 'cuentas_bancarias', 'historial_cierres',
+          'dispositivos', 'e_cf_comprobantes'
+        ] LOOP
+          IF to_regclass(tabla) IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id)', tabla);
+            EXECUTE format('UPDATE %I SET empresa_id = 1 WHERE empresa_id IS NULL', tabla);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN empresa_id SET DEFAULT NULLIF(current_setting(''app.empresa_id'', true), '''')::INTEGER', tabla);
+            EXECUTE format('ALTER TABLE %I ALTER COLUMN empresa_id SET NOT NULL', tabla);
+            EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I (empresa_id)', 'idx_' || tabla || '_empresa', tabla);
+            EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tabla);
+            EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tabla);
+            EXECUTE format('DROP POLICY IF EXISTS aislamiento_empresa ON %I', tabla);
+            EXECUTE format('CREATE POLICY aislamiento_empresa ON %I USING (current_setting(''app.platform'', true) = ''true'' OR empresa_id = NULLIF(current_setting(''app.empresa_id'', true), '''')::INTEGER) WITH CHECK (current_setting(''app.platform'', true) = ''true'' OR empresa_id = NULLIF(current_setting(''app.empresa_id'', true), '''')::INTEGER)', tabla);
+          END IF;
+        END LOOP;
+      END $$;
+      ALTER TABLE configuracion_sistema DROP CONSTRAINT IF EXISTS uq_configuracion_sistema_unica;
+      CREATE SEQUENCE IF NOT EXISTS configuracion_sistema_id_seq;
+      SELECT setval('configuracion_sistema_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM configuracion_sistema), 1), true);
+      ALTER TABLE configuracion_sistema ALTER COLUMN id SET DEFAULT nextval('configuracion_sistema_id_seq');
+    `,
+  },
+  {
+    id: '025_sesiones_vinculadas_dispositivo',
+    sql: `
+      ALTER TABLE app_sessions ADD COLUMN IF NOT EXISTS device_id VARCHAR(100);
+      CREATE INDEX IF NOT EXISTS idx_app_sessions_device ON app_sessions(device_id);
+    `,
+  },
+  {
+    id: '026_pin_temporal_por_licencia',
+    sql: `
+      ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS requiere_cambio_pin BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE licencias ADD COLUMN IF NOT EXISTS admin_pin_hash TEXT;
+      CREATE INDEX IF NOT EXISTS idx_licencias_empresa_activa ON licencias(empresa_id, activa);
+    `,
+  },
+  {
+    id: '027_clave_por_solicitud',
+    sql: `
+      ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS clave_generada VARCHAR(100);
+      ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS clave_pin_inicial VARCHAR(10);
+      ALTER TABLE solicitudes_licencia ADD COLUMN IF NOT EXISTS clave_enviada_en TIMESTAMP;
+    `,
+  },
+  {
+    id: '028_producto_propina_itbis_flags',
+    sql: `
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS aplica_itbis BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS aplica_propina BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS tasa_propina NUMERIC(5,2) NOT NULL DEFAULT 10;
+    `,
+  },
+  {
+    id: '029_cuenta_detalles_notas_guarnicion_termino',
+    sql: `
+      ALTER TABLE cuenta_detalles ADD COLUMN IF NOT EXISTS notas TEXT;
+      ALTER TABLE cuenta_detalles ADD COLUMN IF NOT EXISTS guarnicion VARCHAR(100);
+      ALTER TABLE cuenta_detalles ADD COLUMN IF NOT EXISTS termino VARCHAR(100);
+      CREATE TABLE IF NOT EXISTS menu_guarniciones (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(120) NOT NULL UNIQUE,
+        activo BOOLEAN NOT NULL DEFAULT TRUE,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS menu_terminos (
+        id SERIAL PRIMARY KEY,
+        nombre VARCHAR(120) NOT NULL UNIQUE,
+        activo BOOLEAN NOT NULL DEFAULT TRUE,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
+  {
+    id: '030_producto_tipo_destino_clasificacion',
+    sql: `
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo_destino VARCHAR(20) NOT NULL DEFAULT 'cocina';
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo_plato VARCHAR(30) NOT NULL DEFAULT 'plato_fuerte';
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_entrada BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_postre BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_guarnicion BOOLEAN NOT NULL DEFAULT FALSE;
+    `,
+  },
+  {
+    id: '031_producto_campos_adicionales_completos',
+    sql: `
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS descripcion TEXT;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_plato_fuerte BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS requiere_guarnicion BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS requiere_termino BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo_destino VARCHAR(20) NOT NULL DEFAULT 'cocina';
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS tipo_plato VARCHAR(30) NOT NULL DEFAULT 'plato_fuerte';
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_entrada BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_postre BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE productos ADD COLUMN IF NOT EXISTS es_guarnicion BOOLEAN NOT NULL DEFAULT FALSE;
+    `,
+  },
+  {
+    id: '032_menu_categorias_table_garantizada',
+    sql: `
+      CREATE TABLE IF NOT EXISTS menu_categorias (
+        id SERIAL PRIMARY KEY,
+        empresa_id INTEGER DEFAULT 1,
+        nombre VARCHAR(120) NOT NULL,
+        grupo VARCHAR(20) NOT NULL DEFAULT 'alimentos',
+        activo BOOLEAN NOT NULL DEFAULT TRUE,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_menu_categorias_nombre UNIQUE (nombre)
+      );
+      CREATE TABLE IF NOT EXISTS menu_guarniciones (
+        id SERIAL PRIMARY KEY,
+        empresa_id INTEGER DEFAULT 1,
+        nombre VARCHAR(120) NOT NULL,
+        activo BOOLEAN NOT NULL DEFAULT TRUE,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_menu_guarniciones_nombre UNIQUE (nombre)
+      );
+      CREATE TABLE IF NOT EXISTS menu_terminos (
+        id SERIAL PRIMARY KEY,
+        empresa_id INTEGER DEFAULT 1,
+        nombre VARCHAR(120) NOT NULL,
+        activo BOOLEAN NOT NULL DEFAULT TRUE,
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_menu_terminos_nombre UNIQUE (nombre)
+      );
+    `,
+  },
+  {
+    id: '033_add_column_activo_and_empresa_id_to_menu_tables',
+    sql: `
+      ALTER TABLE menu_categorias ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE menu_categorias ADD COLUMN IF NOT EXISTS empresa_id INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE menu_categorias ADD COLUMN IF NOT EXISTS grupo VARCHAR(20) NOT NULL DEFAULT 'alimentos';
+      ALTER TABLE menu_categorias ADD COLUMN IF NOT EXISTS creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+      ALTER TABLE menu_guarniciones ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE menu_guarniciones ADD COLUMN IF NOT EXISTS empresa_id INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE menu_guarniciones ADD COLUMN IF NOT EXISTS creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+      ALTER TABLE menu_terminos ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE menu_terminos ADD COLUMN IF NOT EXISTS empresa_id INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE menu_terminos ADD COLUMN IF NOT EXISTS creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_menu_categorias_nombre') THEN
+          ALTER TABLE menu_categorias ADD CONSTRAINT uq_menu_categorias_nombre UNIQUE (nombre);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_menu_guarniciones_nombre') THEN
+          ALTER TABLE menu_guarniciones ADD CONSTRAINT uq_menu_guarniciones_nombre UNIQUE (nombre);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_menu_terminos_nombre') THEN
+          ALTER TABLE menu_terminos ADD CONSTRAINT uq_menu_terminos_nombre UNIQUE (nombre);
+        END IF;
+      END $$;
+    `,
+  },
+  {
+    id: '034_fix_unique_constraints_menu_multitenant',
+    sql: `
+      DO $$
+      BEGIN
+        ALTER TABLE menu_categorias DROP CONSTRAINT IF EXISTS uq_menu_categorias_nombre;
+        ALTER TABLE menu_guarniciones DROP CONSTRAINT IF EXISTS uq_menu_guarniciones_nombre;
+        ALTER TABLE menu_terminos DROP CONSTRAINT IF EXISTS uq_menu_terminos_nombre;
+
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_menu_categorias_empresa_nombre') THEN
+          ALTER TABLE menu_categorias ADD CONSTRAINT uq_menu_categorias_empresa_nombre UNIQUE (empresa_id, nombre);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_menu_guarniciones_empresa_nombre') THEN
+          ALTER TABLE menu_guarniciones ADD CONSTRAINT uq_menu_guarniciones_empresa_nombre UNIQUE (empresa_id, nombre);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_menu_terminos_empresa_nombre') THEN
+          ALTER TABLE menu_terminos ADD CONSTRAINT uq_menu_terminos_empresa_nombre UNIQUE (empresa_id, nombre);
+        END IF;
+      END $$;
+    `,
+  },
+  {
+    id: '035_licencias_campos_gestion',
+    sql: `
+      ALTER TABLE licencias ADD COLUMN IF NOT EXISTS clave_texto VARCHAR(255);
+      ALTER TABLE licencias ADD COLUMN IF NOT EXISTS revocada BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE licencias ADD COLUMN IF NOT EXISTS motivo_revocacion TEXT;
+      ALTER TABLE licencias ADD COLUMN IF NOT EXISTS vencimiento TIMESTAMP;
+    `,
+  },
+];
 export async function runMigrations(pool) {
-  const client = await pool.connect();
+  const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());
   try {
     await client.query(`CREATE TABLE IF NOT EXISTS app_migrations (id VARCHAR(100) PRIMARY KEY, ejecutada_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+
+    // Establecer contexto de plataforma INMEDIATAMENTE para que todas las queries
+    // internas del runner puedan atravesar RLS sin restricciones de empresa.
+    // Obligatorio desde que migration 024 habilitó Row Level Security en todas las tablas.
+    await client.query("SELECT set_config('app.platform', 'true', false), set_config('app.empresa_id', '1', false)");
     
     // Garantizar tablas esenciales de caja independientemente del historial de migraciones
     await client.query(`
@@ -365,6 +687,10 @@ export async function runMigrations(pool) {
       }
     }
 
+    // Las tareas de backfill son internas y deben atravesar RLS sin heredar un
+    // contexto de una conexión de aplicación.
+    await client.query("SELECT set_config('app.empresa_id', '1', false), set_config('app.platform', 'true', false)");
+
     // Solo migrar PINs de usuarios activos (evitar reactivar usuarios eliminados)
     const legacyUsers = await client.query(`SELECT id, pin FROM usuarios WHERE pin_hash IS NULL AND pin IS NOT NULL AND pin <> '' AND estado = 'Activo'`);
     for (const user of legacyUsers.rows) await client.query('UPDATE usuarios SET pin_hash = $1, pin = NULL WHERE id = $2', [hashPin(user.pin), user.id]);
@@ -376,13 +702,23 @@ export async function runMigrations(pool) {
       // Primera ejecución: crear el administrador inicial con PIN seguro (si no se proporciona uno)
       const pinInicial = config.bootstrapAdminPin || String(Math.floor(100000 + Math.random() * 900000));
       await client.query(
-        `INSERT INTO usuarios (nombre, rol, pin, pin_hash, estado) VALUES ('Administrador Sistema', 'Administrador', NULL, $1, 'Activo')`,
+        // empresa_id=1 es LEGACY: la empresa raíz del sistema.
+        // Las demás empresas crean su admin exclusivamente en el Wizard Setup.
+        `INSERT INTO usuarios (empresa_id, nombre, rol, pin, pin_hash, estado)
+         VALUES (1, 'Administrador Sistema', 'Administrador', NULL, $1, 'Activo')`,
         [hashPin(pinInicial)]
       );
-      console.log('✅ Usuario Administrador inicial creado (primera ejecución). PIN temporal:', pinInicial);
+      console.log('[migrations] Admin inicial empresa LEGACY creado. PIN temporal:', pinInicial);
     } else {
       console.log(`✅ ${users.rows[0].total} usuario(s) activo(s) verificados. PINes preservados.`);
     }
+
+    // Asegurar que exista la fila de configuración base
+    await client.query(`
+      INSERT INTO configuracion_sistema (id, empresa_id, nombre_negocio, tema_activo, estilo_login, setup_completado)
+      VALUES (1, 1, 'Chloe Restaurant', 'noche', 'moderno', FALSE)
+      ON CONFLICT (id) DO NOTHING
+    `);
 
     // Configuración de personalización: instalaciones existentes quedan "completadas"
     // (no muestran el wizard); instalaciones nuevas (sin usuarios activos) muestran el wizard.
@@ -399,7 +735,29 @@ export async function runMigrations(pool) {
         `UPDATE dispositivos SET clave_activacion = $1 WHERE estado = 'Activo' AND clave_activacion IS NULL`,
         [config.licenseActivationKey]
       );
+      const claveHash = crypto.createHash('sha256').update(config.licenseActivationKey).digest('hex');
+      await client.query(
+        `INSERT INTO licencias (empresa_id, clave_hash, duracion_codigo, activa)
+         VALUES (1, $1, 'L', TRUE) ON CONFLICT (clave_hash) DO NOTHING`,
+        [claveHash],
+      );
     }
+    // El PIN del dueño LEGACY es independiente de los datos de prueba y no
+    // debe quedar vacío después de un reset o una instalación antigua.
+    if (config.ownerPin) {
+      const owner = await client.query('SELECT owner_pin_hash FROM configuracion_sistema WHERE id = 1');
+      if (owner.rowCount && !owner.rows[0].owner_pin_hash) {
+        await client.query(
+          'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2 WHERE id = 1',
+          [hashPin(config.ownerPin), String(config.ownerPin).length],
+        );
+      }
+    }
+    await client.query(
+      `UPDATE dispositivos SET empresa_id = 1 WHERE empresa_id IS NULL;
+       UPDATE app_sessions s SET empresa_id = u.empresa_id FROM usuarios u WHERE s.usuario_id = u.id AND s.empresa_id IS DISTINCT FROM u.empresa_id;
+       UPDATE licencias SET activada_en = COALESCE(activada_en, CURRENT_TIMESTAMP) WHERE empresa_id = 1 AND activa = TRUE`,
+    );
   } finally {
     client.release();
   }

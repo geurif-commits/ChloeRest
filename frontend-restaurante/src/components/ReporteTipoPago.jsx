@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CreditCard, Calendar, Filter, FileText, Receipt, TrendingUp } from 'lucide-react';
 import { obtenerSesion } from '../api.js';
 import { toastAviso } from './Toast.jsx';
 
@@ -65,122 +66,114 @@ function ReporteTipoPago({ apiUrl }) {
   const totales = datos?.totales;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ background: '#14141b', padding: '20px', borderRadius: '14px', border: '1px solid #2a2a38' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+      <div className="admin-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-          <h3 style={{ color: '#00f576', margin: 0, fontSize: '0.95rem' }}>💳 Facturas por Tipo de Pago</h3>
-          <button
-            onClick={consultar}
-            disabled={cargando}
-            style={{ background: 'linear-gradient(135deg, #00f576, #00b852)', color: '#000', border: 'none', padding: '8px 18px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
-          >
-            {cargando ? 'Consultando...' : '📊 Generar Reporte'}
+          <h3 className="admin-section-title" style={{ margin: 0 }}><CreditCard size={18} /> Facturas por Tipo de Pago</h3>
+          <button onClick={consultar} disabled={cargando} className="admin-btn admin-btn-primary">
+            {cargando ? 'Consultando...' : <><Filter size={14} /> Generar Reporte</>}
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
-          {[{ id: 'hoy', label: 'Hoy' }, { id: 'ayer', label: 'Ayer' }, { id: '7d', label: 'Últimos 7 días' }, { id: 'mes', label: 'Este mes' }, { id: 'personalizado', label: 'Personalizado' }].map((p) => (
-            <button
-              key={p.id}
-              onClick={() => aplicarPreset(p.id)}
-              style={{ background: preset === p.id ? '#00e5ff' : '#1a1a24', color: preset === p.id ? '#000' : '#fff', border: '1px solid #2a2a38', padding: '7px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}
-            >
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '15px' }}>
+          {[{id: 'hoy', label: 'Hoy'}, {id: 'ayer', label: 'Ayer'}, {id: '7d', label: '7 dias'}, {id: 'mes', label: 'Este mes'}, {id: 'personalizado', label: 'Personalizado'}].map((p) => (
+            <button key={p.id} onClick={() => aplicarPreset(p.id)} className={`admin-tab ${preset === p.id ? 'activo' : ''}`} style={{ fontSize: '0.78rem' }}>
               {p.label}
             </button>
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div>
-            <label style={{ fontSize: '0.8rem', color: '#9494ad', display: 'block', marginBottom: '4px' }}>Desde</label>
-            <input type="date" value={desde} onChange={(e) => { setDesde(e.target.value); setPreset('personalizado'); }} style={{ padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #3e3e4f', borderRadius: '8px', fontSize: '0.85rem' }} />
+        <div className="admin-form-row">
+          <div className="admin-form-group">
+            <label className="admin-label"><Calendar size={14} /> Desde</label>
+            <input type="date" value={desde} onChange={(e) => {setDesde(e.target.value); setPreset('personalizado');}} className="admin-input" />
           </div>
-          <div>
-            <label style={{ fontSize: '0.8rem', color: '#9494ad', display: 'block', marginBottom: '4px' }}>Hasta</label>
-            <input type="date" value={hasta} onChange={(e) => { setHasta(e.target.value); setPreset('personalizado'); }} style={{ padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #3e3e4f', borderRadius: '8px', fontSize: '0.85rem' }} />
+          <div className="admin-form-group">
+            <label className="admin-label"><Calendar size={14} /> Hasta</label>
+            <input type="date" value={hasta} onChange={(e) => {setHasta(e.target.value); setPreset('personalizado');}} className="admin-input" />
           </div>
-          <div>
-            <label style={{ fontSize: '0.8rem', color: '#9494ad', display: 'block', marginBottom: '4px' }}>Tipo de Pago</label>
-            <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} style={{ padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #3e3e4f', borderRadius: '8px', fontSize: '0.85rem' }}>
+          <div className="admin-form-group">
+            <label className="admin-label"><Filter size={14} /> Tipo de Pago</label>
+            <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="admin-input">
               {METODOS.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {error && <p style={{ color: '#ff6b6b', margin: 0 }}>{error}</p>}
+      {error && <p style={{color: 'var(--red)', margin: 0, fontSize: '0.85rem' }}>{error}</p>}
 
       {totales && (
         <>
           <div className="tarjetas-grid">
             <div className="tarjeta-resumen">
-              <h4>Total Facturado</h4>
-              <h2>RD$ {formatearRD(totales.total)}</h2>
+              <h4><TrendingUp size={16} /> Total Facturado</h4>
+              <h2 style={{ color: 'var(--gold)' }}>RD$ {formatearRD(totales.total)}</h2>
             </div>
             <div className="tarjeta-resumen">
-              <h4>ITBIS</h4>
-              <h2>RD$ {formatearRD(totales.itbis)}</h2>
+              <h4><Receipt size={16} /> ITBIS</h4>
+              <h2 style={{ color: 'var(--purple)' }}>RD$ {formatearRD(totales.itbis)}</h2>
             </div>
             <div className="tarjeta-resumen">
-              <h4>Propina</h4>
-              <h2>RD$ {formatearRD(totales.propina)}</h2>
+              <h4><TrendingUp size={16} /> Propina</h4>
+              <h2 style={{ color: 'var(--green)' }}>RD$ {formatearRD(totales.propina)}</h2>
             </div>
             <div className="tarjeta-resumen destacada">
-              <h4>Facturas</h4>
+              <h4><FileText size={16} /> Facturas</h4>
               <h2>{totales.cantidad}</h2>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap'}}>
             {datos.desgloseMetodos && datos.desgloseMetodos.map((m) => (
-              <div key={m.metodo_pago} style={{ background: '#1a1a24', padding: '10px 16px', borderRadius: '10px', border: '1px solid #2a2a38', fontSize: '0.85rem' }}>
-                <strong style={{ color: '#00e5ff' }}>{m.metodo_pago}</strong>
-                <span style={{ color: '#9494ad' }}> — {m.cantidad} factura(s), RD$ {formatearRD(m.total)}</span>
+              <div key={m.metodo_pago} className="admin-section" style={{ flex: 1, minWidth: '160px', padding: '12px 16px' }}>
+                <strong style={{color: 'var(--blue)', fontSize: '0.85rem' }}>{m.metodo_pago}</strong>
+                <span style={{color: 'var(--text-muted)', fontSize: '0.82rem' }}> &mdash; {m.cantidad} factura(s), RD$ {formatearRD(m.total)}</span>
               </div>
             ))}
           </div>
 
-          <div style={{ background: '#14141b', padding: '20px', borderRadius: '14px', border: '1px solid #2a2a38' }}>
-            <h3 style={{ color: '#00f576', marginTop: 0, marginBottom: '15px' }}>📄 Facturas del Período ({desde} → {hasta})</h3>
-            <div className="tabla-contenedor" style={{ maxHeight: '360px', overflowY: 'auto' }}>
-              <table className="admin-tabla" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="admin-section">
+            <h3 className="admin-section-title"><FileText size={16} /> Facturas del Período ({desde} → {hasta})</h3>
+            <div style={{overflowX: 'auto'}}>
+              <table className="admin-tabla">
                 <thead>
-                  <tr style={{ color: '#9494ad', borderBottom: '1px solid #2a2a38', textAlign: 'left' }}>
-                    <th style={{ padding: '8px' }}>NCF / Comprobante</th>
-                    <th style={{ padding: '8px' }}>Tipo</th>
-                    <th style={{ padding: '8px' }}>Mesa</th>
-                    <th style={{ padding: '8px' }}>Método</th>
-                    <th style={{ padding: '8px' }}>Atendido por</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Subtotal</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>ITBIS</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Propina</th>
-                    <th style={{ padding: '8px', textAlign: 'right' }}>Total</th>
-                    <th style={{ padding: '8px' }}>Fecha</th>
+                  <tr>
+                    <th style={{padding: '8px'}}>NCF / Comprobante</th>
+                    <th style={{padding: '8px'}}>Tipo</th>
+                    <th style={{padding: '8px'}}>Mesa</th>
+                    <th style={{padding: '8px'}}>Método</th>
+                    <th style={{padding: '8px'}}>Atendido por</th>
+                    <th style={{padding: '8px', textAlign: 'right'}}>Subtotal</th>
+                    <th style={{padding: '8px', textAlign: 'right'}}>ITBIS</th>
+                    <th style={{padding: '8px', textAlign: 'right'}}>Propina</th>
+                    <th style={{padding: '8px', textAlign: 'right'}}>Total</th>
+                    <th style={{padding: '8px'}}>Fecha</th>
                   </tr>
                 </thead>
                 <tbody>
                   {datos.facturas && datos.facturas.length > 0 ? (
                     datos.facturas.map((fac, index) => (
-                      <tr key={index} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                        <td style={{ padding: '8px', fontWeight: 'bold' }}>{fac.ncf}</td>
-                        <td style={{ padding: '8px' }}>{fac.tipo_comprobante}</td>
-                        <td style={{ padding: '8px' }}>{fac.mesa}</td>
-                        <td style={{ padding: '8px' }}>
-                          <span style={{ background: 'rgba(0, 229, 255, 0.12)', color: '#00e5ff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold' }}>
-                            {fac.metodo_pago}
-                          </span>
+                      <tr key={index}>
+                        <td style={{ fontWeight: '600', fontFamily: 'monospace' }}>{fac.ncf}</td>
+                        <td>
+                          <span style={{ padding: '2px 6px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: '600', background: fac.tipo_comprobante === 'B01' ? 'rgba(91,140,255,0.12)' : 'rgba(0,230,118,0.12)', color: fac.tipo_comprobante === 'B01' ? 'var(--blue)' : 'var(--green)' }}>{fac.tipo_comprobante}</span>
                         </td>
-                        <td style={{ padding: '8px' }}>{fac.camarero}</td>
-                        <td style={{ padding: '8px', textAlign: 'right' }}>RD$ {formatearRD(fac.subtotal)}</td>
-                        <td style={{ padding: '8px', textAlign: 'right' }}>RD$ {formatearRD(fac.itbis)}</td>
-                        <td style={{ padding: '8px', textAlign: 'right' }}>RD$ {formatearRD(fac.propina)}</td>
-                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: '#00f576' }}>RD$ {formatearRD(fac.total)}</td>
-                        <td style={{ padding: '8px', fontSize: '0.8rem', color: '#9494ad' }}>{new Date(fac.fecha_cierre).toLocaleDateString('es-DO')}</td>
+                        <td>{fac.mesa}</td>
+                        <td>
+                          <span style={{ padding: '2px 6px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: '600', background: fac.metodo_pago === 'Efectivo' ? 'rgba(0,230,118,0.12)' : fac.metodo_pago === 'Tarjeta' ? 'rgba(91,140,255,0.12)' : 'rgba(139,92,246,0.12)', color: fac.metodo_pago === 'Efectivo' ? 'var(--green)' : fac.metodo_pago === 'Tarjeta' ? 'var(--blue)' : 'var(--purple)' }}>{fac.metodo_pago}</span>
+                        </td>
+                        <td>{fac.camarero}</td>
+                        <td className="text-right">RD$ {formatearRD(fac.subtotal)}</td>
+                        <td className="text-right">RD$ {formatearRD(fac.itbis)}</td>
+                        <td className="text-right">RD$ {formatearRD(fac.propina)}</td>
+                        <td className="text-right" style={{ fontWeight: '700', color: 'var(--gold)' }}>RD$ {formatearRD(fac.total)}</td>
+                        <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{new Date(fac.fecha_cierre).toLocaleDateString('es-DO')}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="10" style={{ padding: '20px', textAlign: 'center', color: '#88889d', fontStyle: 'italic' }}>
+                      <td colSpan="10" style={{padding: '30px', textAlign: 'center', color: 'var(--text-dim)', fontStyle: 'italic'}}>
                         No hay facturas para el rango y método seleccionado.
                       </td>
                     </tr>
@@ -196,4 +189,3 @@ function ReporteTipoPago({ apiUrl }) {
 }
 
 export default ReporteTipoPago;
-

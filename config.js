@@ -32,8 +32,7 @@ function findEnvFile(startDir) {
 const moduleDir = (typeof import.meta !== 'undefined' && import.meta.url)
   ? path.dirname(fileURLToPath(import.meta.url))
   : (typeof __dirname !== 'undefined' ? __dirname : process.cwd());
-const appRoot = process.pkg ? path.dirname(process.execPath) : 
-moduleDir;
+const appRoot = process.pkg ? path.dirname(process.execPath) : moduleDir;
 const dotenvPath = findEnvFile(appRoot) || findEnvFile(process.cwd());
 if (dotenvPath) loadEnvFile(dotenvPath);
 
@@ -63,8 +62,12 @@ export const config = {
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || 'postgres',
-    password: process.env.DB_PASSWORD || (isProduction ? undefined : '012011'),
+    password: process.env.DB_PASSWORD || undefined,
     port: Number(process.env.DB_PORT || 5432),
+    max: Number(process.env.DB_POOL_MAX || 25),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 8000,
+    allowExitOnIdle: false,
   },
   sessionSecret: sessionSecretValue,
   hasPersistentSessionSecret: Boolean(process.env.APP_SESSION_SECRET),
@@ -75,6 +78,8 @@ export const config = {
   ownerPin: process.env.OWNER_PIN || null,
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
   telegramOwnerChatId: process.env.TELEGRAM_OWNER_CHAT_ID || null,
+  telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || null,
+  publicBaseUrl: process.env.PUBLIC_BASE_URL || 'https://chloerestaurant.lat',
   corsOrigins: (process.env.CORS_ORIGINS || 'https://chloerestaurant.lat,https://www.chloerestaurant.lat,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173').split(',').map((origin) => origin.trim()).filter(Boolean),
   autoFreePort: process.env.AUTO_FREE_PORT === '1',
   login: {

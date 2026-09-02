@@ -22,3 +22,13 @@ stderr2.log
 
 # Test / temp
 test-login.json
+
+# Backups y datos locales
+backups/
+
+# Instaladores y binarios de build
+frontend-restaurante/build/postgresql-installer.exe
+frontend-restaurante/build/*.exe
+
+# Config de la herramienta
+.abacusai/

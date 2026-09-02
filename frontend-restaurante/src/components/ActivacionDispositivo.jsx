@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react';
+import {
+  KeyRound,
+  ShieldCheck,
+  Sparkles,
+  Phone,
+  Mail,
+  Clock,
+  ArrowLeft,
+  Crown,
+  CreditCard,
+  Delete
+} from 'lucide-react';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 import BotonSalirElectron from './BotonSalirElectron.jsx';
+import './ActivacionDispositivo.css';
 
-function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, onSolicitarPlan }) {
+function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, alActivar, onSolicitarPlan, onVolver }) {
   const [clave, setClave] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -11,23 +24,42 @@ function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, onSolicitarPlan }
 
   const activar = async (e) => {
     if (e) e.preventDefault();
-    if (!clave || cargando) return;
+    const claveLimpia = String(clave || '').trim().toUpperCase();
+    if (!claveLimpia || cargando) return;
     setCargando(true);
     setError('');
     try {
-      const res = await fetch(`${apiUrl}/api/dispositivo/activar`, {
+      const targetUrl = apiUrl ? `${apiUrl}/api/dispositivo/activar` : '/api/dispositivo/activar';
+      const devId = obtenerDeviceId();
+      const res = await fetch(targetUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deviceId: obtenerDeviceId(), clave })
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': devId
+        },
+        body: JSON.stringify({ deviceId: devId, clave: claveLimpia })
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'No se pudo activar el dispositivo.');
-      } else {
-        window.location.reload();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Respuesta inválida del servidor (HTTP ${res.status}).`);
       }
-    } catch {
-      setError('⚠️ Error al conectar con el servidor.');
+      if (!res.ok) {
+        setError(data.error || `No se pudo activar el dispositivo (HTTP ${res.status}).`);
+      } else {
+        if (data.empresaId || data.tenantId) {
+          localStorage.setItem('POS_TENANT_ID', String(data.tenantId || data.empresaId));
+        }
+        if (alActivar) {
+          alActivar(data);
+        } else {
+          window.location.href = '/';
+        }
+      }
+    } catch (err) {
+      console.error('Error al activar dispositivo:', err);
+      setError(err.message || '⚠️ Error al conectar con el servidor.');
     } finally {
       setCargando(false);
     }
@@ -60,7 +92,7 @@ function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, onSolicitarPlan }
         setError(data.error || 'PIN incorrecto.');
         setPin('');
       } else if (data.usuario?.rol !== 'Administrador') {
-        setError('⛔ Acceso denegado: Solo el Administrador puede activar dispositivos.');
+        setError('⛔ Acceso denegado: Solo el Administrador puede ingresar aquí.');
         setPin('');
       } else {
         alIniciarSesionAdmin(data);
@@ -85,152 +117,150 @@ function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, onSolicitarPlan }
   }, [mostrandoLogin, pin]);
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 9999, fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box', overflowY: 'auto'
-    }}>
+    <div className="activacion-shell">
       <BotonSalirElectron />
-      <div style={{
-        background: '#181820', border: '2px solid #00e5ff', borderRadius: '16px',
-        padding: '35px', maxWidth: '550px', width: '100%', textAlign: 'center',
-        boxShadow: '0 20px 50px rgba(0, 229, 255, 0.2)'
-      }}>
-        <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}>🖥️</div>
-        <h2 style={{ color: '#00e5ff', fontSize: '1.8rem', margin: '0 0 10px 0' }}>Dispositivo no activado</h2>
-        <p style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '20px', lineHeight: '1.5' }}>
-          Para usar el sistema en este dispositivo necesitas una clave de activación.
-          Si aún no la tienes, solicítala por los canales oficiales.
+      <div className="activacion-card">
+        {onVolver && (
+          <button type="button" onClick={onVolver} className="activacion-back-btn">
+            <ArrowLeft size={16} /> Volver al inicio
+          </button>
+        )}
+
+        <img className="activacion-brand" src="/icons.svg" alt="Chloe POS" />
+        <h2 className="activacion-title">Activación de Dispositivo</h2>
+        <p className="activacion-desc">
+          Introduce la clave de licencia asignada a tu empresa para habilitar este equipo en el sistema.
         </p>
 
         {!mostrandoLogin ? (
           <>
-            <form onSubmit={activar} style={{ marginBottom: '20px' }}>
+            <form onSubmit={activar} className="activacion-form">
               <input
                 type="text"
                 value={clave}
-                onChange={(e) => { setClave(e.target.value); setError(''); }}
+                onChange={(e) => { setClave(e.target.value.toUpperCase()); setError(''); }}
                 placeholder="CHLOE-30D-XXXXX-XXXXX-XXXXX-XXXXX"
                 autoCapitalize="characters"
                 autoCorrect="off"
                 spellCheck={false}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: '10px', border: '2px solid #2a2a38',
-                  background: '#121217', color: '#fff', fontSize: '0.95rem', textAlign: 'center',
-                  letterSpacing: '1px', outline: 'none', marginBottom: '12px', boxSizing: 'border-box'
-                }}
+                className="activacion-input"
               />
-              {error && <p style={{ color: '#ff5252', fontSize: '0.85rem', margin: '0 0 10px 0' }}>{error}</p>}
+              {error && <p className="activacion-error-msg">{error}</p>}
               <button
                 type="submit"
                 disabled={cargando || !clave}
-                style={{
-                  width: '100%',
-                  background: clave && !cargando ? 'linear-gradient(135deg, #00e5ff, #0088ff)' : '#2a2a38',
-                  color: clave && !cargando ? '#000' : '#888',
-                  border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 'bold',
-                  fontSize: '1rem', cursor: clave && !cargando ? 'pointer' : 'not-allowed'
-                }}
+                className="activacion-submit-btn"
               >
-                {cargando ? 'Activando...' : '🔑 Activar Dispositivo'}
+                <KeyRound size={18} /> {cargando ? 'Activando...' : 'Activar Dispositivo'}
               </button>
             </form>
-            <p style={{ color: '#88889d', fontSize: '0.78rem', margin: '-8px 0 16px 0', lineHeight: 1.5 }}>
-              La clave incluye su duración: <code>7D</code> = 7 días, <code>30D</code> = 30 días, <code>12M</code> = 1 año, <code>L</code> = vitalicia.
+
+            <p className="activacion-helper">
+              Formatos soportados: <code>30D</code> = 30 días, <code>12M</code> = 1 año, <code>L</code> = Vitalicia.
             </p>
 
             {onSolicitarPlan && (
               <button
                 type="button"
                 onClick={onSolicitarPlan}
-                style={{
-                  width: '100%', background: 'rgba(214,164,77,0.16)', color: '#d6a44d',
-                  border: '1px solid rgba(214,164,77,0.5)', padding: '13px', borderRadius: '10px',
-                  fontWeight: 'bold', fontSize: '0.95rem', cursor: 'pointer', marginBottom: '14px',
-                }}
+                className="activacion-plan-btn"
               >
-                💳 Explorar planes y solicitar licencia
+                <CreditCard size={18} /> Explorar planes y solicitar licencia
               </button>
             )}
 
-            <div style={{
-              background: '#121217', border: '1px solid #3e3e4f', borderRadius: '10px',
-              padding: '20px', margin: '0 0 20px 0', textAlign: 'left'
-            }}>
-              <h4 style={{ color: '#00e5ff', margin: '0 0 10px 0', fontSize: '1rem' }}>📞 Adquirir / Renovar Licencia (Rep. Dom.)</h4>
-              <p style={{ color: '#ccc', fontSize: '0.9rem', margin: '5px 0' }}><strong>WhatsApp / Tel:</strong> (829) 969-8604</p>
-              <p style={{ color: '#ccc', fontSize: '0.9rem', margin: '5px 0' }}><strong>Soporte y Ventas:</strong> geurig@yahoo.com</p>
-              <p style={{ color: '#ccc', fontSize: '0.9rem', margin: '5px 0' }}><strong>Horario:</strong> Lunes a Sábado, 8:00 AM - 6:00 PM</p>
+            <div className="activacion-contact-box">
+              <h4 className="activacion-contact-title">
+                <Phone size={14} /> Soporte y Activaciones Oficiales
+              </h4>
+              <div className="activacion-contact-items-row">
+                <span className="activacion-contact-item">
+                  <Phone size={13} color="#00e5ff" /> <strong>WhatsApp:</strong> (829) 969-8604
+                </span>
+                <span className="activacion-contact-item">
+                  <Mail size={13} color="#00e5ff" /> <strong>Email:</strong> geurig@yahoo.com
+                </span>
+                <span className="activacion-contact-item">
+                  <Clock size={13} color="#00e5ff" /> Lun-Sáb 8am-6pm
+                </span>
+              </div>
             </div>
 
             <button
+              type="button"
               onClick={() => setMostrandoLogin(true)}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #00f576, #00b852)',
-                color: '#000', border: 'none', padding: '14px', borderRadius: '10px',
-                fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer',
-                boxShadow: '0 4px 15px rgba(0,245,118,0.3)'
-              }}
+              className="activacion-admin-btn"
             >
-              👑 Acceso administrador
+              <Crown size={18} /> Acceso administrador
             </button>
           </>
         ) : (
-          <div style={{ background: '#121217', border: '1px solid #2a2a38', borderRadius: '12px', padding: '20px', margin: '15px 0' }}>
-            <h4 style={{ color: '#00f576', margin: '0 0 10px 0' }}>🔑 Acceso administrador</h4>
-            <p style={{ color: '#9494ad', fontSize: '0.85rem', marginBottom: '15px' }}>
-              El acceso de administrador no activa la licencia de este dispositivo.
-              Solo permite entrar al sistema para tareas de gestión. Para operar aquí necesitas una clave de activación.
+          <div className="activacion-admin-panel">
+            <h4><Crown size={18} /> Acceso Administrador</h4>
+            <p>
+              Ingresa el PIN de administrador para acceder temporalmente a tareas de soporte o configuración.
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '15px' }}>
-              {[...Array(4)].map((_, i) => (
-                <span key={i} style={{
-                  width: '45px', height: '45px', borderRadius: '8px', border: '2px solid #00f576',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem',
-                  background: i < pin.length ? '#00f576' : 'transparent',
-                  color: i < pin.length ? '#000' : 'transparent'
-                }}>
+            <div className="activacion-pin-dots">
+              {[...Array(6)].map((_, i) => (
+                <span
+                  key={i}
+                  className={`activacion-pin-dot ${i < pin.length ? 'activacion-pin-dot--active' : ''}`}
+                >
                   •
                 </span>
               ))}
             </div>
 
-            {error && <p style={{ color: '#ff5252', fontSize: '0.85rem', margin: '0 0 10px 0' }}>{error}</p>}
+            {error && <p className="activacion-error-msg">{error}</p>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', maxWidth: '240px', margin: '0 auto 15px auto' }}>
-              {['1','2','3','4','5','6','7','8','9'].map((n) => (
+            <div className="activacion-keypad">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n) => (
                 <button
                   key={n}
+                  type="button"
                   onClick={() => agregarNumero(n)}
-                  style={{ background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38', padding: '12px', borderRadius: '8px', fontSize: '1.2rem', fontWeight: 'bold', cursor: 'pointer' }}
+                  className="activacion-keypad-btn"
                 >
                   {n}
                 </button>
               ))}
-              <button onClick={borrarNumero} style={{ background: '#2a2a38', color: '#ff5252', border: '1px solid #2a2a38', padding: '12px', borderRadius: '8px', fontSize: '1.1rem', cursor: 'pointer' }}>⌫</button>
-              <button onClick={() => agregarNumero('0')} style={{ background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38', padding: '12px', borderRadius: '8px', fontSize: '1.2rem', fontWeight: 'bold', cursor: 'pointer' }}>0</button>
               <button
+                type="button"
+                onClick={borrarNumero}
+                className="activacion-keypad-btn activacion-keypad-btn--del"
+              >
+                ⌫
+              </button>
+              <button
+                type="button"
+                onClick={() => agregarNumero('0')}
+                className="activacion-keypad-btn"
+              >
+                0
+              </button>
+              <button
+                type="button"
                 onClick={() => intentarLoginAdmin(pin)}
                 disabled={cargando || pin.length < 4}
-                style={{ background: pin.length >= 4 ? '#00f576' : '#2a2a38', color: pin.length >= 4 ? '#000' : '#888', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                className="activacion-keypad-btn activacion-keypad-btn--enter"
               >
-                ➜
+                ✓
               </button>
             </div>
 
             <button
+              type="button"
               onClick={() => { setMostrandoLogin(false); setPin(''); setError(''); }}
-              style={{ background: 'transparent', color: '#9494ad', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
+              className="activacion-back-btn"
             >
-              ⬅ Volver
+              <ArrowLeft size={14} /> Volver a clave de activación
             </button>
           </div>
         )}
 
-        <p style={{ color: '#88889d', fontSize: '0.8rem', margin: 0 }}>
-          Cada dispositivo requiere su propia activación para proteger el uso de la licencia.
+        <p className="activacion-footnote">
+          Cada terminal requiere su propia clave registrada para garantizar el aislamiento multiempresa.
         </p>
       </div>
     </div>

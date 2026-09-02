@@ -59,6 +59,22 @@ export function aplicarPersonalizacion(config, negocioConfig) {
     style.textContent = `:root, [data-theme="${tema}"] { ${cssVars.join('\n')} }`;
     document.head.appendChild(style);
   }
+
+  if (config.nombre_negocio) {
+    document.title = `${config.nombre_negocio} — POS`;
+  }
+
+  // Favicon / ícono del sistema: usa el logo del negocio si está asignado
+  const logoUrl = config.logo_url || negocioConfig?.logo_url;
+  const faviconLink =
+    document.querySelector('link[rel="icon"]') ||
+    document.querySelector('link[rel="shortcut icon"]');
+  if (faviconLink && logoUrl) {
+    const url = String(logoUrl).trim();
+    if (url && !faviconLink.getAttribute('href')?.includes(url)) {
+      faviconLink.setAttribute('href', url);
+    }
+  }
 }
 
 export function fondoLogin(config) {

@@ -32,9 +32,10 @@ function FacturaActivacion({ factura, nombreNegocio, alCerrar }) {
   };
 
   return (
-    <div className="modal-overlay print-overlay">
+    <div className="modal-overlay print-overlay" onClick={(e) => { if (e.target === e.currentTarget) alCerrar(); }}>
       <div className="ticket-termico-container" ref={ticketRef}>
-        <div className="ticket-papel" id="area-impresion" style={{ width: '280px', margin: '0 auto', background: '#fff', color: '#000', padding: '15px', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.4' }}>
+        <div className="ticket-papel-scroll">
+          <div className="ticket-papel" id="area-impresion" style={{ width: '280px', margin: '0 auto', background: '#fff', color: '#000', padding: '15px', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.4' }}>
 
           <div style={{ textAlign: 'center', marginBottom: '8px' }}>
             <h3 style={{ margin: '0 0 2px 0', fontSize: '15px', fontWeight: 'bold' }}>{nombreNegocio}</h3>
@@ -86,13 +87,13 @@ function FacturaActivacion({ factura, nombreNegocio, alCerrar }) {
             <p style={{ margin: '2px 0', fontWeight: 'bold' }}>¡Gracias por confiar en ChloeRestaurant!</p>
             <p style={{ margin: '2px 0', fontSize: '9px' }}>Documento de control interno — no válido como comprobante fiscal.</p>
           </div>
-
+        </div>
         </div>
 
-        <div className="ticket-acciones-modal" style={{ marginTop: '15px', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <button className="btn-imprimir" onClick={imprimir} style={{ background: '#00f576', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>🖨️ Imprimir</button>
-          <button className="btn-exportar-pdf" onClick={exportarPDF} style={{ background: '#1a73e8', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>📄 Exportar PDF</button>
-          <button className="btn-cerrar-ticket" onClick={alCerrar} style={{ background: '#2a2a38', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>❌ Cerrar</button>
+        <div className="ticket-acciones-modal">
+          <button className="btn-imprimir" onClick={imprimir} style={{ background: '#00f576', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>🖨️ Imprimir</button>
+          <button className="btn-exportar-pdf" onClick={exportarPDF} style={{ background: '#1a73e8', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>📄 Exportar PDF</button>
+          <button className="btn-cerrar-ticket" onClick={alCerrar} style={{ background: '#2a2a38', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>❌ Cerrar</button>
         </div>
 
       </div>

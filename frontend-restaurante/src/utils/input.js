@@ -21,13 +21,3 @@ export function sanitizarEntero(valor) {
 export function redondearMoneda(valor) {
   return Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100
 }
-
-// Convierte a centevos enteros para cálculos precisos sin floats
-export function aCentevos(valor) {
-  return Math.round(Number(valor || 0) * 100)
-}
-
-// Convierte centevos de vuelta a pesos
-export function deCentevos(centevos) {
-  return Math.round(Number(centevos || 0)) / 100
-}

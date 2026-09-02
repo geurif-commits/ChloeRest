@@ -3,6 +3,8 @@
 //   TELEGRAM_BOT_TOKEN      → token del bot creado en @BotFather
 //   TELEGRAM_OWNER_CHAT_ID  → ID del chat de Telegram del propietario
 
+import { runWithRequestContext } from './db.js';
+
 const API_BASE = 'https://api.telegram.org';
 const LIMITE_TEXTO = 4000;
 
@@ -10,6 +12,9 @@ let token = '';
 let ownerChatId = '';
 let activo = false;
 let offset = 0;
+let webhookSecret = '';
+let webhookActivo = false;
+let ultimoUpdateId = 0;
 
 // ──── Funciones de datos (inyectadas desde server.js) ────
 let listarPendientes = null;
@@ -36,9 +41,11 @@ export function telegramActivo() {
   return activo;
 }
 
-export function iniciarTelegramBot(opciones = {}) {
+export async function iniciarTelegramBot(opciones = {}) {
   token = String(opciones.token || '').trim();
   ownerChatId = String(opciones.ownerChatId || '').trim();
+  webhookSecret = String(opciones.webhookSecret || '').trim();
+  webhookActivo = opciones.webhook === true;
   cambiarEstado = opciones.cambiarEstado;
   listarPendientes = opciones.listarPendientes;
   obtenerSolicitud = opciones.obtenerSolicitud;
@@ -61,11 +68,63 @@ export function iniciarTelegramBot(opciones = {}) {
 
   if (!token) {
     console.log('Telegram: TELEGRAM_BOT_TOKEN no configurado. Bot inactivo.');
-    return;
+    return false;
   }
-  activo = true;
-  console.log(`Telegram: bot iniciado${ownerChatId ? ` (propietario chat ${ownerChatId})` : ' (esperando al propietario).'}`);
-  bucleActualizaciones();
+  if (!ownerChatId) {
+    console.warn('Telegram: TELEGRAM_OWNER_CHAT_ID no configurado. Bot inactivo por seguridad.');
+    return false;
+  }
+  try {
+    await comprobarTelegram();
+    if (webhookActivo) {
+      try {
+        await registrarWebhook(opciones.webhookUrl);
+      } catch (error) {
+        // Si Telegram no puede validar el certificado del hosting, eliminar el
+        // webhook evita que las actualizaciones queden bloqueadas y permite
+        // administrar el sistema temporalmente por polling.
+        console.warn('Telegram: webhook no disponible; activando polling de respaldo:', error.message);
+        await peticion('deleteWebhook', { drop_pending_updates: false });
+        webhookActivo = false;
+      }
+    }
+    activo = true;
+    console.log(`Telegram: bot iniciado (${webhookActivo ? 'webhook' : 'polling'}, propietario chat ${ownerChatId}).`);
+    if (!webhookActivo) bucleActualizaciones();
+    return true;
+  } catch (err) {
+    console.warn('Telegram: no se pudo validar la configuración:', err.message);
+    return false;
+  }
+}
+
+export function validarWebhookSecret(value) {
+  return Boolean(webhookSecret) && String(value || '') === webhookSecret;
+}
+
+export async function procesarActualizacionWebhook(update) {
+  if (!activo || !update || update.update_id <= ultimoUpdateId) return;
+  ultimoUpdateId = update.update_id;
+  await runWithRequestContext({ platform: true }, () => procesarUpdate(update));
+}
+
+async function registrarWebhook(url) {
+  if (!url || !webhookSecret) throw new Error('PUBLIC_BASE_URL o secreto de webhook no configurado.');
+  const respuesta = await peticion('setWebhook', {
+    url,
+    secret_token: webhookSecret,
+    allowed_updates: ['message'],
+    drop_pending_updates: false,
+  }, 15000);
+  if (!respuesta?.ok) throw new Error(respuesta?.description || 'Telegram rechazó el webhook.');
+}
+
+async function comprobarTelegram() {
+  const respuesta = await peticion('getMe', {}, 10000);
+  if (!respuesta?.ok || !respuesta.result?.id) {
+    throw new Error(respuesta?.description || 'Token inválido o API no disponible.');
+  }
+  return true;
 }
 
 function apiUrl(metodo) {
@@ -157,6 +216,7 @@ async function bucleActualizaciones() {
       if (!datos?.ok) {
         if (datos?.description?.includes('conflict')) {
           console.warn('Telegram: conflicto de polling (posible segunda instancia del bot). Deteniendo polling.');
+          activo = false;
           break;
         }
         espera = Math.min(espera * 2, 30000);
@@ -165,7 +225,7 @@ async function bucleActualizaciones() {
       espera = 1000;
       for (const update of datos.result || []) {
         if (update.update_id >= offset) offset = update.update_id + 1;
-        await procesarUpdate(update);
+        await runWithRequestContext({ platform: true }, () => procesarUpdate(update));
       }
     } catch (err) {
       console.warn(`Telegram: error en polling (reintentando en ${Math.round(espera / 1000)}s):`, err.message);
@@ -231,9 +291,26 @@ export function notificarPago(sol) {
   enviar(ownerChatId, lineas);
 }
 
-export function notificarTexto(texto) {
-  if (!activo || !ownerChatId) return;
-  enviar(ownerChatId, texto);
+export async function enviarClaveActivacion(sol, clave, pinInicial) {
+  if (!activo || !ownerChatId) return false;
+  const fila = sol || {};
+  const lineas = [
+    '🔑 <b>CLAVE DE ACTIVACIÓN GENERADA</b>',
+    '───────────────────',
+    `🆔 <b>Solicitud:</b> #${fila.id}`,
+    `👤 <b>Propietario:</b> ${escaparHTML(fila.propietario)}`,
+    `🏪 <b>Negocio:</b> ${escaparHTML(fila.negocio)}`,
+    `📞 <b>Teléfono:</b> ${escaparHTML(fila.telefono)}`,
+    `📧 <b>Correo:</b> ${escaparHTML(fila.email)}`,
+    fila.plan_nombre ? `📅 <b>Plan:</b> ${escaparHTML(fila.plan_nombre)}` : '',
+    '',
+    `🔑 <b>Clave:</b> <code>${escaparHTML(clave || fila.clave_generada || '')}</code>`,
+    pinInicial ? `📟 <b>PIN inicial del Administrador:</b> <code>${escaparHTML(String(pinInicial))}</code>` : '',
+    '',
+    '🎯 El cliente ingresa esta clave en <b>Activar dispositivo</b> para iniciar su restaurante.',
+  ].filter(Boolean).join('\n');
+  await enviar(ownerChatId, lineas);
+  return true;
 }
 
 // ──── Comandos ────
@@ -285,7 +362,8 @@ const AYUDA = [
 
 async function manejarComando(chatId, texto) {
   const partes = texto.split(/\s+/);
-  const cmd = (partes[0] || '').toLowerCase();
+  // Telegram puede entregar los comandos de grupos como /comando@nombrebot.
+  const cmd = (partes[0] || '').toLowerCase().split('@')[0];
   const arg = partes.slice(1).join(' ').trim();
   const args = partes.slice(1);
 
@@ -657,7 +735,7 @@ async function cmdPlan(chatId, args) {
       await enviar(chatId, 'ℹ️ Uso: /plan crear &lt;nombre&gt; &lt;duración&gt; &lt;precio&gt; [moneda]\nEj: /plan crear Anual 12M 249 RD$');
       return;
     }
-    const resultado = crearPlan({ nombre, duracion_codigo: duracion.toUpperCase(), precio: Number(precio), moneda: moneda || 'RD$' });
+    const resultado = await crearPlan({ nombre, duracion_codigo: duracion.toUpperCase(), precio: Number(precio), moneda: moneda || 'RD$' });
     if (resultado?.error) {
       await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
       return;
@@ -674,7 +752,7 @@ async function cmdPlan(chatId, args) {
       await enviar(chatId, 'ℹ️ Uso: /plan precio &lt;id&gt; &lt;nuevo precio&gt;');
       return;
     }
-    const resultado = actualizarPlan(id, { precio });
+    const resultado = await actualizarPlan(id, { precio });
     if (resultado?.error) {
       await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
       return;
@@ -689,7 +767,7 @@ async function cmdPlan(chatId, args) {
       await enviar(chatId, `ℹ️ Uso: /plan ${sub} &lt;id&gt;`);
       return;
     }
-    const resultado = actualizarPlan(id, { activo: sub === 'activar' });
+    const resultado = await actualizarPlan(id, { activo: sub === 'activar' });
     if (resultado?.error) {
       await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
       return;
@@ -704,7 +782,7 @@ async function cmdPlan(chatId, args) {
       await enviar(chatId, 'ℹ️ Uso: /plan eliminar &lt;id&gt;');
       return;
     }
-    const resultado = eliminarPlan(id);
+    const resultado = await eliminarPlan(id);
     if (resultado?.error) {
       await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
       return;
@@ -736,7 +814,7 @@ async function cmdClave(chatId, arg) {
     await enviar(chatId, 'ℹ️ Uso: /clave &lt;duración&gt;\nDuraciones: 7D, 15D, 30D, 60D, 90D, 6M, 12M, 24M, L (vitalicia)\nEj: /clave 30D');
     return;
   }
-  const resultado = generarClave(dur);
+  const resultado = await generarClave(dur);
   if (resultado.error) {
     await enviar(chatId, `❌ ${escaparHTML(resultado.error)}`);
     return;
@@ -745,6 +823,7 @@ async function cmdClave(chatId, arg) {
     '🔑 <b>Clave generada</b>',
     `Duración: <b>${escaparHTML(resultado.duracion)}</b>${resultado.vitalicia ? ' (Vitalicia)' : ''}`,
     `<code>${escaparHTML(resultado.clave)}</code>`,
+    resultado.pinInicial ? `PIN inicial del Administrador: <code>${escaparHTML(resultado.pinInicial)}</code>` : '',
     '',
     'Entrégala al cliente para activar en su dispositivo.',
   ].join('\n'));

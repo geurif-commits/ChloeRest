@@ -1,6 +1,6 @@
 {
   "name": "sistema_restaurante",
-  "version": "1.0.0",
+  "version": "2.1.0",
   "description": "Servidor Backend POS Restaurante",
   "main": "bundle.cjs",
   "type": "module",
@@ -16,7 +16,8 @@
     "cors": "^2.8.6",
     "express": "^4.19.2",
     "multer": "^2.2.0",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { config } from './config.js';
 
-import db from './db.js';
+import db, { runWithRequestContext } from './db.js';
 
 const PIN_PATTERN = /^\d{4,12}$/;
 
@@ -12,6 +12,14 @@ function hmac(value) {
 export function assertValidPin(pin) {
   if (!PIN_PATTERN.test(String(pin || ''))) {
     const error = new Error('El PIN debe contener entre 4 y 12 dígitos.');
+    error.status = 400;
+    throw error;
+  }
+}
+
+export function assertSixDigitPin(pin) {
+  if (!/^\d{6}$/.test(String(pin || ''))) {
+    const error = new Error('El PIN debe contener exactamente 6 dígitos.');
     error.status = 400;
     throw error;
   }
@@ -40,8 +48,8 @@ export async function createSession(user) {
   const usuario = { id: user.id, nombre: user.nombre, rol: user.rol };
   try {
     await db.query(
-      'INSERT INTO app_sessions (token, usuario_id, usuario_data, expira_en) VALUES ($1, $2, $3::jsonb, $4)',
-      [token, user.id, JSON.stringify(usuario), expiresAt]
+      'INSERT INTO app_sessions (token, usuario_id, usuario_data, expira_en, empresa_id, device_id) VALUES ($1, $2, $3::jsonb, $4, $5, $6)',
+      [token, user.id, JSON.stringify(usuario), expiresAt, user.empresa_id || null, user.device_id || null]
     );
     db.query('DELETE FROM app_sessions WHERE expira_en <= CURRENT_TIMESTAMP').catch(() => {});
   } catch (err) {
@@ -50,19 +58,62 @@ export async function createSession(user) {
   return { token, usuario, expiraEn: expiresAt.toISOString() };
 }
 
+export function firmarDuenoTok(payload) {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto.createHmac('sha256', config.sessionSecret).update(`dueno:${encoded}`).digest('base64url');
+  return `${encoded}.${signature}`;
+}
+
+export function verificarDuenoTok(token) {
+  if (!token || !token.includes('.')) return null;
+  const [encoded, signature] = token.split('.');
+  const expected = crypto.createHmac('sha256', config.sessionSecret).update(`dueno:${encoded}`).digest('base64url');
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    return payload.rol === 'Dueno' && payload.exp > Date.now() ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function authenticate(req, res, next) {
-  const value = req.get('authorization') || '';
-  const token = value.startsWith('Bearer ') ? value.slice(7) : '';
+  const value = req.get('authorization') || (req.query?.token ? `Bearer ${req.query.token}` : '');
+  const token = value.startsWith('Bearer ') ? value.slice(7) : (value || req.query?.token || '');
+  const deviceId = String(req.get('x-device-id') || '').trim();
   if (!token) return res.status(401).json({ error: 'Sesión no válida o vencida.' });
 
+  const dueno = verificarDuenoTok(token);
+  if (dueno) {
+    req.dueno = true;
+    req.user = { id: 0, rol: 'Dueno', empresaId: 1, empresa_id: 1, nombre: 'Propietario Sistema' };
+    return runWithRequestContext({ platform: true, empresaId: 1 }, next);
+  }
+
   try {
-    const result = await db.query(
-      'SELECT usuario_data FROM app_sessions WHERE token = $1 AND expira_en > CURRENT_TIMESTAMP',
+    const result = await db.queryUnscoped(
+      `SELECT s.usuario_data, s.empresa_id, s.device_id, u.estado, u.rol, u.nombre
+         FROM app_sessions s
+         JOIN usuarios u ON u.id = s.usuario_id
+        WHERE s.token = $1 AND s.expira_en > CURRENT_TIMESTAMP`,
       [token]
     );
-    if (!result.rowCount) return res.status(401).json({ error: 'Sesión no válida o vencida.' });
-    req.user = result.rows[0].usuario_data;
-    return next();
+    if (!result.rowCount || result.rows[0].estado !== 'Activo') {
+      return res.status(401).json({ error: 'Sesión no válida o vencida.' });
+    }
+    if (result.rows[0].device_id && result.rows[0].device_id !== deviceId) {
+      return res.status(401).json({ error: 'La sesión pertenece a otro dispositivo.' });
+    }
+    req.user = {
+      ...result.rows[0].usuario_data,
+      empresaId: result.rows[0].empresa_id,
+      empresa_id: result.rows[0].empresa_id,
+      rol: result.rows[0].rol,
+      nombre: result.rows[0].nombre,
+    };
+    return runWithRequestContext({ empresaId: result.rows[0].empresa_id }, next);
   } catch (error) {
     return res.status(401).json({ error: 'Sesión no válida o vencida.' });
   }
@@ -70,6 +121,7 @@ export async function authenticate(req, res, next) {
 
 export function requireRoles(...roles) {
   return (req, res, next) => {
+    if (req.user?.rol === 'Dueno') return next();
     if (!req.user || !roles.includes(req.user.rol)) return res.status(403).json({ error: 'No tienes permiso para realizar esta acción.' });
     return next();
   };

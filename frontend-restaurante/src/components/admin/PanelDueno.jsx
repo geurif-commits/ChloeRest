@@ -3,6 +3,7 @@ import { toastAviso } from '../Toast.jsx';
 import GestionDispositivos from './GestionDispositivos.jsx';
 import FacturaActivacion from './FacturaActivacion.jsx';
 import BotonSalirElectron from '../BotonSalirElectron.jsx';
+import { Delete, LockKeyhole } from 'lucide-react';
 import './admin.css';
 
 const TOKEN_KEY = 'POS_DUENO_TOKEN';
@@ -21,12 +22,14 @@ const DURACIONES = [
 
 const TABS = [
   { id: 'resumen', label: 'Resumen' },
-  { id: 'planes', label: 'Planes y precios' },
-  { id: 'claves', label: 'Generar claves' },
+  { id: 'licencias', label: '🔑 Licencias Usadas' },
   { id: 'solicitudes', label: 'Solicitudes' },
+  { id: 'claves', label: 'Generar claves' },
+  { id: 'planes', label: 'Planes y precios' },
   { id: 'facturas', label: 'Facturas' },
   { id: 'pagos', label: 'Métodos de pago' },
   { id: 'dispositivos', label: 'Dispositivos' },
+  { id: 'pruebas', label: 'Limpiar pruebas' },
 ];
 
 const inputStyle = {
@@ -163,15 +166,22 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const [errorLogin, setErrorLogin] = useState('');
   const [cargando, setCargando] = useState(false);
   const [pinLongitud, setPinLongitud] = useState(0);
+  const [pinNoConfigurado, setPinNoConfigurado] = useState(false);
 
   const [tab, setTab] = useState('resumen');
   const [resumen, setResumen] = useState(null);
   const [planes, setPlanes] = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
+  const [licencias, setLicencias] = useState([]);
+  const [busquedaLicencia, setBusquedaLicencia] = useState('');
+  const [filtroEstadoLicencia, setFiltroEstadoLicencia] = useState('todas');
+  const [accionLicenciaId, setAccionLicenciaId] = useState(null);
   const [facturas, setFacturas] = useState([]);
   const [facturaSeleccionada, setFacturaSeleccionada] = useState(null);
   const [metodosPago, setMetodosPago] = useState([]);
   const [cargandoDatos, setCargandoDatos] = useState(false);
+  const [confirmacionReset, setConfirmacionReset] = useState('');
+  const [resetEstado, setResetEstado] = useState('');
 
   const headers = () => ({ 'Authorization': `Bearer ${token}` });
 
@@ -180,30 +190,119 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     setToken('');
     setPin('');
     setResumen(null);
+    if (alVolver) alVolver();
+  };
+
+  const revocarLicencia = async (lic) => {
+    const motivo = window.prompt(`¿Deseas revocar la licencia de "${lic.nombre_negocio || lic.empresa_nombre}"? Ingresa el motivo del bloqueo:`, 'Incumplimiento o solicitud del propietario');
+    if (motivo === null) return;
+    setAccionLicenciaId(lic.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/licencias/${lic.id}/revocar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers() },
+        body: JSON.stringify({ motivo: motivo.trim() || 'Revocada por el propietario' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error revocando la licencia.');
+        return;
+      }
+      toastAviso('⛔ Licencia revocada y terminales bloqueadas.');
+      cargarTodo();
+    } catch {
+      toastAviso('Error al revocar la licencia.');
+    } finally {
+      setAccionLicenciaId(null);
+    }
+  };
+
+  const reactivarLicencia = async (lic) => {
+    if (!window.confirm(`¿Reactivar la licencia de "${lic.nombre_negocio || lic.empresa_nombre}"? Las terminales podrán operar nuevamente.`)) return;
+    setAccionLicenciaId(lic.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/licencias/${lic.id}/reactivar`, {
+        method: 'POST',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error reactivando la licencia.');
+        return;
+      }
+      toastAviso('✅ Licencia reactivada correctamente.');
+      cargarTodo();
+    } catch {
+      toastAviso('Error al reactivar la licencia.');
+    } finally {
+      setAccionLicenciaId(null);
+    }
+  };
+
+  const eliminarLicencia = async (lic) => {
+    if (!window.confirm(`⚠️ ATENCIÓN: ¿Estás seguro de ELIMINAR PERMANENTEMENTE la licencia de "${lic.nombre_negocio || lic.empresa_nombre}"? Esta acción borrará el registro de la licencia del sistema.`)) return;
+    setAccionLicenciaId(lic.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/licencias/${lic.id}`, {
+        method: 'DELETE',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error eliminando la licencia.');
+        return;
+      }
+      toastAviso('🗑️ Licencia eliminada permanentemente.');
+      cargarTodo();
+    } catch {
+      toastAviso('Error al eliminar la licencia.');
+    } finally {
+      setAccionLicenciaId(null);
+    }
+  };
+
+  const limpiarDatosPrueba = async () => {
+    if (confirmacionReset !== 'BORRAR PRUEBAS') return;
+    setResetEstado('Borrando información…');
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/reset-pruebas`, {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmacion: confirmacionReset }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo limpiar el sistema.');
+      setResetEstado(data.mensaje || 'Sistema limpiado.');
+      setConfirmacionReset('');
+    } catch (error) {
+      setResetEstado(error.message);
+    }
   };
 
   const cargarTodo = async (tok) => {
     const auth = tok || token;
     setCargandoDatos(true);
     try {
-      const [resR, resP, resS, resF, resM] = await Promise.all([
+      const [resR, resP, resS, resF, resM, resL] = await Promise.all([
         fetch(`${apiUrl}/api/dueno/resumen`, { headers: { 'Authorization': `Bearer ${auth}` } }),
         fetch(`${apiUrl}/api/dueno/planes`, { headers: { 'Authorization': `Bearer ${auth}` } }),
         fetch(`${apiUrl}/api/dueno/solicitudes`, { headers: { 'Authorization': `Bearer ${auth}` } }),
         fetch(`${apiUrl}/api/dueno/facturas`, { headers: { 'Authorization': `Bearer ${auth}` } }),
         fetch(`${apiUrl}/api/dueno/metodos-pago`, { headers: { 'Authorization': `Bearer ${auth}` } }),
+        fetch(`${apiUrl}/api/dueno/licencias`, { headers: { 'Authorization': `Bearer ${auth}` } }),
       ]);
       if (!resR.ok) {
         if (resR.status === 401) cerrarSesion();
         toastAviso('Error cargando el panel del propietario.');
         return;
       }
-      const [dR, dP, dS, dF, dM] = await Promise.all([resR.json(), resP.json(), resS.json(), resF.json(), resM.json()]);
+      const [dR, dP, dS, dF, dM, dL] = await Promise.all([resR.json(), resP.json(), resS.json(), resF.json(), resM.json(), resL.json()]);
       setResumen(dR);
       setPlanes(dP.planes || []);
       setSolicitudes(dS.solicitudes || []);
       setFacturas(dF.facturas || []);
       setMetodosPago(dM.metodos || []);
+      setLicencias(dL.licencias || []);
     } catch {
       toastAviso('Error cargando el panel del propietario.');
     } finally {
@@ -247,12 +346,46 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setErrorLogin(data.error || 'PIN incorrecto.');
+        if (data.pinNoConfigurado) {
+          setPinNoConfigurado(true);
+          setErrorLogin('');
+          setPin('');
+        } else {
+          setErrorLogin(data.error || 'PIN incorrecto.');
+          setPin('');
+        }
+        return;
+      }
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setToken(data.token);
+      cargarTodo(data.token);
+    } catch {
+      setErrorLogin('No se pudo conectar con el servidor.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const establecerPin = async (e) => {
+    if (e) e.preventDefault();
+    if (!pin || cargando) return;
+    setCargando(true);
+    setErrorLogin('');
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/establecer-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorLogin(data.error || 'Error al establecer el PIN.');
         setPin('');
         return;
       }
       localStorage.setItem(TOKEN_KEY, data.token);
       setToken(data.token);
+      setPinNoConfigurado(false);
       cargarTodo(data.token);
     } catch {
       setErrorLogin('No se pudo conectar con el servidor.');
@@ -274,7 +407,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const borrarNumeroPin = () => setPin((prev) => prev.slice(0, -1));
 
   useEffect(() => {
-    if (!token && pinLongitud > 0 && pin.length === pinLongitud) login();
+    if (!token && !pinNoConfigurado && pinLongitud > 0 && pin.length === pinLongitud) login();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, pinLongitud]);
 
@@ -286,13 +419,17 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       } else if (evento.key === 'Backspace' || evento.key === 'Delete') {
         borrarNumeroPin();
       } else if (evento.key === 'Enter') {
-        if (pinLongitud === 0 || pin.length === pinLongitud) login();
+        if (pinNoConfigurado) {
+          if (pin.length >= 4) establecerPin();
+        } else {
+          if (pinLongitud === 0 || pin.length === pinLongitud) login();
+        }
       }
     };
     window.addEventListener('keydown', manejarTeclado);
     return () => window.removeEventListener('keydown', manejarTeclado);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, pin, pinLongitud]);
+  }, [token, pin, pinLongitud, pinNoConfigurado]);
 
   const [planForm, setPlanForm] = useState({ nombre: '', duracion_codigo: '30D', precio: '', moneda: 'RD$', destacado: false, activo: true, orden: 0 });
 
@@ -361,9 +498,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
   const [durSeleccionada, setDurSeleccionada] = useState('30D');
   const [claveGenerada, setClaveGenerada] = useState('');
+  const [pinInicialGenerado, setPinInicialGenerado] = useState('');
 
   const generarClave = async () => {
     setClaveGenerada('');
+    setPinInicialGenerado('');
     try {
       const res = await fetch(`${apiUrl}/api/dueno/generar-clave`, {
         method: 'POST',
@@ -376,6 +515,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         return;
       }
       setClaveGenerada(data.clave);
+      setPinInicialGenerado(data.pinInicial || '');
     } catch {
       toastAviso('Error generando la clave.');
     }
@@ -402,10 +542,93 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         toastAviso(data.error || 'Error actualizando la solicitud.');
         return;
       }
-      toastAviso(`Solicitud marcada como "${estado}".`);
+      toastAviso(data.eliminada ? '🗑️ Solicitud rechazada y eliminada automáticamente.' : `Solicitud marcada como "${estado}".`);
       cargarTodo();
     } catch {
       toastAviso('Error actualizando la solicitud.');
+    }
+  };
+
+  const eliminarSolicitud = async (id, nombre) => {
+    if (!window.confirm(`¿Estás seguro de eliminar permanentemente la solicitud de "${nombre}"?`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/solicitudes/${id}`, {
+        method: 'DELETE',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error eliminando solicitud.');
+        return;
+      }
+      toastAviso('🗑️ Solicitud eliminada correctamente.');
+      cargarTodo();
+    } catch {
+      toastAviso('Error eliminando solicitud.');
+    }
+  };
+
+  // Scaffold para la generación de claves desde las solicitudes
+  const [durSolicitud, setDurSolicitud] = useState({});
+  const [enviandoClave, setEnviandoClave] = useState(null);
+  const [enviandoEmail, setEnviandoEmail] = useState(null);
+  const [filtroSolicitud, setFiltroSolicitud] = useState('pendientes');
+  const [modalEmail, setModalEmail] = useState(null);
+
+  const duracionEtiqueta = (codigo) => {
+    const match = DURACIONES.find((d) => d.codigo === codigo);
+    return match ? match.etiqueta : codigo;
+  };
+
+  const generarClaveSolicitud = async (sol) => {
+    const dur = durSolicitud[sol.id] || sol.plan_duracion || '30D';
+    setEnviandoClave(sol.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/solicitudes/${sol.id}/generar-clave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers() },
+        body: JSON.stringify({ duracion: dur }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error generando la clave.');
+        return;
+      }
+      toastAviso(
+        data.reutilizada
+          ? 'La clave de esta solicitud ya había sido generada.'
+          : (data.enviadaPorTelegram ? 'Clave generada y enviada por Telegram.' : 'Clave generada (no se pudo enviar por Telegram).')
+      );
+      cargarTodo();
+    } catch {
+      toastAviso('Error generando la clave.');
+    } finally {
+      setEnviandoClave(null);
+    }
+  };
+
+  const enviarEmailActivacion = async (sol) => {
+    setEnviandoEmail(sol.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/solicitudes/${sol.id}/enviar-email`, {
+        method: 'POST',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error al preparar el correo.');
+        return;
+      }
+      toastAviso(`📧 Correo preparado para ${sol.email}`);
+      setModalEmail(data);
+      if (data.mailtoUrl) {
+        window.open(data.mailtoUrl, '_blank');
+      }
+      cargarTodo();
+    } catch {
+      toastAviso('Error enviando el correo.');
+    } finally {
+      setEnviandoEmail(null);
     }
   };
 
@@ -517,59 +740,81 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   };
 
   if (!token) {
+    const pinInput = (
+      <div className="owner-pin-display" style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        {[...Array(pinLongitud > 0 ? pinLongitud : 6)].map((_, i) => (
+          <span key={i} style={{
+            width: '40px', height: '40px', borderRadius: '8px', border: '2px solid #d6a44d',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem',
+            background: i < pin.length ? '#d6a44d' : 'transparent',
+            color: i < pin.length ? '#000' : 'transparent'
+          }}>
+            •
+          </span>
+        ))}
+      </div>
+    );
+
+    const numpad = (
+      <div className="owner-pin-keypad" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', maxWidth: '240px', margin: '0 auto 12px auto' }}>
+        {['1','2','3','4','5','6','7','8','9'].map((n) => (
+          <button className="owner-pin-key" key={n} type="button" onClick={() => agregarNumeroPin(n)}>{n}</button>
+        ))}
+        <button className="owner-pin-key owner-pin-delete" type="button" onClick={borrarNumeroPin} aria-label="Borrar último dígito"><Delete size={18} /></button>
+        <button className="owner-pin-key" type="button" onClick={() => agregarNumeroPin('0')}>0</button>
+        <button
+          type="submit"
+          disabled={cargando || pin.length < (pinNoConfigurado ? 4 : (pinLongitud > 0 ? pinLongitud : 4))}
+          className="owner-pin-enter"
+          aria-label="Confirmar PIN"
+        >
+          →
+        </button>
+      </div>
+    );
+
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box' }}>
+      <div className="owner-pin-screen" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', maxHeight: '100dvh', background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, fontFamily: 'sans-serif', padding: '16px', boxSizing: 'border-box', overflow: 'auto' }}>
         <BotonSalirElectron />
-        <div style={{ background: '#181820', border: '2px solid #d6a44d', borderRadius: '16px', padding: '35px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(214,164,77,0.2)' }}>
-          <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}>👑</div>
-          <h2 style={{ color: '#d6a44d', fontSize: '1.6rem', margin: '0 0 8px 0' }}>Panel del Propietario</h2>
-          <p style={{ color: '#9494ad', fontSize: '0.92rem', marginBottom: '20px', lineHeight: '1.5' }}>
-            Acceso universal y exclusivo del dueño del sistema. Ingresa tu PIN para administrar planes, precios, claves, solicitudes y dispositivos.
-          </p>
-          <form onSubmit={login}>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-              {[...Array(pinLongitud > 0 ? pinLongitud : 6)].map((_, i) => (
-                <span key={i} style={{
-                  width: '46px', height: '46px', borderRadius: '10px', border: '2px solid #d6a44d',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem',
-                  background: i < pin.length ? '#d6a44d' : 'transparent',
-                  color: i < pin.length ? '#000' : 'transparent'
-                }}>
-                  •
-                </span>
-              ))}
-            </div>
-            {errorLogin && <p style={{ color: '#ff5252', fontSize: '0.85rem', margin: '0 0 10px 0' }}>{errorLogin}</p>}
+        <div className="owner-pin-card" style={{ background: '#181820', border: '2px solid #d6a44d', borderRadius: '16px', padding: '24px 20px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(214,164,77,0.2)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div className="owner-pin-badge"><LockKeyhole size={22} /></div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '9px', maxWidth: '260px', margin: '0 auto 16px auto' }}>
-              {['1','2','3','4','5','6','7','8','9'].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => agregarNumeroPin(n)}
-                  style={{ background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38', padding: '14px', borderRadius: '10px', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  {n}
-                </button>
-              ))}
-              <button type="button" onClick={borrarNumeroPin} style={{ background: '#2a2a38', color: '#ff5252', border: '1px solid #2a2a38', padding: '14px', borderRadius: '10px', fontSize: '1.1rem', cursor: 'pointer' }}>⌫</button>
-              <button type="button" onClick={() => agregarNumeroPin('0')} style={{ background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38', padding: '14px', borderRadius: '10px', fontSize: '1.25rem', fontWeight: 'bold', cursor: 'pointer' }}>0</button>
-              <button
-                type="submit"
-                disabled={cargando || pin.length < (pinLongitud > 0 ? pinLongitud : 4)}
-                style={{ background: pin.length >= (pinLongitud > 0 ? pinLongitud : 4) && !cargando ? '#d6a44d' : '#2a2a38', color: pin.length >= (pinLongitud > 0 ? pinLongitud : 4) && !cargando ? '#000' : '#888', border: 'none', padding: '14px', borderRadius: '10px', fontWeight: 'bold', fontSize: '1.1rem', cursor: pin.length >= (pinLongitud > 0 ? pinLongitud : 4) && !cargando ? 'pointer' : 'not-allowed' }}
-              >
-                ➜
-              </button>
-            </div>
+          {pinNoConfigurado ? (
+            <>
+              <h2 style={{ color: '#d6a44d', fontSize: '1.2rem', margin: '0 0 8px 0' }}>Configurar PIN del Propietario</h2>
+              <p style={{ color: '#9494ad', fontSize: '0.82rem', marginBottom: '16px', lineHeight: '1.4' }}>
+                El PIN del propietario no ha sido configurado. Ingresa un PIN de 4 a 12 digitos para acceder al panel.
+              </p>
+              <form onSubmit={establecerPin}>
+                {pinInput}
+                {errorLogin && <p style={{ color: '#ff5252', fontSize: '0.8rem', margin: '0 0 8px 0' }}>{errorLogin}</p>}
+                {numpad}
+                <p style={{ color: '#88889d', fontSize: '0.68rem', margin: '0 0 10px 0' }}>
+                  Minimo 4 digitos. Este PIN se usara para acceder al panel del propietario.
+                </p>
+                {cargando && <p style={{ color: '#d6a44d', fontSize: '0.8rem', margin: '0 0 8px 0' }}>Configurando...</p>}
+              </form>
+            </>
+          ) : (
+            <>
+              <div className="owner-pin-kicker">OWNER ACCESS · CHLOERESTAURANT</div>
+              <h2 style={{ color: '#d6a44d', fontSize: '1.3rem', margin: '0 0 8px 0' }}>Acceso del propietario</h2>
+              <p style={{ color: '#9494ad', fontSize: '0.85rem', marginBottom: '16px', lineHeight: '1.4' }}>
+                Acceso universal y exclusivo del dueño del sistema. Ingresa tu PIN para administrar planes, precios, claves, solicitudes y dispositivos.
+              </p>
+              <form onSubmit={login}>
+                {pinInput}
+                {errorLogin && <p style={{ color: '#ff5252', fontSize: '0.8rem', margin: '0 0 8px 0' }}>{errorLogin}</p>}
+                {numpad}
+                <p style={{ color: '#88889d', fontSize: '0.68rem', margin: '0 0 10px 0' }}>
+                  Digita tu PIN y confirma para continuar.
+                </p>
+                {cargando && <p style={{ color: '#d6a44d', fontSize: '0.8rem', margin: '0 0 8px 0' }}>Verificando...</p>}
+              </form>
+            </>
+          )}
 
-            <p style={{ color: '#88889d', fontSize: '0.72rem', margin: '0 0 14px 0' }}>
-              Digita el PIN completo del propietario y pulsa ➜ o Enter.
-            </p>
-
-            {cargando && <p style={{ color: '#d6a44d', fontSize: '0.85rem', margin: '0 0 10px 0' }}>Verificando...</p>}
-          </form>
-          <button onClick={alVolver} style={{ marginTop: '4px', background: 'transparent', color: '#9494ad', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}>
+          <button onClick={alVolver} style={{ marginTop: 'auto', background: 'transparent', color: '#d6a44d', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', fontWeight: 600 }}>
             Volver al inicio
           </button>
         </div>
@@ -660,6 +905,230 @@ function PanelDueno({ apiUrl, config, alVolver }) {
           </>
         )}
 
+        {tab === 'licencias' && (
+          <div className="admin-panel-lista">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🔑 Licencias Emitidas, Activas y Usadas
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>
+                  Control de licencias y terminales. Puedes revocar el acceso a cualquier restaurante o eliminar licencias permanentemente.
+                </span>
+              </div>
+
+              {/* Controles de filtro y búsqueda */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Buscar por negocio, clave, dueño..."
+                  value={busquedaLicencia}
+                  onChange={(e) => setBusquedaLicencia(e.target.value)}
+                  style={{ ...inputStyle, width: '240px', padding: '6px 12px', fontSize: '0.82rem' }}
+                />
+                <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  {[
+                    { id: 'todas', label: `Todas (${licencias.length})` },
+                    { id: 'activas', label: `Activas (${licencias.filter(l => l.activa && !l.revocada).length})` },
+                    { id: 'revocadas', label: `Revocadas (${licencias.filter(l => !l.activa || l.revocada).length})` },
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setFiltroEstadoLicencia(f.id)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: filtroEstadoLicencia === f.id ? 'var(--gold, #f5b842)' : 'transparent',
+                        color: filtroEstadoLicencia === f.id ? '#000' : 'var(--admin-text-muted)',
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Tarjetas resumen de licencias */}
+            <div className="tarjetas-grid" style={{ marginBottom: '18px' }}>
+              <div className="tarjeta-resumen">
+                <h4>Total Licencias</h4>
+                <h2 style={{ color: '#fff' }}>{licencias.length}</h2>
+              </div>
+              <div className="tarjeta-resumen">
+                <h4>Licencias Activas</h4>
+                <h2 style={{ color: '#00f576' }}>{licencias.filter(l => l.activa && !l.revocada).length}</h2>
+              </div>
+              <div className="tarjeta-resumen">
+                <h4>Licencias Revocadas</h4>
+                <h2 style={{ color: '#ef4444' }}>{licencias.filter(l => !l.activa || l.revocada).length}</h2>
+              </div>
+              <div className="tarjeta-resumen">
+                <h4>Terminales POS Vinculadas</h4>
+                <h2 style={{ color: '#38bdf8' }}>{licencias.reduce((acc, l) => acc + (l.total_dispositivos || 0), 0)}</h2>
+              </div>
+            </div>
+
+            {(() => {
+              const filtradas = licencias.filter(l => {
+                if (filtroEstadoLicencia === 'activas' && (!l.activa || l.revocada)) return false;
+                if (filtroEstadoLicencia === 'revocadas' && (l.activa && !l.revocada)) return false;
+                if (!busquedaLicencia.trim()) return true;
+                const q = busquedaLicencia.toLowerCase();
+                return (
+                  (l.clave && l.clave.toLowerCase().includes(q)) ||
+                  (l.nombre_negocio && l.nombre_negocio.toLowerCase().includes(q)) ||
+                  (l.empresa_nombre && l.empresa_nombre.toLowerCase().includes(q)) ||
+                  (l.propietario && l.propietario.toLowerCase().includes(q)) ||
+                  (l.email && l.email.toLowerCase().includes(q))
+                );
+              });
+
+              if (filtradas.length === 0) {
+                return (
+                  <div style={{ padding: '30px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed var(--admin-border)' }}>
+                    <p style={{ margin: 0, color: 'var(--admin-text-muted)', fontSize: '0.9rem' }}>
+                      No se encontraron licencias con los filtros seleccionados.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="tabla-contenedor">
+                  <table className="admin-tabla">
+                    <thead>
+                      <tr>
+                        <th># ID</th>
+                        <th>Restaurante / Negocio</th>
+                        <th>Clave de Licencia</th>
+                        <th>Plan / Duración</th>
+                        <th>Contacto</th>
+                        <th>Terminales</th>
+                        <th>Estado</th>
+                        <th>Activada / Vencimiento</th>
+                        <th>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtradas.map(lic => {
+                        const estaActiva = lic.activa && !lic.revocada;
+                        return (
+                          <tr key={lic.id} style={{ opacity: estaActiva ? 1 : 0.75 }}>
+                            <td style={{ fontWeight: 'bold' }}>#{lic.id}</td>
+                            <td>
+                              <div style={{ fontWeight: 'bold', color: '#fff' }}>{lic.nombre_negocio || lic.empresa_nombre}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-dim)' }}>Empresa ID: {lic.empresa_id}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: '#f5c542', wordBreak: 'break-all' }}>
+                                {lic.clave}
+                              </div>
+                              <button
+                                className="btn-solicitud atender"
+                                style={{ padding: '2px 6px', fontSize: '0.7rem', marginTop: '4px' }}
+                                onClick={() => copiarClave(lic.clave)}
+                              >
+                                📋 Copiar
+                              </button>
+                            </td>
+                            <td>
+                              <span className="badge-rol cajero" style={{ fontSize: '0.75rem' }}>
+                                {duracionEtiqueta(lic.duracion_codigo)}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{lic.propietario || '—'}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>{lic.email}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>{lic.telefono}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: lic.dispositivos_activos > 0 ? '#00f576' : 'var(--admin-text-muted)' }}>
+                                {lic.dispositivos_activos || 0} activos
+                              </span>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>
+                                {lic.total_dispositivos || 0} total
+                              </div>
+                            </td>
+                            <td>
+                              {estaActiva ? (
+                                <span className="badge-rol cajero" style={{ background: 'rgba(0,245,118,0.15)', color: '#00f576', border: '1px solid rgba(0,245,118,0.3)' }}>
+                                  🟢 Activa
+                                </span>
+                              ) : (
+                                <div>
+                                  <span className="badge-rol default" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+                                    ⛔ Revocada
+                                  </span>
+                                  {lic.motivo_revocacion && (
+                                    <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '2px' }}>
+                                      {lic.motivo_revocacion}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ fontSize: '0.78rem' }}>
+                                {formatearFecha(lic.activada_en || lic.creado_en)}
+                              </div>
+                              {lic.vencimiento && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)', marginTop: '2px' }}>
+                                  Vence: {new Date(lic.vencimiento).toLocaleDateString()}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                {estaActiva ? (
+                                  <button
+                                    className="btn-solicitud rechazar"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                    disabled={accionLicenciaId === lic.id}
+                                    onClick={() => revocarLicencia(lic)}
+                                    title="Bloquear terminales y revocar esta licencia"
+                                  >
+                                    ⛔ Revocar
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="btn-solicitud pagada"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                    disabled={accionLicenciaId === lic.id}
+                                    onClick={() => reactivarLicencia(lic)}
+                                    title="Desbloquear y reactivar esta licencia"
+                                  >
+                                    ✅ Reactivar
+                                  </button>
+                                )}
+
+                                <button
+                                  className="btn-accion delete"
+                                  style={{ fontSize: '0.72rem', padding: '3px 7px', alignSelf: 'flex-start' }}
+                                  disabled={accionLicenciaId === lic.id}
+                                  onClick={() => eliminarLicencia(lic)}
+                                  title="Eliminar licencia permanentemente"
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {tab === 'planes' && (
           <div className="admin-grid-layout">
             <div className="admin-panel-lista">
@@ -687,19 +1156,21 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                 </div>
                 <div>
                   <label style={labelStyle}>Duración</label>
-                  <select className="form-input" style={inputStyle} value={planForm.duracion_codigo} onChange={(e) => setPlanForm({ ...planForm, duracion_codigo: e.target.value })}>
-                    {DURACIONES.map((d) => <option key={d.codigo} value={d.codigo}>{d.etiqueta}</option>)}
+                  <select className="form-input" style={{ ...inputStyle, background: 'var(--bg-input)', color: 'var(--text-primary)' }} value={planForm.duracion_codigo} onChange={(e) => setPlanForm({ ...planForm, duracion_codigo: e.target.value })}>
+                    {DURACIONES.map((d) => <option key={d.codigo} value={d.codigo} style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}>{d.etiqueta}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '10px' }}>
                   <div>
                     <label style={labelStyle}>Precio</label>
-                    <input className="form-input" style={inputStyle} type="number" min="0" value={planForm.precio} onChange={(e) => setPlanForm({ ...planForm, precio: e.target.value })} placeholder="0" />
+                    <input className="form-input money-input" style={inputStyle} type="number" min="0" step="0.1" value={planForm.precio} onChange={(e) => setPlanForm({ ...planForm, precio: e.target.value })} placeholder="0" />
                   </div>
                   <div>
                     <label style={labelStyle}>Moneda</label>
-                    <select className="form-input" style={inputStyle} value={planForm.moneda} onChange={(e) => setPlanForm({ ...planForm, moneda: e.target.value })}>
-                      <option>RD$</option><option>US$</option><option>€</option>
+                    <select className="form-input" style={{ ...inputStyle, background: 'var(--bg-input)', color: 'var(--text-primary)' }} value={planForm.moneda} onChange={(e) => setPlanForm({ ...planForm, moneda: e.target.value })}>
+                      <option style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}>RD$</option>
+                      <option style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}>US$</option>
+                      <option style={{ background: 'var(--bg-input)', color: 'var(--text-primary)' }}>€</option>
                     </select>
                   </div>
                 </div>
@@ -744,6 +1215,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                   <input readOnly value={claveGenerada} style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '1px', flex: 1 }} />
                   <button className="btn-guardar-admin" type="button" onClick={() => copiarClave(claveGenerada)}>📋</button>
                 </div>
+                {pinInicialGenerado && (
+                  <p style={{ color: '#f5c542', margin: '10px 0 0', fontSize: '0.85rem' }}>
+                    PIN inicial del Administrador: <code>{pinInicialGenerado}</code>. Entrégalo junto con la clave; se exigirá cambiarlo en el primer acceso.
+                  </p>
+                )}
               </div>
             )}
 
@@ -755,50 +1231,265 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
         {tab === 'solicitudes' && (
           <div className="admin-panel-lista">
-            <h3 style={{ margin: '0 0 12px' }}>Solicitudes de licencia</h3>
-            {solicitudes.length === 0 ? (
-              <p style={{ color: 'var(--admin-text-muted)' }}>No hay solicitudes aún. Cuando un cliente elija un plan en el formulario de registro, aparecerá aquí.</p>
-            ) : (
-              <div className="tabla-contenedor">
-                <table className="admin-tabla">
-                  <thead>
-                    <tr><th>#</th><th>Plan</th><th>Propietario / Negocio</th><th>Contacto</th><th>Estado</th><th>Recibida</th><th>Acciones</th></tr>
-                  </thead>
-                  <tbody>
-                    {solicitudes.map((s) => (
-                      <tr key={s.id}>
-                        <td>#{s.id}</td>
-                        <td>{s.plan_nombre || 'Sin plan'}</td>
-                        <td>
-                          <div style={{ fontWeight: 'bold' }}>{s.propietario}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>{s.negocio}</div>
-                        </td>
-                        <td>
-                          <div style={{ fontSize: '0.85rem' }}>{s.telefono}</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>{s.email}</div>
-                          {s.provincia && <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-dim)' }}>{s.provincia}</div>}
-                          {s.metodo_pago && <div style={{ fontSize: '0.75rem', color: '#00f576', marginTop: '3px' }}>Pago: {s.metodo_pago}</div>}
-                        </td>
-                        <td>
-                          <span className={`badge-rol ${s.estado === 'Pagada' ? 'cajero' : s.estado === 'Atendida' ? 'cajero' : s.estado === 'Rechazada' ? 'default' : 'capitan'}`}>{s.estado}</span>
-                          {s.comprobante && <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-dim)', marginTop: '3px' }}>Comp.: {s.comprobante}</div>}
-                        </td>
-                        <td>{formatearFecha(s.creado_en)}</td>
-                        <td>
-                          {s.estado === 'Pendiente' ? (
-                            <>
-                              <button className="btn-solicitud pagada" onClick={() => cambiarSolicitud(s.id, 'Pagada')}>✅ Pagada</button>
-                              <button className="btn-solicitud atender" onClick={() => cambiarSolicitud(s.id, 'Atendida')}>Atender</button>
-                              <button className="btn-solicitud rechazar" onClick={() => cambiarSolicitud(s.id, 'Rechazada')}>Rechazar</button>
-                            </>
-                          ) : (
-                            <button className="btn-solicitud reabrir" onClick={() => cambiarSolicitud(s.id, 'Pendiente')}>Reabrir</button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>Gestión de Solicitudes y Licencias</h3>
+                <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
+                  Administra las solicitudes entrantes, genera licencias y envía las instrucciones a los clientes.
+                </span>
+              </div>
+
+              {/* Subtabs: Pendientes / Histórico / Todas */}
+              <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                {[
+                  { id: 'pendientes', label: `📥 Pendientes (${solicitudes.filter(s => s.estado === 'Pendiente').length})` },
+                  { id: 'historico', label: `📜 Histórico Atendidas (${solicitudes.filter(s => s.estado === 'Atendida' || s.estado === 'Pagada').length})` },
+                  { id: 'todas', label: `📑 Todas (${solicitudes.length})` }
+                ].map(sub => (
+                  <button
+                    key={sub.id}
+                    type="button"
+                    onClick={() => setFiltroSolicitud(sub.id)}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '7px',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: 'none',
+                      background: filtroSolicitud === sub.id ? 'var(--gold, #f5b842)' : 'transparent',
+                      color: filtroSolicitud === sub.id ? '#000' : 'var(--admin-text-muted)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {(() => {
+              const filtradas = solicitudes.filter((s) => {
+                if (filtroSolicitud === 'pendientes') return s.estado === 'Pendiente';
+                if (filtroSolicitud === 'historico') return s.estado === 'Atendida' || s.estado === 'Pagada';
+                return true;
+              });
+
+              if (filtradas.length === 0) {
+                return (
+                  <div style={{ padding: '30px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed var(--admin-border)' }}>
+                    <p style={{ margin: 0, color: 'var(--admin-text-muted)', fontSize: '0.9rem' }}>
+                      {filtroSolicitud === 'pendientes'
+                        ? '✨ No hay solicitudes pendientes de atender. Las solicitudes nuevas aparecerán aquí.'
+                        : 'No hay registros en esta sección.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="tabla-contenedor">
+                  <table className="admin-tabla">
+                    <thead>
+                      <tr><th>#</th><th>Plan</th><th>Propietario / Negocio</th><th>Contacto</th><th>Estado</th><th>Clave Asignada</th><th>Recibida</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody>
+                      {filtradas.map((s) => (
+                        <tr key={s.id}>
+                          <td>#{s.id}</td>
+                          <td>
+                            {s.plan_nombre || 'Sin plan'}
+                            {s.plan_duracion && <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-dim)' }}>{duracionEtiqueta(s.plan_duracion)}</div>}
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 'bold' }}>{s.propietario}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>{s.negocio}</div>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '0.85rem' }}>{s.telefono}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>{s.email}</div>
+                            {s.provincia && <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-dim)' }}>{s.provincia}</div>}
+                            {s.metodo_pago && <div style={{ fontSize: '0.75rem', color: '#00f576', marginTop: '3px' }}>Pago: {s.metodo_pago}</div>}
+                          </td>
+                          <td>
+                            <span className={`badge-rol ${s.estado === 'Pagada' ? 'cajero' : s.estado === 'Atendida' ? 'cajero' : s.estado === 'Rechazada' ? 'default' : 'capitan'}`}>{s.estado}</span>
+                            {s.comprobante && <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-dim)', marginTop: '3px' }}>Comp.: {s.comprobante}</div>}
+                          </td>
+                          <td>
+                            {s.clave_generada ? (
+                              <div>
+                                <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 'bold', color: '#f5c542', wordBreak: 'break-all' }}>{s.clave_generada}</div>
+                                {s.clave_pin_inicial && <div style={{ fontSize: '0.68rem', color: '#f5c542' }}>PIN: {s.clave_pin_inicial}</div>}
+                                {s.clave_enviada_en ? (
+                                  <div style={{ fontSize: '0.68rem', color: '#00f576' }}>Clave Entregada ✓</div>
+                                ) : (
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--admin-text-dim)' }}>Sin enviar aún</div>
+                                )}
+                                <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                  <button className="btn-solicitud atender" style={{ padding: '3px 7px', fontSize: '0.72rem' }} onClick={() => copiarClave(s.clave_generada)}>📋 Copiar</button>
+                                  {s.email && (
+                                    <button
+                                      className="btn-solicitud atender"
+                                      style={{ padding: '3px 7px', fontSize: '0.72rem', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.35)', color: '#38bdf8' }}
+                                      onClick={() => enviarEmailActivacion(s)}
+                                      disabled={enviandoEmail === s.id}
+                                      title="Enviar correo con la clave, pasos de activación y soporte"
+                                    >
+                                      📧 {enviandoEmail === s.id ? 'Enviando…' : 'Enviar Email'}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--admin-text-dim)' }}>—</span>
+                            )}
+                          </td>
+                          <td>{formatearFecha(s.creado_en)}</td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {s.estado === 'Pendiente' ? (
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  <button className="btn-solicitud pagada" onClick={() => cambiarSolicitud(s.id, 'Pagada')}>✅ Pagada</button>
+                                  <button className="btn-solicitud atender" onClick={() => cambiarSolicitud(s.id, 'Atendida')}>Atender</button>
+                                  <button className="btn-solicitud rechazar" onClick={() => cambiarSolicitud(s.id, 'Rechazada')} title="Rechazar y eliminar automáticamente">❌ Rechazar</button>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  <button className="btn-solicitud reabrir" onClick={() => cambiarSolicitud(s.id, 'Pendiente')}>Reabrir</button>
+                                </div>
+                              )}
+
+                              {!s.clave_generada && (
+                                <div style={{ marginTop: '4px', borderTop: '1px dashed var(--admin-border)', paddingTop: '6px' }}>
+                                  <select
+                                    className="form-input"
+                                    style={{ ...inputStyle, width: '100%', marginBottom: '4px', padding: '4px 6px', fontSize: '0.74rem' }}
+                                    value={durSolicitud[s.id] || s.plan_duracion || '30D'}
+                                    onChange={(e) => setDurSolicitud((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                                  >
+                                    {DURACIONES.map((d) => <option key={d.codigo} value={d.codigo}>{d.etiqueta}</option>)}
+                                  </select>
+                                  <button
+                                    className="btn-solicitud atender"
+                                    style={{ width: '100%', fontSize: '0.74rem' }}
+                                    disabled={enviandoClave === s.id}
+                                    onClick={() => generarClaveSolicitud(s)}
+                                  >
+                                    {enviandoClave === s.id ? 'Generando…' : '🔑 Generar Clave'}
+                                  </button>
+                                </div>
+                              )}
+
+                              <button
+                                className="btn-accion delete"
+                                style={{ alignSelf: 'flex-start', marginTop: '2px', padding: '4px 8px', fontSize: '0.72rem' }}
+                                onClick={() => eliminarSolicitud(s.id, s.negocio || s.propietario)}
+                                title="Eliminar solicitud permanentemente"
+                              >
+                                🗑️ Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {/* ── Modal de Correo de Activación ── */}
+            {modalEmail && (
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 9999,
+                  background: 'rgba(0,0,0,0.8)',
+                  backdropFilter: 'blur(8px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '16px'
+                }}
+                onClick={() => setModalEmail(null)}
+              >
+                <div
+                  style={{
+                    background: '#0b0f19',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: '16px',
+                    maxWidth: '620px',
+                    width: '100%',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
+                    padding: '24px',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '14px'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      📧 Correo de Activación
+                    </h3>
+                    <button
+                      onClick={() => setModalEmail(null)}
+                      style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', color: '#fff', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>
+                    Destinatario: <strong style={{ color: '#fff' }}>{modalEmail.email}</strong> • Asunto: <strong style={{ color: 'var(--gold, #f5b842)' }}>{modalEmail.asunto}</strong>
+                  </p>
+
+                  <div style={{
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: '10px',
+                    padding: '14px',
+                    fontSize: '0.78rem',
+                    color: '#cbd5e1',
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: '320px',
+                    overflowY: 'auto',
+                    fontFamily: 'monospace',
+                    lineHeight: 1.4
+                  }}>
+                    {modalEmail.texto}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="topbar-btn"
+                      onClick={() => {
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(modalEmail.texto);
+                          toastAviso('📋 Instrucciones y clave copiadas al portapapeles.');
+                        }
+                      }}
+                      style={{ padding: '8px 14px', fontSize: '0.82rem' }}
+                    >
+                      📋 Copiar Texto Completo
+                    </button>
+                    {modalEmail.mailtoUrl && (
+                      <a
+                        href={modalEmail.mailtoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-solicitud atender"
+                        style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', padding: '8px 16px', fontSize: '0.82rem' }}
+                      >
+                        ✉️ Abrir en Mi Correo
+                      </a>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -964,6 +1655,18 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
         {tab === 'dispositivos' && (
           <GestionDispositivos apiUrl={apiUrl} token={token} />
+        )}
+
+        {tab === 'pruebas' && (
+          <div className="admin-panel-formulario reset-pruebas-panel">
+            <h3>Limpiar datos de pruebas</h3>
+            <p>Elimina productos, usuarios, pedidos, mesas, inventario, configuración y licencias de prueba. El sistema quedará listo para ejecutar nuevamente el Setup Wizard.</p>
+            <p className="reset-pruebas-advertencia">Esta operación es irreversible. Haz un respaldo antes de continuar.</p>
+            <label style={labelStyle}>Escribe BORRAR PRUEBAS</label>
+            <input className="form-input" style={inputStyle} value={confirmacionReset} onChange={(e) => setConfirmacionReset(e.target.value.toUpperCase())} placeholder="BORRAR PRUEBAS" />
+            <button className="btn-solicitud rechazar" type="button" disabled={confirmacionReset !== 'BORRAR PRUEBAS'} onClick={limpiarDatosPrueba}>Eliminar datos de prueba</button>
+            {resetEstado && <p>{resetEstado}</p>}
+          </div>
         )}
       </div>
 

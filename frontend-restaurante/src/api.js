@@ -7,8 +7,6 @@ const PUBLIC_PATHS = [
   '/api/configuracion/sistema',
   '/api/setup/completar',
   '/api/setup/registro',
-  '/api/kds/stream',
-  '/api/mesas/stream',
   '/api/dispositivo/registrar',
   '/api/dispositivo/activar',
   '/api/planes',
@@ -206,23 +204,6 @@ function isPublicRequest(input, init) {
     return true;
   }
 
-  if (path.startsWith('/api/dueno/')) {
-    return true;
-  }
-
-  if (
-    path.startsWith('/api/kds/') &&
-    path.endsWith('/pedidos')
-  ) {
-    return true;
-  }
-
-  if (
-    path.startsWith('/api/kds/despachar/')
-  ) {
-    return true;
-  }
-
   return false;
 }
 
@@ -307,6 +288,15 @@ export function instalarFetchAutenticado() {
           : undefined
       )
     );
+
+    let deviceId = localStorage.getItem('POS_DEVICE_ID');
+    if (!deviceId) {
+      deviceId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+      localStorage.setItem('POS_DEVICE_ID', deviceId);
+    }
+    if (deviceId && !headers.has('X-Device-ID')) headers.set('X-Device-ID', deviceId);
 
     if (
       token &&

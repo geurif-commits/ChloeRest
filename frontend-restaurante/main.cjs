@@ -63,7 +63,7 @@ function installPostgresSilently(installerPath) {
       '--debuglevel', '1',
     ];
     console.log('Instalando PostgreSQL por primera vez (proceso silencioso)...');
-    const child = spawn(installerPath, args, { detached: false, stdio: 'ignore' });
+    const child = spawn(installerPath, args, { detached: false, stdio: 'ignore', windowsHide: true });
     child.on('exit', (code) => {
       console.log(`Instalador de PostgreSQL finalizó con código ${code}.`);
       resolve(code);
@@ -105,16 +105,13 @@ function findBackendLauncher() {
   const baseDir = getAppBaseDir();
   const resDir = process.resourcesPath || baseDir;
   const candidates = [
-    // Binario compilado del backend (pkg)
     path.resolve(baseDir, 'ServidorPOS.exe'),
     path.resolve(resDir, 'ServidorPOS.exe'),
     path.resolve(baseDir, '..', 'resources', 'ServidorPOS.exe'),
-    // Backend autocontenido (bundle esbuild, corre con el Node de Electron)
     path.resolve(baseDir, 'ServidorPOS.cjs'),
     path.resolve(resDir, 'ServidorPOS.cjs'),
     path.resolve(baseDir, '..', 'bundle.cjs'),
     path.resolve(baseDir, '..', 'ServidorPOS.cjs'),
-    // server.js (dev / proyecto completo)
     path.resolve(baseDir, 'server.js'),
     path.resolve(resDir, 'server.js'),
     path.resolve(baseDir, '..', 'server.js'),
@@ -183,17 +180,16 @@ async function startBackendIfNeeded() {
       cwd: launcher.cwd,
       detached: false,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
   } else {
-    // El backend se ejecuta con el Node incluido en Electron (el propio
-    // ejecutable de la app con ELECTRON_RUN_AS_NODE), así que no depende
-    // de tener Node instalado en el sistema.
     console.log(`Iniciando backend POS (script) con ${launcher.script}`);
     backendProcess = spawn(process.execPath, [launcher.script], {
       cwd: launcher.cwd,
       detached: false,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
   }
 
@@ -238,6 +234,8 @@ function createWindow() {
     title: 'ChloeRestaurant',
     frame: false,
     fullscreen: true,
+    backgroundColor: '#07090f',
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -247,9 +245,15 @@ function createWindow() {
     autoHideMenuBar: true
   });
 
-  // Los diálogos alert()/confirm() nativos hacen que la ventana pierda el foco del
-  // S.O.; el renderer no puede recuperarlo por script (Chromium lo bloquea). Cuando
-  // el renderer cierra un diálogo pide aquí la reactivación real de la ventana.
+  // Mostrar la ventana solo cuando esté lista para renderizar (evita pantalla blanca)
+  mainWindow.once('ready-to-show', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+
+  // Reactivación del foco tras diálogos nativos
   ipcMain.on('reenfocar-ventana', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.focus();
@@ -257,7 +261,7 @@ function createWindow() {
     }
   });
 
-  // Salir del sistema completo (botón de salida de las pantallas iniciales).
+  // Salir del sistema completo
   ipcMain.on('salir-sistema', () => {
     stopBackend();
     app.quit();
@@ -273,13 +277,18 @@ function createWindow() {
     }
   });
   ipcMain.on('ventana-cerrar', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+    try {
+      stopBackend();
+    } catch (error) {
+      console.warn('No se pudo detener el backend al cerrar la ventana:', error?.message || error);
+    }
+    app.quit();
   });
   ipcMain.handle('ventana-esta-maximizada', () => {
     return mainWindow && !mainWindow.isDestroyed() ? mainWindow.isMaximized() : false;
   });
 
-  // Abrir el link de pago (pasarela) en el navegador externo del cliente.
+  // Abrir link de pasarela de pago en el navegador predeterminado
   ipcMain.handle('abrir-link-pago', async (_event, url) => {
     try {
       if (!url) return { exito: false, error: 'Sin URL' };
@@ -291,16 +300,13 @@ function createWindow() {
     }
   });
 
-  // Exportar ticket/factura a PDF usando printToPDF de Electron
+  // Exportar ticket/factura a PDF
   ipcMain.handle('exportar-pdf', async (_event, { nombre }) => {
     try {
       if (!mainWindow || mainWindow.isDestroyed()) {
         return { exito: false, error: 'Ventana no disponible' };
       }
       const { dialog } = require('electron');
-      const fs = require('fs');
-      const path = require('path');
-      // Mostrar diálogo para guardar archivo
       const resultado = await dialog.showSaveDialog(mainWindow, {
         title: 'Guardar PDF',
         defaultPath: path.join(require('os').homedir(), 'Documents', nombre || `ticket_${Date.now()}.pdf`),
@@ -312,7 +318,6 @@ function createWindow() {
       if (resultado.canceled || !resultado.filePath) {
         return { exito: false, cancelado: true };
       }
-      // Generar PDF desde el contenido web
       const pdfBuffer = await mainWindow.webContents.printToPDF({
         marginsType: 1,
         pageSize: 'A4',
@@ -328,17 +333,72 @@ function createWindow() {
     }
   });
 
-  // Ocultar menú superior predeterminado de Windows
+  ipcMain.handle('listar-impresoras', async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return [];
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return printers.map((printer) => ({ name: printer.name, displayName: printer.displayName || printer.name, status: printer.status }));
+  });
+
+  ipcMain.handle('imprimir-html', async (_event, { html, impresora, ancho = 80 }) => {
+    if (!html) return { exito: false, error: 'Contenido de impresión vacío.' };
+    const printWindow = new BrowserWindow({ show: false, width: 420, height: 800, webPreferences: { sandbox: true } });
+    try {
+      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const printers = await mainWindow.webContents.getPrintersAsync();
+      const selected = printers.find((printer) => printer.name === impresora || printer.displayName === impresora);
+      if (!selected) return { exito: false, error: 'La impresora seleccionada no está disponible.' };
+      await new Promise((resolve, reject) => printWindow.webContents.print({ silent: true, deviceName: selected.name, printBackground: true, pageSize: { width: Number(ancho) * 1000, height: 297000 }, margins: { marginType: 'none' } }, (ok, errorType) => ok ? resolve() : reject(new Error(errorType || 'No se pudo imprimir.'))));
+      return { exito: true, impresora: selected.name };
+    } catch (error) {
+      return { exito: false, error: error.message };
+    } finally {
+      if (!printWindow.isDestroyed()) printWindow.close();
+    }
+  });
+
   Menu.setApplicationMenu(null);
 
-  // Cargar la app servida por el backend (mismo origen, sin problemas de CORS/file://)
+  // Localizar archivo dist/index.html empaquetado para fallback seguro
+  const candidateDistFiles = [
+    path.join(__dirname, 'dist', 'index.html'),
+    path.join(process.resourcesPath || __dirname, 'dist', 'index.html'),
+    path.join(__dirname, '..', 'dist', 'index.html'),
+  ];
+  let localHtmlPath = null;
+  for (const p of candidateDistFiles) {
+    if (fs.existsSync(p)) {
+      localHtmlPath = p;
+      break;
+    }
+  }
+
   const appUrl = `http://${BACKEND_HOST}:${BACKEND_PORT}`;
-  mainWindow.loadURL(appUrl);
+  let retryCount = 0;
+
+  mainWindow.loadURL(appUrl).catch(() => {
+    if (localHtmlPath) {
+      mainWindow.loadFile(localHtmlPath);
+    }
+  });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    if (errorCode === -3) return; // ERR_ABORTED (navegación cancelada)
-    console.error(`No se pudo cargar ${appUrl} (${errorCode}): ${errorDescription}`);
-    mainWindow.loadURL(appUrl);
+    if (errorCode === -3) return; // ERR_ABORTED
+    console.warn(`Intento de carga en ${appUrl} (${errorCode}): ${errorDescription}`);
+    
+    if (localHtmlPath && retryCount >= 2) {
+      console.log('Cargando fallback local dist/index.html...');
+      mainWindow.loadFile(localHtmlPath);
+    } else {
+      retryCount += 1;
+      setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.loadURL(appUrl).catch(() => {
+            if (localHtmlPath) mainWindow.loadFile(localHtmlPath);
+          });
+        }
+      }, 1200);
+    }
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -354,8 +414,6 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // La ventana debe crearse SIEMPRE, aunque el backend o la BD tarden o
-  // fallen: en el peor caso la UI mostrará el error de conexión.
   try {
     await ensureDatabase();
   } catch (error) {

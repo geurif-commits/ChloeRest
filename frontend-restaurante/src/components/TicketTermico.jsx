@@ -4,6 +4,15 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
   const ticketRef = useRef(null);
   if (!datosFactura) return null;
 
+  const cfgTicket = datosFactura.ticketConfig || {};
+  const fuenteTicket = cfgTicket.font_family || 'monospace';
+  const tamanoTicket = parseInt(cfgTicket.font_size || '12', 10) || 12;
+  const margenTicket = cfgTicket.margin === 'compact' ? '6px'
+    : cfgTicket.margin === 'wide' ? '22px'
+    : '15px';
+  const posicionLogo = cfgTicket.logo_position || 'top';
+  const mostrarQR = cfgTicket.show_qr ?? true;
+
   const {
     nombreNegocio = 'RESTAURANTE / BAR',
     rncNegocio = '131-XXXXX-1',
@@ -62,7 +71,19 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     }
   };
 
-  const imprimir = () => {
+  const imprimir = async () => {
+    if (window.electronPOS?.imprimirHTML) {
+      try {
+        const asignadas = JSON.parse(localStorage.getItem('chloe_impresoras') || '{}');
+        const html = `<!doctype html><html lang="es"><head><meta charset="UTF-8"><style>@page{size:80mm auto;margin:0}body{width:80mm;margin:0;padding:4mm;box-sizing:border-box;font-family:monospace;color:#000;background:#fff}</style></head><body>${ticketRef.current?.querySelector('.ticket-papel')?.outerHTML || ''}</body></html>`;
+        const resultado = await window.electronPOS.imprimirHTML({ html, impresora: asignadas.caja || '', ancho: 80 });
+        if (resultado?.exito) return;
+        if (asignadas.caja) throw new Error(resultado?.error || 'No se pudo imprimir en la impresora de caja.');
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
+    }
     document.body.classList.add('imprimiendo-precheque');
     window.print();
     setTimeout(() => {
@@ -95,19 +116,31 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
   };
 
   return (
-    <div className="modal-overlay print-overlay">
+    <div className="modal-overlay print-overlay" onClick={(e) => { if (e.target === e.currentTarget) alCerrar(); }}>
       <div className="ticket-termico-container" ref={ticketRef}>
         
-        {/* Contenido físico del recibo (Área que se imprime en formato 80mm/58mm) */}
-        <div className="ticket-papel" id="area-impresion" style={{width: '280px', margin: '0 auto', background: '#fff', color: '#000', padding: '15px', fontFamily: 'monospace', fontSize: '12px', lineHeight: '1.4'}}>
-          
+        {/* Contenedor desplazable para tickets largos garantizando centrado vertical */}
+        <div className="ticket-papel-scroll">
+          {/* Contenido físico del recibo (Área que se imprime en formato 80mm/58mm) */}
+          <div className="ticket-papel" id="area-impresion" style={{width: '280px', margin: '0 auto', background: '#fff', color: '#000', padding: margenTicket, fontFamily: fuenteTicket, fontSize: `${tamanoTicket}px`, lineHeight: '1.4'}}>
+           
           {/* Encabezado del Establecimiento */}
           <div style={{textAlign: 'center', marginBottom: '8px'}}>
-            {logoUrl && <img src={logoUrl} alt="Logo" style={{maxHeight: '45px', marginBottom: '4px', objectFit: 'contain'}} />}
-            <h3 style={{margin: '0 0 2px 0', fontSize: '15px', fontWeight: 'bold'}}>{nombreNegocio}</h3>
-            <p style={{margin: '0', fontSize: '11px'}}>RNC: {rncNegocio}</p>
-            <p style={{margin: '0', fontSize: '10px'}}>{direccionNegocio}</p>
-            <p style={{margin: '0', fontSize: '10px'}}>Tel: {telefonoNegocio}</p>
+            {logoUrl && posicionLogo !== 'none' && (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                style={
+                  posicionLogo === 'left'
+                    ? { maxHeight: '40px', maxWidth: '120px', marginBottom: '4px', objectFit: 'contain', display: 'inline-block', verticalAlign: 'middle' }
+                    : { maxHeight: '45px', marginBottom: '4px', objectFit: 'contain' }
+                }
+              />
+            )}
+            <h3 style={{margin: '0 0 2px 0', fontSize: `${tamanoTicket + 3}px`, fontWeight: 'bold'}}>{nombreNegocio}</h3>
+            <p style={{margin: '0', fontSize: `${tamanoTicket - 1}px`}}>RNC: {rncNegocio}</p>
+            <p style={{margin: '0', fontSize: `${tamanoTicket - 2}px`}}>{direccionNegocio}</p>
+            <p style={{margin: '0', fontSize: `${tamanoTicket - 2}px`}}>Tel: {telefonoNegocio}</p>
 
             <div style={{marginTop: '8px', padding: '4px 0', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', fontWeight: 'bold', fontSize: '11px', textTransform: 'uppercase'}}>
               {obtenerTituloFiscal()}
@@ -201,13 +234,39 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
             <p style={{margin: '2px 0', fontSize: '9px'}}>{esPrecheque ? 'Solicite su comprobante fiscal en caja' : 'Servicio e impuestos incluidos'}</p>
           </div>
 
+          {mostrarQR && (
+            <div style={{marginTop: '10px', textAlign: 'center'}}>
+              {(() => {
+                const qrUrl = (tipoComprobante === 'e-CF' || (ncfGenerado && ncfGenerado.startsWith('E')))
+                  ? `https://ecf.dgii.gov.do/fe/consultatimbrefiscal?RncEmisor=${encodeURIComponent(rncNegocio.replace(/[^0-9]/g, ''))}&RncComprador=${encodeURIComponent((rncCliente || '').replace(/[^0-9]/g, ''))}&eNCF=${encodeURIComponent(ncfGenerado || '')}&MontoTotal=${total}`
+                  : `https://chloerestaurant.lat/verificar-factura?ncf=${encodeURIComponent(ncfGenerado || '')}&total=${total}`;
+                const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&margin=2&data=${encodeURIComponent(qrUrl)}`;
+                return (
+                  <div>
+                    <img
+                      src={qrImgSrc}
+                      alt="Código QR DGII"
+                      style={{ width: '80px', height: '80px', display: 'inline-block' }}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <p style={{ margin: '4px 0 0 0', fontSize: '8px', color: '#333' }}>
+                      {tipoComprobante === 'e-CF' || (ncfGenerado && ncfGenerado.startsWith('E'))
+                        ? 'Consulta e-CF DGII Oficial'
+                        : 'Valida tu comprobante fiscal'}
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          </div>
         </div>
 
-        {/* Botones de control del modal (No salen en impresión) */}
-        <div className="ticket-acciones-modal" style={{marginTop: '15px', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap'}}>
-          <button className="btn-imprimir" onClick={imprimir} style={{background: '#00f576', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}>🖨️ Imprimir</button>
-          <button className="btn-exportar-pdf" onClick={exportarPDF} style={{background: '#1a73e8', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}>📄 Exportar PDF</button>
-          <button className="btn-cerrar-ticket" onClick={alCerrar} style={{background: '#2a2a38', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}>❌ Cerrar</button>
+        {/* Botones de control del modal (Siempre visibles al pie) */}
+        <div className="ticket-acciones-modal">
+          <button className="btn-imprimir" onClick={imprimir} style={{background: '#00f576', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'}}>🖨️ Imprimir</button>
+          <button className="btn-exportar-pdf" onClick={exportarPDF} style={{background: '#1a73e8', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'}}>📄 Exportar PDF</button>
+          <button className="btn-cerrar-ticket" onClick={alCerrar} style={{background: '#2a2a38', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'}}>❌ Cerrar</button>
         </div>
 
       </div>

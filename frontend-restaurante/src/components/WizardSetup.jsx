@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { aplicarPersonalizacion, fondoLogin } from '../personalizacion.js';
+import { obtenerDeviceId } from '../utils/dispositivo.js';
 
 const TEMAS = [
   { id: 'noche', name: 'Noche', color: '#00f576' },
@@ -47,7 +48,7 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
     if (paso === 1 && !nombreNegocio.trim()) return setError('Ingresa el nombre del negocio.');
     if (paso === 3 && necesitaAdmin) {
       if (!adminNombre.trim()) return setError('Ingresa el nombre del administrador.');
-      if (!/^[0-9]{4,12}$/.test(adminPin)) return setError('El PIN debe contener entre 4 y 12 dígitos.');
+      if (!/^[0-9]{6}$/.test(adminPin)) return setError('El PIN debe ser exactamente 6 dígitos.');
     }
     setPaso((p) => p + 1);
   };
@@ -69,9 +70,19 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
         fd.append('admin_nombre', adminNombre.trim());
         fd.append('admin_pin', adminPin);
       }
-      const res = await fetch(`${urlBase}/api/setup/completar`, { method: 'POST', body: fd });
+      const res = await fetch(`${urlBase}/api/setup/completar`, {
+        method: 'POST',
+        headers: { 'X-Device-ID': obtenerDeviceId() },
+        body: fd,
+      });
       const data = await res.json();
-      if (!res.ok) return setError(data.error || 'Error al finalizar la configuración.');
+      if (!res.ok) {
+        if (res.status === 409) {
+          localStorage.removeItem('pos_theme');
+          if (alCompletado) return alCompletado(data);
+        }
+        return setError(data.error || 'Error al finalizar la configuración.');
+      }
       localStorage.removeItem('pos_theme');
       if (alCompletado) alCompletado(data);
     } catch (e) {
@@ -106,18 +117,37 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const btnEstilo = { background: `linear-gradient(135deg, ${primario}, ${colorSecundario || primario})`, color: '#000', border: 'none', padding: '12px 26px', borderRadius: '12px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' };
 
   return (
-    <div style={contenedorEstilo} onLoad={aplicarVista}>
+    <div className="setup-wizard-shell" style={contenedorEstilo} onLoad={aplicarVista}>
       {fondoVista && (
         <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${fondoVista})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.5, filter: 'brightness(0.5)' }} />
       )}
       <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.06), transparent 60%)' }} />
 
-      <div style={panelEstilo}>
-        {/* Indicador de pasos */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '22px' }}>
-          {Array.from({ length: totalPasos }).map((_, i) => (
-            <span key={i} style={{ flex: 1, height: '6px', borderRadius: '4px', background: i <= paso ? primario : 'rgba(255,255,255,0.15)', transition: 'background 0.3s' }} />
-          ))}
+      <div className="setup-wizard-panel" style={panelEstilo}>
+      <div className="wizard__progress">
+          <div className="wizard__progress-header">
+            <span className="wizard__progress-label">Paso {paso + 1} de {totalPasos}</span>
+            <span className="wizard__progress-pct">{Math.round(((paso + 1) / totalPasos) * 100)}%</span>
+          </div>
+          <div className="wizard__progress-track">
+            <div
+              className="wizard__progress-fill"
+              style={{ width: `${((paso + 1) / totalPasos) * 100}%`, background: primario, transition: 'width 0.4s ease' }}
+            />
+          </div>
+          <div className="wizard__steps">
+            {Array.from({ length: totalPasos }).map((_, i) => (
+              <span
+                key={i}
+                className={`wizard__step-dot${i <= paso ? ' wizard__step-dot--active' : ''}${i === paso ? ' wizard__step-dot--current' : ''}`}
+                style={{
+                  background: i <= paso ? primario : 'rgba(255,255,255,0.15)',
+                  boxShadow: i === paso ? `0 0 8px ${primario}` : 'none',
+                  transition: 'background 0.3s, box-shadow 0.3s',
+                }}
+              />
+            ))}
+          </div>
         </div>
 
         {paso === 0 && (
@@ -198,8 +228,8 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
               <input style={inputEstilo} value={adminNombre} onChange={(e) => setAdminNombre(e.target.value)} placeholder="Ej: Juan Pérez" />
             </div>
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>PIN de Acceso (4 a 12 dígitos)</label>
-              <input type="password" style={inputEstilo} maxLength="12" value={adminPin} onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))} placeholder="Ej: 1234" />
+              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>PIN de Acceso (6 dígitos exactos)</label>
+              <input type="password" style={inputEstilo} maxLength="6" value={adminPin} onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))} placeholder="Ej: 123456" />
             </div>
             <button onClick={siguiente} style={{ ...btnEstilo, width: '100%' }}>Continuar →</button>
           </>
@@ -233,4 +263,3 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
 }
 
 export default WizardSetup;
-

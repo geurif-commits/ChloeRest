@@ -274,5 +274,3 @@ export const esProduccion =
 export const esElectronApp =
   esElectron;
 
-export const esServidorLocal =
-  esHostLocal;

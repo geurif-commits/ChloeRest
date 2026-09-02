@@ -1,0 +1,43 @@
+/* Chloe POS — Tailwind v4 + Design Tokens base */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* Tailwind v4 @theme — mapea tokens del design-system para utilidades */
+@theme {
+  --color-gold: #F5B83D;
+  --color-gold-light: #F8CC6A;
+  --color-gold-dark: #D9A030;
+  --color-blue: #5B8CFF;
+  --color-green: #00E676;
+  --color-purple: #8B5CF6;
+  --color-red: #EF4444;
+  --color-orange: #F59E0B;
+
+  --color-bg-base: #070B14;
+  --color-bg-panel: #151B2B;
+  --color-bg-card: #1A2236;
+
+  --font-sans: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+}
+
+/* Base layer: asegura que todo use Inter vía --font-family del design-system */
+@layer base {
+  html {
+    font-family: var(--font-family, 'Inter', sans-serif);
+  }
+  body {
+    font-family: var(--font-family, 'Inter', sans-serif);
+    background: var(--bg-base);
+    color: var(--text-primary);
+  }
+  /* Tickets térmicos mantienen Courier explícitamente */
+  .ticket-termico-impresion,
+  .factura-termico-impresion,
+  #area-impresion,
+  .ticket-papel {
+    font-family: 'Courier New', Courier, monospace !important;
+  }
+}

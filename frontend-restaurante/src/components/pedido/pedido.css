@@ -16,7 +16,7 @@
 /* Grid de productos: 6 columnas fijas para que siempre se vean 6 por fila */
 .pedido-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr); /* 6 tarjetas por fila, cada una con ancho igual */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--space-xs, 8px);             /* Espacio uniforme entre tarjetas */
 }
 
@@ -26,14 +26,14 @@
   background: linear-gradient(145deg, var(--bg-card, #151D31), var(--bg-panel, #101625));
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.045));
   border-radius: var(--radius-sm, 8px);
-  padding: var(--space-xs, 6px);
+  padding: 5px;
   display: flex;
   flex-direction: column;       /* Apila imagen + nombre + precio verticalmente */
   justify-content: center;     /* Centra el contenido dentro de la tarjeta */
   align-items: center;
   cursor: pointer;
   text-align: center;
-  box-shadow: var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.30));
+  box-shadow: 0 3px 12px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.035);
   transition:
     transform var(--anim-fast, 150ms ease),      /* Efecto hover: elevate la tarjeta */
     border-color var(--anim-fast, 150ms ease),   /* Borde dorado al pasar mouse */
@@ -46,9 +46,11 @@
   box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.40));
 }
 
+.pedido-producto:focus-visible { outline: 2px solid var(--gold-light, #EBCB72); outline-offset: 2px; }
+
 /* Contenedor de imagen del producto: altura fija para consistencia */
 .pedido-producto__img {
-  height: 48px;             /* Altura fija para que todas las tarjetas tengan la misma proporción */
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -62,6 +64,13 @@
   border-radius: var(--radius-sm, 8px);
 }
 
+.pedido-producto__image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.pedido-producto__image--fallback { padding: 8px; opacity: .82; }
+
 /* Icono placeholder cuando no hay imagen: cubiertos y plato */
 .pedido-producto__placeholder {
   font-size: 1.6rem;        /* Tamaño del emoji placeholder */
@@ -70,7 +79,7 @@
 
 /* Nombre del producto: texto pequeño para que quepa en la tarjeta */
 .pedido-producto__name {
-  font-size: 0.72rem;       /* Texto compacto para 6 columnas */
+  font-size: 0.68rem;
   font-weight: var(--weight-bold, 800);
   margin: 0 0 0.5px 0;
   color: var(--text-primary, #F9FAFB);
@@ -81,7 +90,7 @@
 .pedido-producto__price {
   color: var(--gold-light, #EBCB72);
   font-weight: var(--weight-extrabold, 800);
-  font-size: 0.75rem;       /* Tamaño proporcional a 6 columnas */
+  font-size: 0.70rem;
 }
 
 /* ── CATEGORÍAS ── */
@@ -523,8 +532,20 @@
 
 /* ── RESPONSIVE ── */
 
+/* El workspace siempre ocupa la ventana dinámica (100dvh): evita que en
+   navegadores móviles el borde inferior quede oculto bajo la barra de
+   dirección (100vh clásico). Válido para cualquier ancho de pantalla. */
+.pedido-workspace {
+  height: 100vh !important;
+  height: 100dvh !important;
+}
+
 /* Móvil (≤767px): 2 columnas de productos, ticket ocupa todo el ancho */
 @media (max-width: 767px) {
+  .pedido-workspace { height: 100dvh !important; }
+  .pedido-mobile-header { padding: 10px 12px; position: sticky; top: 0; z-index: 5; }
+  .pedido-mobile-header button, .pedido-mobile-header input { min-height: 44px; }
+  .pedido-catalogo > div { padding: 14px !important; }
   .pedido-grid {
     grid-template-columns: repeat(2, 1fr);  /* 2 tarjetas por fila en móvil */
     gap: 6px;
@@ -537,9 +558,15 @@
 /* Tablet (768px - 1100px): 4 columnas, ticket más estrecho */
 @media (min-width: 768px) and (max-width: 1100px) {
   .pedido-grid {
-    grid-template-columns: repeat(4, 1fr);  /* 4 tarjetas por fila en tablet */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .pedido-ticket {
     width: 300px;             /* Ticket más estrecho en tablet */
   }
+}
+
+@media (max-width: 420px) {
+  .pedido-producto { min-height: 96px; }
+  .pedido-producto__img { height: 42px; }
+  .pedido-producto__name { font-size: .68rem; }
 }

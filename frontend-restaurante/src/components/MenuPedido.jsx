@@ -4,6 +4,7 @@ import ProductoGrid from './pedido/ProductoGrid.jsx';
 import PedidoTicket from './pedido/PedidoTicket.jsx';
 import { obtenerSesion } from '../api.js';
 import { sanitizarDecimal } from '../utils/input.js';
+import { imprimirComanda } from '../utils/imprimirComanda.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
 import './pedido-modern.css';
 import './pedido/pedido.css';
@@ -16,19 +17,35 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   const [cuentaActual, setCuentaActual] = useState([]);
   const [cargando, setCargando] = useState(true);
   
+  // Guarniciones y Términos disponibles
+  const [guarnicionesDisponibles, setGuarnicionesDisponibles] = useState([]);
+  const [terminosDisponibles, setTerminosDisponibles] = useState([]);
+
+  // Estado de personalización de plato (Guarnición / Término / Notas)
+  const [productoPersonalizando, setProductoPersonalizando] = useState(null);
+  const [guarnicionSeleccionada, setGuarnicionSeleccionada] = useState('');
+  const [terminoSeleccionado, setTerminoSeleccionado] = useState('');
+  const [notaEspecial, setNotaEspecial] = useState('');
+  
   // Filtros de categoría y búsqueda
   const [categoriaActiva, setCategoriaActiva] = useState('Todos');
   const [busqueda, setBusqueda] = useState('');
   
   // Configuración del negocio (Nombre, RNC, ITBIS / Propina)
   const [configNegocio, setConfigNegocio] = useState({ 
-    nombre: 'ChloeRestaurant',
-    rnc: '130000001',
+    nombre: 'Mi Negocio',
+    rnc: '',
     direccion: 'República Dominicana',
     telefono: '',
     logo_url: '',
     cobrar_itbis: true, 
-    cobrar_propina: true 
+    cobrar_propina: true,
+    comanda_modo: 'kds',
+    ticket_font_family: 'Inter',
+    ticket_font_size: '12',
+    ticket_logo_position: 'top',
+    ticket_show_qr: true,
+    ticket_margin: 'normal'
   });
 
   // Estado para impresión de Pre-cheque por Camareros
@@ -69,6 +86,28 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       const resCuenta = await fetch(`${urlBase}/api/mesas/${mesa.id}/cuenta`);
       if (!resCuenta.ok) throw new Error("Error al conectar con el servidor de cuentas.");
       setCuentaActual(await resCuenta.json());
+
+      // Cargar Guarniciones y Términos de Cocina
+      try {
+        const resConfig = await fetch(`${urlBase}/api/menu-configuracion`, {
+          headers: { 'Authorization': `Bearer ${obtenerSesion()}` }
+        });
+        if (resConfig.ok) {
+          const cfg = await resConfig.json();
+          const guarnicionesList = Array.isArray(cfg.guarniciones) && cfg.guarniciones.length > 0
+            ? cfg.guarniciones.map(g => g.nombre)
+            : ['Tostones', 'Papas Fritas', 'Arroz Blanco', 'Vegetales Salteados', 'Puré de Papas', 'Moro de Guandules'];
+          const terminosList = Array.isArray(cfg.terminos) && cfg.terminos.length > 0
+            ? cfg.terminos.map(t => t.nombre)
+            : ['Término Medio (Medium)', 'Tres Cuartos (3/4)', 'Bien Cocido (Well Done)', 'Término Azul (Bleu)', 'Al Punto'];
+          setGuarnicionesDisponibles(guarnicionesList);
+          setTerminosDisponibles(terminosList);
+        }
+      } catch (err) {
+        setGuarnicionesDisponibles(['Tostones', 'Papas Fritas', 'Arroz Blanco', 'Vegetales Salteados', 'Puré de Papas']);
+        setTerminosDisponibles(['Término Medio (Medium)', 'Tres Cuartos (3/4)', 'Bien Cocido (Well Done)']);
+      }
+
       setCargando(false);
     } catch (error) {
       console.error(error);
@@ -82,13 +121,19 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       const res = await fetch(`${urlBase}/api/negocio/config`);
       const data = await res.json();
       setConfigNegocio({
-        nombre: data.nombre_comercial || data.nombre || 'ChloeRestaurant',
+        nombre: data.nombre_comercial || data.nombre_negocio || data.nombre || 'Mi Negocio',
         rnc: data.rnc || '130000001',
         direccion: data.direccion || 'República Dominicana',
         telefono: data.telefono || '',
         logo_url: data.logo_url || '',
         cobrar_itbis: data.cobrar_itbis ?? true,
-        cobrar_propina: data.cobrar_propina ?? true
+        cobrar_propina: data.cobrar_propina ?? true,
+        comanda_modo: data.comanda_modo || 'kds',
+        ticket_font_family: data.ticket_font_family || 'Inter',
+        ticket_font_size: data.ticket_font_size || '12',
+        ticket_logo_position: data.ticket_logo_position || 'top',
+        ticket_show_qr: data.ticket_show_qr ?? true,
+        ticket_margin: data.ticket_margin || 'normal'
       });
     } catch (error) {
       console.error("Error cargando impuestos negocio:", error);
@@ -101,22 +146,71 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   }, [mesa.id]);
 
   const agregarProducto = (prod) => {
+    // Si el plato requiere guarnición o término, abrir modal de personalización
+    if (prod.requiere_guarnicion || prod.requiere_termino) {
+      setProductoPersonalizando(prod);
+      setGuarnicionSeleccionada(prod.requiere_guarnicion ? (guarnicionesDisponibles[0] || 'Tostones') : '');
+      setTerminoSeleccionado(prod.requiere_termino ? (terminosDisponibles[0] || 'Término Medio (Medium)') : '');
+      setNotaEspecial('');
+      return;
+    }
+
+    // Plato estándar sin personalización obligatoria
     setComandaNueva((prev) => {
-      const existe = prev.find(item => item.id === prod.id);
+      const itemKey = `prod-${prod.id}`;
+      const existe = prev.find(item => (item.itemKey || `prod-${item.id}`) === itemKey);
       if (existe) {
-        return prev.map(item => item.id === prod.id ? { ...item, cantidad: item.cantidad + 1 } : item);
+        return prev.map(item => (item.itemKey || `prod-${item.id}`) === itemKey ? { ...item, cantidad: item.cantidad + 1 } : item);
       }
-      return [...prev, { ...prod, cantidad: 1 }];
+      return [...prev, { ...prod, itemKey, cantidad: 1 }];
     });
   };
 
-  const restarProducto = (id) => {
+  const confirmarPersonalizacion = () => {
+    if (!productoPersonalizando) return;
+    const partesNotas = [];
+    if (productoPersonalizando.requiere_guarnicion && guarnicionSeleccionada) {
+      partesNotas.push(`Guarnición: ${guarnicionSeleccionada}`);
+    }
+    if (productoPersonalizando.requiere_termino && terminoSeleccionado) {
+      partesNotas.push(`Término: ${terminoSeleccionado}`);
+    }
+    if (notaEspecial.trim()) {
+      partesNotas.push(`Nota: ${notaEspecial.trim()}`);
+    }
+    const notasFormateadas = partesNotas.join(' | ');
+    const itemKey = `custom-${productoPersonalizando.id}-${guarnicionSeleccionada}-${terminoSeleccionado}-${notaEspecial.trim()}`;
+
     setComandaNueva((prev) => {
-      const existe = prev.find(item => item.id === id);
-      if (existe.cantidad === 1) {
-        return prev.filter(item => item.id !== id);
+      const existe = prev.find(item => item.itemKey === itemKey);
+      if (existe) {
+        return prev.map(item => item.itemKey === itemKey ? { ...item, cantidad: item.cantidad + 1 } : item);
       }
-      return prev.map(item => item.id === id ? { ...item, cantidad: item.cantidad - 1 } : item);
+      return [
+        ...prev,
+        {
+          ...productoPersonalizando,
+          itemKey,
+          guarnicion: guarnicionSeleccionada || null,
+          termino: terminoSeleccionado || null,
+          notas: notasFormateadas || null,
+          cantidad: 1
+        }
+      ];
+    });
+
+    toastAviso(`✅ ${productoPersonalizando.nombre} agregado con opciones`);
+    setProductoPersonalizando(null);
+  };
+
+  const restarProducto = (itemKeyOrId) => {
+    setComandaNueva((prev) => {
+      const existe = prev.find(item => (item.itemKey || item.id) === itemKeyOrId || item.id === itemKeyOrId);
+      if (!existe) return prev;
+      if (existe.cantidad === 1) {
+        return prev.filter(item => item !== existe);
+      }
+      return prev.map(item => item === existe ? { ...item, cantidad: item.cantidad - 1 } : item);
     });
   };
 
@@ -126,20 +220,58 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
     try {
       const res = await fetch(`${urlBase}/api/mesas/${mesa.id}/pedidos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${obtenerSesion()}` },
         body: JSON.stringify({
           camarero_id: usuario.id,
           productos: comandaNueva.map(item => ({
             producto_id: item.id,
-            cantidad: item.cantidad
+            cantidad: item.cantidad,
+            guarnicion: item.guarnicion || null,
+            termino: item.termino || null,
+            notas: item.notas || null
           }))
         })
       });
 
       if (res.ok) {
+        const itemsParaImprimir = comandaNueva.map(item => {
+          const detallesArray = [];
+          if (item.guarnicion) detallesArray.push(`Guarnición: ${item.guarnicion}`);
+          if (item.termino) detallesArray.push(`Término: ${item.termino}`);
+          if (item.notas) detallesArray.push(item.notas);
+
+          return {
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            precio: item.precio,
+            categoria: item.categoria,
+            tipo_destino: item.tipo_destino || (['Bar', 'Bebidas'].includes(item.categoria) ? 'bar' : 'cocina'),
+            notas: detallesArray.join(' | ')
+          };
+        });
+
+        if (configNegocio.comanda_modo === 'impresora') {
+          let impresorasEstacion = {};
+          try { impresorasEstacion = JSON.parse(localStorage.getItem('chloe_impresoras') || '{}'); } catch {}
+          const grupos = itemsParaImprimir.reduce((acc, item) => {
+            const estacion = item.tipo_destino === 'bar' ? 'bar' : 'cocina';
+            (acc[estacion] ||= []).push(item);
+            return acc;
+          }, {});
+          await Promise.all(Object.entries(grupos).map(([estacion, productos]) => imprimirComanda({
+            negocio: { nombre: configNegocio.nombre, direccion: configNegocio.direccion, telefono: configNegocio.telefono, logo_url: configNegocio.logo_url },
+            mesa,
+            camarero: usuario,
+            productos,
+            ticket: { ...configNegocio, printerName: impresorasEstacion[estacion] || '' }
+          })));
+          toastAviso("🛎️ Comanda enviada e impresa correctamente.");
+        } else {
+          toastAviso("🛎️ Comanda enviada a Cocina/Bar correctamente.");
+        }
+
         setComandaNueva([]);
         cargarDatos();
-        toastAviso("🛎️ Comanda enviada a Cocina/Bar correctamente.");
       } else {
         const errorData = await res.json();
         toastAviso(`❌ Error al enviar comanda: ${errorData.error}`);
@@ -156,6 +288,9 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
 
     const supervisorPin = window.prompt("Ingrese el PIN de supervisor para autorizar la anulación:");
     if (supervisorPin === null) return;
+    if (!/^\d{6}$/.test(String(supervisorPin || ''))) {
+      return toastAviso('El PIN de autorización debe contener exactamente 6 dígitos.');
+    }
 
     try {
       const authRes = await fetch(`${urlBase}/api/autorizar`, {
@@ -190,7 +325,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
         toastAviso(`❌ Error al anular: ${data.error}`);
       }
     } catch (error) {
-      toastAviso("⚠️ Error de conexión con el servidor.");
+      toastAviso("No se pudo validar la autorización. El producto no fue eliminado.");
     }
   };
 
@@ -245,7 +380,14 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       itbis: configNegocio.cobrar_itbis ? totalOriginal * 0.18 : 0,
       propina: configNegocio.cobrar_propina ? totalOriginal * 0.10 : 0,
       total: totalOriginal + (configNegocio.cobrar_itbis ? totalOriginal * 0.18 : 0) + (configNegocio.cobrar_propina ? totalOriginal * 0.10 : 0),
-      fecha: new Date().toLocaleString()
+      fecha: new Date().toLocaleString(),
+      ticketConfig: {
+        font_family: configNegocio.ticket_font_family,
+        font_size: configNegocio.ticket_font_size,
+        logo_position: configNegocio.ticket_logo_position,
+        show_qr: configNegocio.ticket_show_qr,
+        margin: configNegocio.ticket_margin
+      }
     });
   };
 
@@ -362,6 +504,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
         formatearRD={formatearRD}
         isMobile={isMobile}
         mobileTab={mobileTab}
+        comandaModo={configNegocio.comanda_modo}
       />
 
       {/* MODAL IMPRESIÓN PRE-CHEQUE PARA CAMAREROS */}
@@ -371,6 +514,127 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
           esPrecheque={true}
           alCerrar={() => setPrechequeData(null)}
         />
+      )}
+
+      {/* MODAL DE PERSONALIZACIÓN DE PLATO (GUARNICIÓN & TÉRMINO) */}
+      {productoPersonalizando && (
+        <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'var(--bg-secondary, #14141b)', border: '1px solid rgba(245, 184, 61, 0.4)', borderRadius: '18px', padding: '24px', width: 'min(480px, 94vw)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gold, #f5b842)', fontWeight: 700 }}>Opciones del Plato</span>
+                <h3 style={{ margin: '2px 0 0', color: '#fff', fontSize: '1.25rem' }}>{productoPersonalizando.nombre}</h3>
+              </div>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold, #f5b842)' }}>
+                RD$ {formatearRD(productoPersonalizando.precio)}
+              </span>
+            </div>
+
+            {/* SELECCIÓN DE GUARNICIÓN */}
+            {productoPersonalizando.requiere_guarnicion && (
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', color: '#fff', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
+                  🍟 Seleccionar Guarnición / Acompañamiento:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                  {guarnicionesDisponibles.map((guar) => {
+                    const activa = guarnicionSeleccionada === guar;
+                    return (
+                      <button
+                        key={guar}
+                        type="button"
+                        onClick={() => setGuarnicionSeleccionada(guar)}
+                        style={{
+                          background: activa ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255,255,255,0.03)',
+                          color: activa ? 'var(--gold, #f5b842)' : 'var(--text-primary, #fff)',
+                          border: `1.5px solid ${activa ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: '10px',
+                          padding: '10px 8px',
+                          fontSize: '0.82rem',
+                          fontWeight: activa ? 700 : 500,
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {activa ? '✓ ' : ''}{guar}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* SELECCIÓN DE TÉRMINO */}
+            {productoPersonalizando.requiere_termino && (
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'block', color: '#fff', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
+                  🥩 Seleccionar Término de Cocción:
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                  {terminosDisponibles.map((term) => {
+                    const activo = terminoSeleccionado === term;
+                    return (
+                      <button
+                        key={term}
+                        type="button"
+                        onClick={() => setTerminoSeleccionado(term)}
+                        style={{
+                          background: activo ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255,255,255,0.03)',
+                          color: activo ? 'var(--gold, #f5b842)' : 'var(--text-primary, #fff)',
+                          border: `1.5px solid ${activo ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
+                          borderRadius: '10px',
+                          padding: '10px 8px',
+                          fontSize: '0.82rem',
+                          fontWeight: activo ? 700 : 500,
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {activo ? '✓ ' : ''}{term}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* NOTA ESPECIAL AL CHEF */}
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', color: 'var(--text-muted, #9494ad)', fontSize: '0.8rem', marginBottom: '6px' }}>
+                ✍️ Nota adicional para Cocina (Opcional):
+              </label>
+              <input
+                type="text"
+                value={notaEspecial}
+                onChange={(e) => setNotaEspecial(e.target.value)}
+                placeholder="Ej. Sin sal, salsa aparte, cebolla bien frita..."
+                style={{ width: '100%', padding: '10px 12px', background: '#0a0a0f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            {/* ACCIONES DEL MODAL */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setProductoPersonalizando(null)}
+                style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarPersonalizacion}
+                style={{ flex: 1.5, padding: '12px', background: 'var(--gold, #f5b842)', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
+              >
+                ＋ Agregar a Comanda
+              </button>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {/* MODAL DE COBRO Y FACTURACIÓN FISCAL */}
@@ -467,10 +731,8 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
 export default MenuPedido;
-
