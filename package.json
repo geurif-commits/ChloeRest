@@ -13,6 +13,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "overrides": {
+    "qs": "^6.16.0"
+  },
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^4.19.2",
