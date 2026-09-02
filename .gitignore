@@ -1,17 +1,26 @@
 # Node
 node_modules/
+pnpm-lock.yaml
+npm-debug.log
+yarn-error.log
 
 # Environment
 .env
 .env.*
+.env.local
+.env.production.local
 !.env.example
+!.env.development.local
 
 # Build artifacts
 dist/
+build/
+*.tsbuildinfo
 release/
 bundle.cjs
 ServidorPOS.exe
 ServidorPOS.cjs
+out/
 
 # Runtime logs
 server.log
@@ -19,16 +28,38 @@ server.err
 stderr.log
 stderr2.log
 *.log
+logs/
 
-# Test / temp
+# TypeScript
+*.tsc.json
+
+# Test / coverage
 test-login.json
+coverage/
+.nyc_output/
 
 # Backups y datos locales
 backups/
+*.bak
+
+# IDE
+.vscode/settings.json
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
 
 # Instaladores y binarios de build
 frontend-restaurante/build/postgresql-installer.exe
 frontend-restaurante/build/*.exe
+frontend-restaurante/dist/
 
 # Config de la herramienta
 .abacusai/
+
+# Turbo
+.turbo/
+
+# esbuils
+.esbuild/
