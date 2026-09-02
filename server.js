@@ -15,6 +15,7 @@ import { validarRNC, normalizarRNC } from './lib/rnc.js';
 import { construirECF } from './lib/ecf.js';
 import { formatearFila607, formatearFila606, serializarTXT, serializarCSV, COLS_607, COLS_606 } from './lib/dgii.js';
 import { route, httpError, positiveInteger, money, clientIp, parseCsvLine } from './lib/core.js';
+import { firmarDuracion, parsearDuracion, vencimientoDesdeMeses, generarClaveLicencia, validarClaveLicencia } from './lib/licencias.js';
 
 // ── Exception handlers (PM2 reinicia en <2s si el proceso cae) ──
 process.on('uncaughtException', (err) => {
@@ -398,28 +399,6 @@ app.use((req, res, next) => {
 // ─── Claves de activación con duración: CHLOE-<DURACION>-<FIRMA> ───
 // Formato: CHLOE-30D-XXXXX-XXXXX-XXXXX-XXXXX | CHLOE-12M-... | CHLOE-L-...
 // FIRMA = HMAC-SHA256(LICENSE_ACTIVATION_KEY, 'CHLOE:<DURACION>') → hex (primeros 20), grupos de 5.
-function firmarDuracion(dur) {
-  const secret = config.licenseActivationKey || '';
-  return crypto.createHmac('sha256', secret).update(`CHLOE:${String(dur).toUpperCase()}`).digest('hex').toUpperCase().slice(0, 20);
-}
-
-function parsearDuracion(codigo) {
-  const u = String(codigo || '').toUpperCase();
-  if (u === 'L') return { vitalicia: true, meses: -1 };
-  const m = /^([0-9]+)([DM])$/.exec(u);
-  if (!m) return null;
-  const n = Number(m[1]);
-  if (!Number.isInteger(n) || n <= 0 || n > 120) return null;
-  const meses = m[2] === 'M' ? n : Math.ceil(n / 30);
-  return { vitalicia: false, meses };
-}
-
-function vencimientoDesdeMeses(meses) {
-  const fecha = new Date();
-  fecha.setMonth(fecha.getMonth() + meses);
-  return fecha;
-}
-
 async function requireDueno(req, res, next) {
   const value = req.get('authorization') || '';
   const token = value.startsWith('Bearer ') ? value.slice(7) : '';
@@ -1135,14 +1114,6 @@ async function marcarClaveEnviada(id) {
   );
 }
 
-function generarClaveLicencia(dur) {
-  const duracion = String(dur || '').trim().toUpperCase();
-  const parsed = parsearDuracion(duracion);
-  if (!parsed) return { error: 'Duración inválida. Usa por ejemplo 7D, 15D, 30D, 90D, 6M, 12M, 24M o L.' };
-  const firma = crypto.randomBytes(20).toString('hex').toUpperCase().match(/.{1,5}/g).join('-');
-  return { clave: `CHLOE-${duracion}-${firma}`, duracion, vitalicia: parsed.vitalicia };
-}
-
 async function crearLicenciaConAdministrador(dur) {
   const resultado = generarClaveLicencia(dur);
   if (resultado.error) return resultado;
@@ -1161,19 +1132,6 @@ async function crearLicenciaConAdministrador(dur) {
     return empresa.rows[0].id;
   });
   return { ...resultado, empresaId: licencia, pinInicial };
-}
-
-function validarClaveLicencia(clave) {
-  const c = String(clave || '').trim().toUpperCase();
-  if (!c) return { error: 'Ingresa la clave a verificar.' };
-  if (config.licenseActivationKey && c === config.licenseActivationKey) {
-    return { valida: true, duracion: 'L', vitalicia: true };
-  }
-  const match = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){1,15})$/i.exec(c);
-  if (!match) return { error: 'Formato inválido. Usa CHLOE-30D-XXXXX-XXXXX-XXXXX-XXXXX.' };
-  const parsed = parsearDuracion(match[1]);
-  if (!parsed) return { error: 'Duración inválida.' };
-  return { valida: true, registrada: false, duracion: match[1].toUpperCase(), vitalicia: parsed.vitalicia };
 }
 
 app.get('/api/dueno/facturas', requireDueno, route(async (_req, res) => {
