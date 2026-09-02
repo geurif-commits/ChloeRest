@@ -271,3 +271,39 @@ refactor de mayor riesgo que requiere la cobertura de tests ya creada. Se optó 
 modularización segura de los **helpers de negocio puros**, que reduce el monolito sin mover
 rutas ni cambiar ningún endpoint. La migración a routers completos puede hacerse de forma
 incremental ahora que existe la suite de tests.
+
+---
+
+## 11. Ronda final de mejoras (2026-09-02) — hacia 10/10 elite
+
+Se ejecutaron los puntos pendientes de menor a mayor riesgo:
+
+| # | Mejora | Estado | Validación |
+|---|--------|--------|-----------|
+| 1 | **Costo unitario real** en inventario (migración 038) usado en reporte 606 | ✅ | 200 OK |
+| 2 | **Runbook de certificación DGII** (`docs/dgii/05_runbook_certificacion.md`) | ✅ | Documento |
+| 3 | **Tests unitarios** de `lib/ecf.js` y `lib/dgii.js` (8 nuevos, total 27) | ✅ | 27/27 pass |
+| 4 | **`lib/core.js`**: helpers compartidos (route, httpError, money, clientIp, parseCsvLine) | ✅ | Tests OK |
+| 5 | **`lib/licencias.js`**: firmarDuracion, parsearDuracion, vencimientoDesdeMeses, generarClaveLicencia, validarClaveLicencia | ✅ | Tests OK |
+| 6 | **Router de inventario** extraído a `routes/inventario.js` (5 rutas, inyección de dependencias) | ✅ | 200 OK |
+| 7 | **Fix vulnerabilidad `qs`** (moderate) vía overrides `^6.16.0` | ✅ | 1 moderate restante (`pkg`, sin fix, solo build) |
+
+### Resultado de la modularización
+- `server.js` reducido de **3903 → 3573 líneas** (330 líneas menos).
+- Módulos extraídos: `lib/rnc.js`, `lib/ecf.js`, `lib/dgii.js`, `lib/core.js`, `lib/licencias.js`, `routes/inventario.js`.
+- **Patrón de router validado**: se monta después del middleware global de autenticación
+  (`app.use('/api', authenticate)`) para que `req.user` esté disponible.
+
+### Nota sobre el router DGII
+Las rutas DGII están **intercaladas** con otras rutas (caja, reportes, pedidos, recetas) en el
+monolito, no son contiguas. Además, la lógica DGII está **congelada para certificación**.
+Por eso se decidió **no** extraer el router DGII en esta ronda: mover rutas no contiguas de un
+bloque congelado es un riesgo alto sin beneficio proporcional. Se recomienda hacerlo **después**
+de la certificación, cuando el código de facturación quede liberado.
+
+### Estado final del sistema
+- **27 tests automatizados** en verde (`npm test`).
+- **Servidor estable**: health OK, BD conectada, migración 038, sin errores en `server.err`.
+- **Todos los endpoints clave** (dueño, DGII, inventario, configuración) devuelven 200.
+- **Seguridad**: 0 vulnerabilidades frontend; backend solo `pkg` (moderate, sin fix, solo build).
+- **Árbol de git limpio** (todo commitado).
