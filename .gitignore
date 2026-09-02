@@ -3,15 +3,22 @@ node_modules/
 
 # Environment
 .env
+.env.*
+!.env.example
 
 # Build artifacts
 dist/
 release/
 bundle.cjs
 ServidorPOS.exe
-.env
-.env.*
-!.env.example
-node_modules/
-dist/
+ServidorPOS.cjs
+
+# Runtime logs
+server.log
+server.err
+stderr.log
+stderr2.log
+*.log
+
+# Test / temp
 test-login.json
