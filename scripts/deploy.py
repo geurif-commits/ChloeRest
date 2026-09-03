@@ -38,7 +38,7 @@ def sftp_mkdir_p(sftp, remote_dir):
     for part in parts:
         if not part:
             continue
-        current = current + '/' + part if current else part
+        current = current + '/' + part if current else '/' + part
         try:
             sftp.stat(current)
         except IOError:
@@ -97,7 +97,7 @@ def deploy():
     for root, dirs, files in os.walk(DIST_DIR):
         for file in files:
             full_p = os.path.join(root, file)
-            rel_p = os.path.relpath(full_p, DIST_DIR)
+            rel_p = os.path.relpath(full_p, DIST_DIR).replace('\\', '/')
             remote_dir = f"{REMOTE_APP_DIR}/dist/{os.path.dirname(rel_p)}"
             sftp_mkdir_p(sftp, remote_dir)
             sftp.put(full_p, f"{REMOTE_APP_DIR}/dist/{rel_p}")
