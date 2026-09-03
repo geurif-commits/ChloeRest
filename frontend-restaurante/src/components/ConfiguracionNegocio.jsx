@@ -286,9 +286,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 gap: '8px',
                 padding: '10px 16px',
                 borderRadius: '10px',
-                border: activa ? '1px solid var(--gold, #f5b842)' : '1px solid var(--border-subtle)',
+                border: activa ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)',
                 background: activa ? 'rgba(245, 184, 61, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                color: activa ? 'var(--gold, #f5b842)' : 'var(--admin-text-muted)',
+                color: activa ? 'var(--kpi-gold)' : 'var(--admin-text-muted)',
                 fontWeight: activa ? 700 : 500,
                 fontSize: '0.84rem',
                 cursor: 'pointer',
@@ -309,11 +309,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Building2 size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>Identidad del Negocio</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Identidad del Negocio</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Configura el nombre comercial, RNC y datos de contacto de tu establecimiento.
                 </p>
@@ -330,7 +330,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Logotipo del Establecimiento</strong>
+                <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>Logotipo del Establecimiento</strong>
                 <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
                   Aparece en tickets de impresión, facturas DGII y pantallas del sistema.
                 </span>
@@ -435,11 +435,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {/* Tarjeta de Estado Actual */}
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--kpi-green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ShieldCheck size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>Estado de Licencia del Restaurante</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Estado de Licencia del Restaurante</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Consulta la vigencia de tu plan multiempresa y renueva tu acceso.
                 </p>
@@ -448,9 +448,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
 
             {licenciaVitalicia ? (
               <div style={{ background: 'rgba(245, 184, 61, 0.1)', border: '1px solid rgba(245, 184, 61, 0.3)', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <Sparkles size={24} style={{ color: 'var(--gold, #f5b842)' }} />
+                <Sparkles size={24} style={{ color: 'var(--kpi-gold)' }} />
                 <div>
-                  <strong style={{ color: 'var(--gold, #f5b842)', fontSize: '0.95rem' }}>Licencia Vitalicia Activa</strong>
+                  <strong style={{ color: 'var(--kpi-gold)', fontSize: '0.95rem' }}>Licencia Vitalicia Activa</strong>
                   <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                     Tu sistema cuenta con acceso permanente sin fecha de expiración.
                   </p>
@@ -459,9 +459,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
             ) : licenciaActiva ? (
               <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CheckCircle2 size={24} style={{ color: '#10b981' }} />
+                  <CheckCircle2 size={24} style={{ color: 'var(--kpi-green)' }} />
                   <div>
-                    <strong style={{ color: '#10b981', fontSize: '0.95rem' }}>
+                    <strong style={{ color: 'var(--kpi-green)', fontSize: '0.95rem' }}>
                       Licencia Activa · {estadoLicencia.diasRestantes} días restantes
                     </strong>
                     <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
@@ -473,14 +473,14 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   type="button"
                   onClick={() => setEstadoLicencia({ ...estadoLicencia, _mostrarRenovar: !estadoLicencia._mostrarRenovar })}
                   className="admin-btn admin-btn-secondary"
-                  style={{ borderColor: 'var(--gold, #f5b842)', color: 'var(--gold, #f5b842)' }}
+                  style={{ borderColor: 'var(--kpi-gold)', color: 'var(--kpi-gold)' }}
                 >
                   {estadoLicencia._mostrarRenovar ? 'Cerrar Renovación' : 'Renovar / Extender'}
                 </button>
               </div>
             ) : (
               <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '16px', borderRadius: '12px' }}>
-                <strong style={{ color: '#ef4444', fontSize: '0.95rem' }}>Licencia Inactiva o Vencida</strong>
+                <strong style={{ color: 'var(--kpi-red)', fontSize: '0.95rem' }}>Licencia Inactiva o Vencida</strong>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Ingresa tu clave de activación o renueva con la clave maestra provista por el administrador.
                 </p>
@@ -490,13 +490,13 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
 
           {/* Formulario de Activación / Renovación */}
           {(mostrarActivacion || estadoLicencia?._mostrarRenovar) && (
-            <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--gold, #f5b842)' }}>
+            <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--kpi-gold)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Key size={20} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--gold, #f5b842)' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--kpi-gold)' }}>
                     {estadoLicencia?._mostrarRenovar ? 'Renovación de Licencia' : 'Activación de Nueva Licencia'}
                   </h3>
                   <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
@@ -557,11 +557,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {/* Impuestos DGII */}
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--kpi-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Receipt size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>Cargos e Impuestos de Ley</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Cargos e Impuestos de Ley</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Ajusta la aplicación automática de ITBIS y Propina de Ley en cuentas y facturas.
                 </p>
@@ -578,7 +578,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   style={{ width: '18px', height: '18px', accentColor: 'var(--gold, #f5b842)' }}
                 />
                 <div>
-                  <strong style={{ color: '#fff', fontSize: '0.88rem', display: 'block' }}>Cobrar ITBIS (18%)</strong>
+                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Cobrar ITBIS (18%)</strong>
                   <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Aplica ITBIS fiscal a cada artículo del pedido</span>
                 </div>
               </label>
@@ -592,7 +592,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   style={{ width: '18px', height: '18px', accentColor: 'var(--gold, #f5b842)' }}
                 />
                 <div>
-                  <strong style={{ color: '#fff', fontSize: '0.88rem', display: 'block' }}>Propina Legal (10%)</strong>
+                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Propina Legal (10%)</strong>
                   <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Añade el 10% legal de servicio al consumidor</span>
                 </div>
               </label>
@@ -613,11 +613,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {/* Cuentas Bancarias */}
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CreditCard size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>Cuentas Bancarias para Transferencias</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Cuentas Bancarias para Transferencias</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Aparecen en pantalla cuando los clientes seleccionan pago por transferencia bancaria.
                 </p>
@@ -629,8 +629,8 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 {cuentasBancarias.map((cuenta) => (
                   <div key={cuenta.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                     <div>
-                      <strong style={{ color: 'var(--gold, #f5b842)', fontSize: '0.9rem' }}>{cuenta.nombre_banco}</strong>
-                      <span style={{ color: '#fff', fontSize: '0.84rem', marginLeft: '10px', fontFamily: 'monospace' }}>{cuenta.numero_cuenta}</span>
+                      <strong style={{ color: 'var(--kpi-gold)', fontSize: '0.9rem' }}>{cuenta.nombre_banco}</strong>
+                      <span style={{ color: 'var(--text-primary)', fontSize: '0.84rem', marginLeft: '10px', fontFamily: 'monospace' }}>{cuenta.numero_cuenta}</span>
                       <span style={{ color: 'var(--admin-text-muted)', fontSize: '0.76rem', marginLeft: '8px' }}>({cuenta.titular} · {cuenta.tipo_cuenta})</span>
                     </div>
                     <div style={{ display: 'flex', gap: '6px' }}>
@@ -714,11 +714,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(236, 72, 153, 0.15)', color: '#be185d', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Printer size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>Áreas de Producción y Despacho</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Áreas de Producción y Despacho</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Personaliza los nombres de tus estaciones y el método de envío de comandas.
                 </p>
@@ -755,7 +755,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
             <div className="admin-form-group">
               <label className="admin-label">Modo de Envío de Comandas a Producción</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'kds' ? 'rgba(245, 184, 61, 0.1)' : 'rgba(255,255,255,0.03)', borderRadius: '10px', border: formData.comanda_modo === 'kds' ? '1px solid var(--gold, #f5b842)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'kds' ? 'rgba(245, 184, 61, 0.1)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'kds' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     name="comanda_modo"
@@ -765,12 +765,12 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                     style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                   />
                   <div>
-                    <strong style={{ color: '#fff', fontSize: '0.86rem', display: 'block' }}>Pantalla KDS Digital</strong>
+                    <strong style={{ color: 'var(--text-primary)', fontSize: '0.86rem', display: 'block' }}>Pantalla KDS Digital</strong>
                     <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Despacho en tiempo real en monitores táctiles</span>
                   </div>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'impresora' ? 'rgba(245, 184, 61, 0.1)' : 'rgba(255,255,255,0.03)', borderRadius: '10px', border: formData.comanda_modo === 'impresora' ? '1px solid var(--gold, #f5b842)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'impresora' ? 'rgba(245, 184, 61, 0.1)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'impresora' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     name="comanda_modo"
@@ -780,7 +780,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                     style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                   />
                   <div>
-                    <strong style={{ color: '#fff', fontSize: '0.86rem', display: 'block' }}>Impresión Térmica</strong>
+                    <strong style={{ color: 'var(--text-primary)', fontSize: '0.86rem', display: 'block' }}>Impresión Térmica</strong>
                     <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Imprime tickets de pedido en Cocina y Bar</span>
                   </div>
                 </label>
@@ -789,14 +789,14 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
 
             {/* Impresoras por Estación */}
             <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <strong style={{ color: '#fff', fontSize: '0.88rem' }}>Asignación de Impresoras Locales</strong>
+              <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>Asignación de Impresoras Locales</strong>
               <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
                 Configura la impresora física predeterminada para cada estación en este equipo.
               </span>
               
               {['cocina', 'bar', 'caja'].map((estacion) => (
                 <div key={estacion} style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                  <span style={{ color: 'var(--gold, #f5b842)', width: '80px', textTransform: 'capitalize', fontWeight: 600, fontSize: '0.85rem' }}>{estacion}:</span>
+                  <span style={{ color: 'var(--kpi-gold)', width: '80px', textTransform: 'capitalize', fontWeight: 600, fontSize: '0.85rem' }}>{estacion}:</span>
                   <select
                     value={impresorasEstacion[estacion] || ''}
                     onChange={(e) => guardarImpresorasEstacion({ ...impresorasEstacion, [estacion]: e.target.value })}
@@ -832,11 +832,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(168, 85, 247, 0.15)', color: 'var(--kpi-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <FileText size={20} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>Diseño y Formato de Tickets Térmicos</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Diseño y Formato de Tickets Térmicos</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Ajusta la tipografía, márgenes, posición de logo y código QR para tus facturas y comprobantes.
                 </p>
@@ -916,7 +916,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 style={{ width: '18px', height: '18px', accentColor: 'var(--gold, #f5b842)' }}
               />
               <div>
-                <strong style={{ color: '#fff', fontSize: '0.88rem', display: 'block' }}>Imprimir Código QR en Facturas</strong>
+                <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Imprimir Código QR en Facturas</strong>
                 <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
                   Genera código QR de validación fiscal DGII / enlace de verificación digital
                 </span>

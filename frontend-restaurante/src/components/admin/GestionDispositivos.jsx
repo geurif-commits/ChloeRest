@@ -123,7 +123,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
             height: '36px',
             borderRadius: '8px',
             background: 'rgba(56, 189, 248, 0.15)',
-            color: '#38bdf8',
+            color: 'var(--kpi-cyan)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -135,7 +135,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
             <span style={{ fontSize: '0.68rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Total
             </span>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{kpis.total}</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{kpis.total}</div>
           </div>
         </div>
 
@@ -153,7 +153,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
             height: '36px',
             borderRadius: '8px',
             background: 'rgba(16, 185, 129, 0.15)',
-            color: '#10b981',
+            color: 'var(--kpi-green)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -165,7 +165,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
             <span style={{ fontSize: '0.68rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Activas
             </span>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981', lineHeight: 1.1 }}>{kpis.activos}</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--kpi-green)', lineHeight: 1.1 }}>{kpis.activos}</div>
           </div>
         </div>
 
@@ -183,7 +183,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
             height: '36px',
             borderRadius: '8px',
             background: 'rgba(239, 68, 68, 0.15)',
-            color: '#ef4444',
+            color: 'var(--kpi-red)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -195,7 +195,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
             <span style={{ fontSize: '0.68rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Inactivas
             </span>
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ef4444', lineHeight: 1.1 }}>{kpis.inactivos}</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--kpi-red)', lineHeight: 1.1 }}>{kpis.inactivos}</div>
           </div>
         </div>
       </div>
@@ -213,8 +213,8 @@ export default function GestionDispositivos({ apiUrl, token }) {
         borderRadius: '12px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Info size={16} style={{ color: 'var(--gold, #f5b842)', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 500 }}>
+          <Info size={16} style={{ color: 'var(--kpi-gold)', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500 }}>
             Límite por licencia: <strong>Máximo 2 dispositivos activos simultáneos</strong> (Caja POS / Tablet de Salón o KDS).
           </span>
         </div>
@@ -225,10 +225,10 @@ export default function GestionDispositivos({ apiUrl, token }) {
           padding: '4px 10px',
           borderRadius: '20px',
           background: kpis.activos >= 2 ? 'rgba(245, 184, 61, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-          border: `1px solid ${kpis.activos >= 2 ? 'var(--gold, #f5b842)' : '#10b981'}`,
+          border: `1px solid ${kpis.activos >= 2 ? 'var(--kpi-gold)' : 'var(--kpi-green)'}`,
           fontSize: '0.78rem',
           fontWeight: 700,
-          color: kpis.activos >= 2 ? 'var(--gold, #f5b842)' : '#10b981'
+          color: kpis.activos >= 2 ? 'var(--kpi-gold)' : 'var(--kpi-green)'
         }}>
           <span>{kpis.activos} / 2 En Uso</span>
         </div>
@@ -238,8 +238,8 @@ export default function GestionDispositivos({ apiUrl, token }) {
       <div className="admin-card" style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Laptop size={18} style={{ color: 'var(--gold, #f5b842)' }} />
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Laptop size={18} style={{ color: 'var(--kpi-gold)' }} />
               Dispositivos y Terminales POS
             </h3>
             <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: 'var(--admin-text-muted)' }}>
@@ -267,7 +267,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
         ) : dispositivos.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '30px', background: 'rgba(255,255,255,0.015)', borderRadius: '10px', border: '1px dashed var(--border-subtle)' }}>
             <Monitor size={32} style={{ color: 'var(--admin-text-muted)', margin: '0 auto 8px' }} />
-            <p style={{ margin: 0, fontSize: '0.85rem', color: '#fff', fontWeight: 600 }}>Ningún dispositivo registrado con esta licencia aún.</p>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>Ningún dispositivo registrado con esta licencia aún.</p>
             <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>Al activar tu terminal o tableta con tu clave, aparecerá automáticamente aquí.</span>
           </div>
         ) : (
@@ -295,7 +295,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                     gap: '10px',
                     padding: '14px',
                     borderRadius: '12px',
-                    background: esEsteDispositivo ? 'rgba(56, 189, 248, 0.04)' : 'rgba(255, 255, 255, 0.025)',
+                    background: esEsteDispositivo ? 'rgba(56, 189, 248, 0.04)' : 'var(--bg-card-hover)',
                     border: `1px solid ${esEsteDispositivo ? 'rgba(56, 189, 248, 0.45)' : esActivo ? 'rgba(16, 185, 129, 0.25)' : 'var(--border-subtle)'}`,
                     boxShadow: esEsteDispositivo ? '0 0 15px rgba(56, 189, 248, 0.08)' : 'none',
                     transition: 'all 0.2s ease'
@@ -309,7 +309,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                         height: '40px',
                         borderRadius: '10px',
                         background: esEsteDispositivo ? 'rgba(56, 189, 248, 0.15)' : esActivo ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                        color: esEsteDispositivo ? '#38bdf8' : esActivo ? '#10b981' : '#ef4444',
+                        color: esEsteDispositivo ? 'var(--kpi-cyan)' : esActivo ? 'var(--kpi-green)' : 'var(--kpi-red)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -320,7 +320,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
 
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                          <strong style={{ color: '#fff', fontSize: '0.92rem' }}>
+                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.92rem' }}>
                             {d.nombre && d.nombre !== 'Terminal POS' ? d.nombre : info.nombreSugerido}
                           </strong>
                           {esEsteDispositivo && (
@@ -333,7 +333,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                               fontSize: '0.7rem',
                               fontWeight: 800,
                               background: 'rgba(56, 189, 248, 0.2)',
-                              color: '#38bdf8',
+                              color: 'var(--kpi-cyan)',
                               border: '1px solid rgba(56, 189, 248, 0.45)',
                               boxShadow: '0 0 8px rgba(56, 189, 248, 0.2)'
                             }}>
@@ -349,9 +349,9 @@ export default function GestionDispositivos({ apiUrl, token }) {
                             fontSize: '0.7rem',
                             fontWeight: 700,
                             background: esActivo ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: esActivo ? '#10b981' : '#ef4444'
+                            color: esActivo ? 'var(--kpi-green)' : 'var(--kpi-red)'
                           }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: esActivo ? '#10b981' : '#ef4444' }} />
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: esActivo ? 'var(--kpi-green)' : 'var(--kpi-red)' }} />
                             {d.estado}
                           </span>
                         </div>
@@ -359,7 +359,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                           <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)', fontFamily: 'monospace' }}>
                             ID: {d.device_id || '—'}
                           </span>
-                          <span style={{ fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(255, 255, 255, 0.05)', padding: '1px 6px', borderRadius: '4px' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '1px 6px', borderRadius: '4px' }}>
                             🖥️ {info.so} • {info.navegadorNombre}
                           </span>
                         </div>
@@ -393,7 +393,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                         type="button"
                         onClick={() => eliminarDispositivo(d.id, d.nombre || d.device_id)}
                         className="admin-btn admin-btn-danger"
-                        style={{ padding: '6px 10px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444' }}
+                        style={{ padding: '6px 10px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--kpi-red)' }}
                         title="Eliminar dispositivo y liberar cupo de licencia"
                       >
                         <Trash2 size={13} /> Eliminar
@@ -408,12 +408,12 @@ export default function GestionDispositivos({ apiUrl, token }) {
                     alignItems: 'center',
                     gap: '14px',
                     paddingTop: '8px',
-                    borderTop: '1px solid rgba(255,255,255,0.04)',
+                    borderTop: '1px solid var(--border-subtle)',
                     fontSize: '0.74rem',
                     color: 'var(--admin-text-muted)'
                   }}>
                     {d.licencia_duracion && (
-                      <span style={{ color: 'var(--gold, #f5b842)', fontWeight: 600 }}>
+                      <span style={{ color: 'var(--kpi-gold)', fontWeight: 600 }}>
                         {d.licencia_duracion === 'L' ? '✨ Licencia Vitalicia' : `Plan ${d.licencia_duracion}`}
                         {restante != null && ` (${restante} días rest.)`}
                       </span>
@@ -421,7 +421,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
 
                     <span>
                       <Cpu size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                      Tipo: <strong style={{ color: '#fff' }}>{info.tipo}</strong>
+                      Tipo: <strong style={{ color: 'var(--text-primary)' }}>{info.tipo}</strong>
                     </span>
 
                     <span>
@@ -445,9 +445,9 @@ export default function GestionDispositivos({ apiUrl, token }) {
 
       {/* ── Tarjeta de Seguridad y Buenas Prácticas ── */}
       <div className="admin-card" style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-        <ShieldCheck size={24} style={{ color: '#10b981', flexShrink: 0 }} />
+        <ShieldCheck size={24} style={{ color: 'var(--kpi-green)', flexShrink: 0 }} />
         <div style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted)', lineHeight: 1.4 }}>
-          <strong style={{ color: '#fff', display: 'block', marginBottom: '2px' }}>Seguridad y Protección de Acceso</strong>
+          <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>Seguridad y Protección de Acceso</strong>
           Cada terminal está emparejada criptográficamente a tu restaurante. Si reemplazas una tablet o computadora, desactiva la anterior para liberar su ranura de licencia.
         </div>
       </div>

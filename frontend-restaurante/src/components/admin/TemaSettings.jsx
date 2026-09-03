@@ -129,11 +129,11 @@ export default function TemaSettings({ apiUrl }) {
         {/* Selector de Temas Visuales Generales */}
         <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Palette size={20} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#fff' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                 Tema y Paleta Visual General del Sistema
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
@@ -159,8 +159,8 @@ export default function TemaSettings({ apiUrl }) {
                     flexDirection: 'column',
                     padding: '14px',
                     borderRadius: '12px',
-                    background: esActivo ? 'rgba(245, 184, 61, 0.12)' : 'rgba(255, 255, 255, 0.025)',
-                    border: `1.5px solid ${esActivo ? 'var(--gold, #f5b842)' : 'var(--border-subtle)'}`,
+                    background: esActivo ? 'rgba(245, 184, 61, 0.12)' : 'var(--bg-card-hover)',
+                    border: `1.5px solid ${esActivo ? 'var(--kpi-gold)' : 'var(--border-subtle)'}`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     boxShadow: esActivo ? '0 0 16px rgba(245, 184, 61, 0.2)' : 'none'
@@ -178,7 +178,7 @@ export default function TemaSettings({ apiUrl }) {
                     )}
                   </div>
 
-                  <strong style={{ fontSize: '0.88rem', color: '#fff', marginBottom: '3px' }}>{tema.name}</strong>
+                  <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '3px' }}>{tema.name}</strong>
                   <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-muted)', lineHeight: 1.35 }}>{tema.desc}</p>
                 </div>
               );
@@ -189,11 +189,11 @@ export default function TemaSettings({ apiUrl }) {
         {/* ── SECCIÓN NUEVA: Skins de Pantalla de Login PIN ── */}
         <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--kpi-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <KeyRound size={20} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#fff' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                 Skin y Estilo del Panel Login PIN
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
@@ -219,7 +219,7 @@ export default function TemaSettings({ apiUrl }) {
                     flexDirection: 'column',
                     padding: '14px',
                     borderRadius: '12px',
-                    background: esActivo ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.025)',
+                    background: esActivo ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-card-hover)',
                     border: `1.5px solid ${esActivo ? '#38bdf8' : 'var(--border-subtle)'}`,
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
@@ -253,7 +253,7 @@ export default function TemaSettings({ apiUrl }) {
                     )}
                   </div>
 
-                  <strong style={{ fontSize: '0.88rem', color: '#fff', marginBottom: '3px' }}>{t.nombre}</strong>
+                  <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)', marginBottom: '3px' }}>{t.nombre}</strong>
                   <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-muted)', lineHeight: 1.35 }}>{t.desc}</p>
                 </div>
               );
@@ -264,11 +264,11 @@ export default function TemaSettings({ apiUrl }) {
         {/* Ajuste Fino de Colores Primario y Secundario */}
         <div className="admin-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--kpi-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Layers size={18} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#fff' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                 Colores de Acento Personalizados
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>

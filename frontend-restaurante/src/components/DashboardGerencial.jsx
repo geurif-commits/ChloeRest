@@ -79,21 +79,24 @@ function DashboardGerencial({ apiUrl }) {
       plato: 'Croquetas de Chivo Liniero & Mofonguitos',
       razon: 'Excelente margen y tiempo récord de preparación (< 8 min).',
       icono: Flame,
-      color: '#f59e0b'
+      bg: 'rgba(245, 158, 11, 0.15)',
+      color: 'var(--kpi-amber)'
     },
     {
       titulo: 'Plato Principal Recomendado',
       plato: 'Chillo Frito al Estilo Boca Chica',
       razon: 'Alta preferencia en fines de semana y excelente ticket medio.',
       icono: Award,
-      color: '#10b981'
+      bg: 'rgba(16, 185, 129, 0.15)',
+      color: 'var(--kpi-green)'
     },
     {
       titulo: 'Maridaje & Postre Estrella',
       plato: 'Tres Leches Artesanal & Café Espresso',
       razon: 'Ideal para elevar el ticket promedio por comensal al cierre.',
       icono: Coffee,
-      color: '#8b5cf6'
+      bg: 'rgba(139, 92, 246, 0.15)',
+      color: 'var(--kpi-purple)'
     }
   ];
 
@@ -107,7 +110,7 @@ function DashboardGerencial({ apiUrl }) {
         <div className="admin-section" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h3 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <TrendingUp size={18} strokeWidth={2} style={{ color: 'var(--gold, #f5b842)' }} /> Rendimiento del Día
+              <TrendingUp size={18} strokeWidth={2} style={{ color: 'var(--kpi-gold)' }} /> Rendimiento del Día
             </h3>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>En Vivo</span>
           </div>
@@ -116,21 +119,21 @@ function DashboardGerencial({ apiUrl }) {
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ventas Totales</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{ color: 'var(--gold, #f5b842)', fontSize: '1.4rem', fontWeight: 800 }}>RD$ {formatearRD(resumen.total_ventas)}</span>
+                <span style={{ color: 'var(--kpi-gold)', fontSize: '1.4rem', fontWeight: 800 }}>RD$ {formatearRD(resumen.total_ventas)}</span>
               </div>
             </div>
 
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Facturas Emitidas</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{ color: '#38bdf8', fontSize: '1.4rem', fontWeight: 800 }}>{resumen.total_facturas}</span>
+                <span style={{ color: 'var(--kpi-cyan)', fontSize: '1.4rem', fontWeight: 800 }}>{resumen.total_facturas}</span>
               </div>
             </div>
 
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)', gridColumn: 'span 2' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ticket Promedio por Mesa</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{ color: 'var(--green, #10b981)', fontSize: '1.4rem', fontWeight: 800 }}>RD$ {formatearRD(resumen.ticket_promedio)}</span>
+                <span style={{ color: 'var(--kpi-green)', fontSize: '1.4rem', fontWeight: 800 }}>RD$ {formatearRD(resumen.ticket_promedio)}</span>
               </div>
             </div>
           </div>
@@ -140,7 +143,7 @@ function DashboardGerencial({ apiUrl }) {
         <div className="admin-section" style={{ marginBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h3 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <TableProperties size={18} strokeWidth={2} style={{ color: 'var(--gold, #f5b842)' }} /> Estado del Salón
+              <TableProperties size={18} strokeWidth={2} style={{ color: 'var(--kpi-gold)' }} /> Estado del Salón
             </h3>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{totalMesas} mesas totales</span>
           </div>
@@ -149,19 +152,19 @@ function DashboardGerencial({ apiUrl }) {
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Disponibles</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{ color: 'var(--green, #10b981)', fontSize: '1.4rem', fontWeight: 800 }}>{totalDisponibles}</span>
+                <span style={{ color: 'var(--kpi-green)', fontSize: '1.4rem', fontWeight: 800 }}>{totalDisponibles}</span>
               </div>
             </div>
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ocupadas</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{ color: 'var(--red, #ef4444)', fontSize: '1.4rem', fontWeight: 800 }}>{totalOcupadas}</span>
+                <span style={{ color: 'var(--kpi-red)', fontSize: '1.4rem', fontWeight: 800 }}>{totalOcupadas}</span>
               </div>
             </div>
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reservadas</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
-                <span style={{ color: '#f59e0b', fontSize: '1.4rem', fontWeight: 800 }}>{totalReservadas}</span>
+                <span style={{ color: 'var(--kpi-amber)', fontSize: '1.4rem', fontWeight: 800 }}>{totalReservadas}</span>
               </div>
             </div>
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
@@ -203,7 +206,7 @@ function DashboardGerencial({ apiUrl }) {
                     width: idx === slideActivo ? '20px' : '7px',
                     height: '7px',
                     borderRadius: '4px',
-                    background: idx === slideActivo ? 'var(--gold, #f5b842)' : 'rgba(255, 255, 255, 0.2)',
+                    background: idx === slideActivo ? 'var(--gold, #f5b842)' : 'var(--border-medium)',
                     border: 'none',
                     padding: 0,
                     cursor: 'pointer',
@@ -217,14 +220,14 @@ function DashboardGerencial({ apiUrl }) {
             <button
               type="button"
               onClick={() => setSlideActivo((prev) => (prev === 0 ? 2 : prev - 1))}
-              style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <ChevronLeft size={15} />
             </button>
             <button
               type="button"
               onClick={() => setSlideActivo((prev) => (prev === 2 ? 0 : prev + 1))}
-              style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <ChevronRight size={15} />
             </button>
@@ -248,16 +251,16 @@ function DashboardGerencial({ apiUrl }) {
                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: idx === 0 ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255, 255, 255, 0.05)', color: idx === 0 ? 'var(--gold, #f5b842)' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
+                          <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: idx === 0 ? 'rgba(245, 184, 61, 0.2)' : 'var(--bg-card-hover)', color: idx === 0 ? 'var(--gold, #f5b842)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
                             {idx + 1}
                           </span>
-                          <strong style={{ color: '#fff' }}>{p.nombre}</strong>
+                          <strong style={{ color: 'var(--text-primary)' }}>{p.nombre}</strong>
                         </div>
-                        <span style={{ color: 'var(--gold, #f5b842)', fontWeight: 700, fontSize: '0.8rem' }}>
+                        <span style={{ color: 'var(--kpi-gold)', fontWeight: 700, fontSize: '0.8rem' }}>
                           {cantidad} {cantidad === 1 ? 'unidad' : 'unidades'} ({porcentaje}%)
                         </span>
                       </div>
-                      <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', overflow: 'hidden' }}>
+                      <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: 'var(--border-subtle)', overflow: 'hidden' }}>
                         <div
                           style={{
                             width: `${porcentaje}%`,
@@ -295,14 +298,14 @@ function DashboardGerencial({ apiUrl }) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: `${rec.color}22`, color: rec.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: rec.bg, color: rec.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Icono size={16} />
                     </div>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>
                       {rec.titulo}
                     </span>
                   </div>
-                  <strong style={{ color: '#fff', fontSize: '0.92rem', marginTop: '2px' }}>{rec.plato}</strong>
+                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.92rem', marginTop: '2px' }}>{rec.plato}</strong>
                   <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.76rem', lineHeight: 1.3 }}>
                     {rec.razon}
                   </p>
@@ -318,7 +321,7 @@ function DashboardGerencial({ apiUrl }) {
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase' }}>Rotación Promedio</span>
               <div style={{ marginTop: 4 }}>
-                <span style={{ color: '#10b981', fontSize: '1.3rem', fontWeight: 800 }}>38 min / mesa</span>
+                <span style={{ color: 'var(--kpi-green)', fontSize: '1.3rem', fontWeight: 800 }}>38 min / mesa</span>
               </div>
               <small style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>Ritmo de atención óptimo</small>
             </div>
@@ -326,7 +329,7 @@ function DashboardGerencial({ apiUrl }) {
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase' }}>Despacho a Cocina</span>
               <div style={{ marginTop: 4 }}>
-                <span style={{ color: 'var(--gold, #f5b842)', fontSize: '1.3rem', fontWeight: 800 }}>Inmediato (KDS)</span>
+                <span style={{ color: 'var(--kpi-gold)', fontSize: '1.3rem', fontWeight: 800 }}>Inmediato (KDS)</span>
               </div>
               <small style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>Sincronización en tiempo real</small>
             </div>
@@ -334,7 +337,7 @@ function DashboardGerencial({ apiUrl }) {
             <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--radius-md)', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
               <span style={{ color: 'var(--text-dim)', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase' }}>Control Fiscal DGII</span>
               <div style={{ marginTop: 4 }}>
-                <span style={{ color: '#38bdf8', fontSize: '1.3rem', fontWeight: 800 }}>100% Activo</span>
+                <span style={{ color: 'var(--kpi-cyan)', fontSize: '1.3rem', fontWeight: 800 }}>100% Activo</span>
               </div>
               <small style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>Secuencias NCF validadas</small>
             </div>

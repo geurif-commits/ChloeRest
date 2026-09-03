@@ -115,7 +115,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
   if (cargando) {
     return (
       <div className="admin-empty">
-        <ChefHat size={36} style={{ color: 'var(--gold)', animation: 'pulse 1.5s infinite' }} />
+        <ChefHat size={36} style={{ color: 'var(--kpi-gold)', animation: 'pulse 1.5s infinite' }} />
         <p style={{ color: 'var(--text-muted)' }}>Cargando escandallo y recetas...</p>
       </div>
     );
@@ -133,7 +133,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
               </button>
             )}
             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ChefHat size={22} style={{ color: 'var(--gold)' }} />
+              <ChefHat size={22} style={{ color: 'var(--kpi-gold)' }} />
               <span>Escandallo, Recetas y Control de Costos</span>
             </h2>
           </div>
@@ -146,7 +146,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
           <div className="admin-section" style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <h3 className="admin-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <UtensilsCrossed size={18} style={{ color: 'var(--gold)' }} />
+                <UtensilsCrossed size={18} style={{ color: 'var(--kpi-gold)' }} />
                 <span>Platos del Menú ({productosFiltrados.length})</span>
               </h3>
 
@@ -181,8 +181,8 @@ function GestionRecetas({ alVolver, apiUrl }) {
                         padding: '12px 14px',
                         borderRadius: '10px',
                         cursor: 'pointer',
-                        background: seleccionado ? 'rgba(245, 184, 61, 0.14)' : 'rgba(255, 255, 255, 0.03)',
-                        border: seleccionado ? '1px solid rgba(245, 184, 61, 0.5)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        background: seleccionado ? 'rgba(245, 184, 61, 0.14)' : 'var(--bg-card-hover)',
+                        border: seleccionado ? '1px solid rgba(245, 184, 61, 0.5)' : '1px solid var(--border-subtle)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -191,7 +191,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
                       }}
                     >
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: seleccionado ? 'var(--gold)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: seleccionado ? 'var(--kpi-gold)' : 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {prod.nombre}
                         </div>
                         <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginTop: '2px' }}>
@@ -211,9 +211,9 @@ function GestionRecetas({ alVolver, apiUrl }) {
           {/* Columna 2: Receta e Insumos del Plato */}
           {productoSeleccionado ? (
             <div className="admin-section" style={{ minWidth: 0 }}>
-              <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '12px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold)' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'var(--kpi-gold)' }}>
                     Receta: {productoSeleccionado.nombre}
                   </h3>
                   <span className="admin-badge admin-badge-success" style={{ fontSize: '0.72rem' }}>
@@ -226,7 +226,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
               </div>
 
               {/* Formulario Agregar Insumo */}
-              <form onSubmit={agregarIngredienteReceta} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.07)', padding: '14px', borderRadius: '10px', marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <form onSubmit={agregarIngredienteReceta} style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: '10px', marginBottom: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                   <div className="admin-form-group">
                     <label className="admin-label">Seleccionar Insumo de Almacén</label>
@@ -290,7 +290,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
                     ) : (
                       recetaActual.map((item) => (
                         <tr key={item.id || item.ingrediente_id}>
-                          <td style={{ fontWeight: 700, color: 'var(--gold)' }}>
+                          <td style={{ fontWeight: 700, color: 'var(--kpi-gold)' }}>
                             {item.ingrediente_nombre}
                           </td>
                           <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>

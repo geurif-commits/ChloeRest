@@ -118,7 +118,7 @@ function GestionMesas({ apiUrl }) {
   if (cargando) {
     return (
       <div className="admin-empty">
-        <TableProperties size={36} style={{ color: 'var(--gold)', animation: 'pulse 1.5s infinite' }} />
+        <TableProperties size={36} style={{ color: 'var(--kpi-gold)', animation: 'pulse 1.5s infinite' }} />
         <p style={{ color: 'var(--text-muted)' }}>Cargando distribución del salón...</p>
       </div>
     );
@@ -130,33 +130,33 @@ function GestionMesas({ apiUrl }) {
         
         {/* Banner de Estado del Salón Horizontal */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', width: '100%' }}>
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <TableProperties size={20} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total de Mesas</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>{mesas.length}</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{mesas.length}</div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.15)', color: 'var(--kpi-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <CheckCircle size={20} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Mesas Libres</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#22c55e' }}>{totalDisponibles}</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--kpi-green)' }}>{totalDisponibles}</div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: 'var(--kpi-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <AlertCircle size={20} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Mesas Ocupadas</div>
-              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ef4444' }}>{totalOcupadas}</div>
+              <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--kpi-red)' }}>{totalOcupadas}</div>
             </div>
           </div>
         </div>
@@ -164,7 +164,7 @@ function GestionMesas({ apiUrl }) {
         {/* Sección 1: Generador Rápido de Mesas */}
         <div className="admin-section">
           <h3 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <Plus size={18} style={{ color: 'var(--gold)' }} />
+            <Plus size={18} style={{ color: 'var(--kpi-gold)' }} />
             <span>Generar Mesas Masivamente</span>
           </h3>
           <p style={{ margin: '0 0 14px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -198,7 +198,7 @@ function GestionMesas({ apiUrl }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <h3 className="admin-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <TableProperties size={18} style={{ color: 'var(--gold)' }} />
+                <TableProperties size={18} style={{ color: 'var(--kpi-gold)' }} />
                 <span>Identificadores y Distribución del Salón ({mesasFiltradas.length})</span>
               </h3>
               <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -239,7 +239,7 @@ function GestionMesas({ apiUrl }) {
                 ) : (
                   mesasFiltradas.map((mesa) => (
                     <tr key={mesa.id}>
-                      <td style={{ fontWeight: 800, color: 'var(--gold)', fontSize: '0.82rem' }}>
+                      <td style={{ fontWeight: 800, color: 'var(--kpi-gold)', fontSize: '0.82rem' }}>
                         #{mesa.id}
                       </td>
                       <td>
@@ -298,7 +298,7 @@ function GestionMesas({ apiUrl }) {
                             type="button"
                             onClick={() => eliminarMesa(mesa.id, mesa.nombre_numero, mesa.estado)}
                             className="admin-btn"
-                            style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ff4d4f', padding: '4px 10px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--kpi-red)', padding: '4px 10px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >
                             <Trash2 size={13} />
                           </button>

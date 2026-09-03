@@ -10,12 +10,12 @@ import {
 import './admin.css';
 
 const ROLES_INFO = {
-  'Administrador': { label: 'Administrador', icon: Crown, color: '#f5b842', bg: 'rgba(245, 184, 61, 0.15)', desc: 'Acceso total y configuración del restaurante' },
-  'Cajero': { label: 'Cajero', icon: CreditCard, color: '#38bdf8', bg: 'rgba(56, 189, 248, 0.15)', desc: 'Apertura/cierre de caja y cobro de cuentas' },
-  'Capitán de Camareros': { label: 'Capitán de Salón', icon: Shield, color: '#a855f7', bg: 'rgba(168, 85, 247, 0.15)', desc: 'Toma pedidos y autorización de anulaciones' },
-  'Camarero': { label: 'Camarero', icon: UserCheck, color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', desc: 'Atención a mesas y envío de comandas' },
-  'Cocina': { label: 'Cocina', icon: UtensilsCrossed, color: '#f97316', bg: 'rgba(249, 115, 22, 0.15)', desc: 'Pantalla KDS de preparación de alimentos' },
-  'Bar': { label: 'Bar', icon: Wine, color: '#ec4899', bg: 'rgba(236, 72, 153, 0.15)', desc: 'Pantalla KDS de coctelería y bebidas' },
+  'Administrador': { label: 'Administrador', icon: Crown, color: 'var(--kpi-gold)', bg: 'rgba(245, 184, 61, 0.15)', desc: 'Acceso total y configuración del restaurante' },
+  'Cajero': { label: 'Cajero', icon: CreditCard, color: 'var(--kpi-cyan)', bg: 'rgba(56, 189, 248, 0.15)', desc: 'Apertura/cierre de caja y cobro de cuentas' },
+  'Capitán de Camareros': { label: 'Capitán de Salón', icon: Shield, color: 'var(--kpi-purple)', bg: 'rgba(168, 85, 247, 0.15)', desc: 'Toma pedidos y autorización de anulaciones' },
+  'Camarero': { label: 'Camarero', icon: UserCheck, color: 'var(--kpi-green)', bg: 'rgba(16, 185, 129, 0.15)', desc: 'Atención a mesas y envío de comandas' },
+  'Cocina': { label: 'Cocina', icon: UtensilsCrossed, color: 'var(--kpi-amber)', bg: 'rgba(249, 115, 22, 0.15)', desc: 'Pantalla KDS de preparación de alimentos' },
+  'Bar': { label: 'Bar', icon: Wine, color: '#be185d', bg: 'rgba(236, 72, 153, 0.15)', desc: 'Pantalla KDS de coctelería y bebidas' },
 };
 
 export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
@@ -160,43 +160,43 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
       
       {/* ── KPIs Superiores Horizontales ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', width: '100%' }}>
-        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Users size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Total Personal</span>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>{conteoRoles.total}</div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{conteoRoles.total}</div>
           </div>
         </div>
 
-        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: '#f5b842', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Crown size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Administradores</span>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>{conteoRoles.admin}</div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{conteoRoles.admin}</div>
           </div>
         </div>
 
-        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--kpi-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <CreditCard size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Cajeros</span>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>{conteoRoles.cajero}</div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{conteoRoles.cajero}</div>
           </div>
         </div>
 
-        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--kpi-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <UserCheck size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Salón & Mesas</span>
-            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>{conteoRoles.camarero}</div>
+            <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{conteoRoles.camarero}</div>
           </div>
         </div>
       </div>
@@ -209,8 +209,8 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Users size={18} style={{ color: 'var(--gold, #f5b842)' }} />
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={18} style={{ color: 'var(--kpi-gold)' }} />
                 Equipo de Trabajo
               </h3>
               <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
@@ -266,7 +266,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
                   <tr><td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: 'var(--admin-text-muted)' }}>No se encontraron colaboradores registrados.</td></tr>
                 ) : (
                   usuariosFiltrados.map((usu) => {
-                    const infoRol = ROLES_INFO[usu.rol] || { label: usu.rol, icon: UserCheck, color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)' };
+                    const infoRol = ROLES_INFO[usu.rol] || { label: usu.rol, icon: UserCheck, color: 'var(--text-muted)', bg: 'rgba(148, 163, 184, 0.15)' };
                     const IconoRol = infoRol.icon;
                     const esActual = usu.id === usuarioIdActual;
 
@@ -279,8 +279,8 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
                               {usu.nombre.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <strong style={{ color: '#fff', fontSize: '0.88rem' }}>{usu.nombre}</strong>
-                              {esActual && <span style={{ marginLeft: '6px', fontSize: '0.68rem', color: 'var(--gold, #f5b842)', background: 'rgba(245, 184, 61, 0.15)', padding: '1px 6px', borderRadius: '4px' }}>Tú</span>}
+                              <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>{usu.nombre}</strong>
+                              {esActual && <span style={{ marginLeft: '6px', fontSize: '0.68rem', color: 'var(--kpi-gold)', background: 'rgba(245, 184, 61, 0.15)', padding: '1px 6px', borderRadius: '4px' }}>Tú</span>}
                             </div>
                           </div>
                         </td>
@@ -330,15 +330,15 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
         </div>
 
         {/* Columna Derecha: Formulario Alta / Edición */}
-        <div className="admin-card" style={{ padding: '22px', border: modoEdicion ? '1px solid var(--gold, #f5b842)' : '1px solid var(--border-subtle)', position: 'sticky', top: '16px' }}>
+        <div className="admin-card" style={{ padding: '22px', border: modoEdicion ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', position: 'sticky', top: '16px' }}>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: modoEdicion ? 'rgba(245, 184, 61, 0.2)' : 'rgba(16, 185, 129, 0.15)', color: modoEdicion ? 'var(--gold, #f5b842)' : '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: modoEdicion ? 'rgba(245, 184, 61, 0.2)' : 'rgba(16, 185, 129, 0.15)', color: modoEdicion ? 'var(--kpi-gold)' : 'var(--kpi-green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {modoEdicion ? <Pencil size={18} /> : <UserPlus size={18} />}
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#fff' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   {modoEdicion ? 'Editar Colaborador' : 'Registrar Nuevo Acceso'}
                 </h3>
                 <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>

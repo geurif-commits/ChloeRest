@@ -398,7 +398,7 @@ function GestionProductos({ apiUrl }) {
 
       {pestana === 'crear' && (
         <div className="admin-panel-formulario">
-          <h3 style={{ margin: '0 0 16px', color: '#fff', fontSize: '1.2rem' }}>Crear Nuevo Producto</h3>
+          <h3 style={{ margin: '0 0 16px', color: 'var(--text-primary)', fontSize: '1.2rem' }}>Crear Nuevo Producto</h3>
           <form onSubmit={guardarProducto} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div className="form-group"><label>Nombre del Plato o Bebida</label><input type="text" name="nombre" className={inputClass} value={nuevoProducto.nombre} onChange={manejarCambioInput} placeholder="Ej. Mofongo de Camarones Especial" required /></div>
             <div className="form-group"><label>Descripción</label><textarea name="descripcion" className={inputClass} rows={2} placeholder="Opcional. Breve descripción de ingredientes que se muestra en el menú." value={nuevoProducto.descripcion || ''} onChange={manejarCambioInput} /></div>
@@ -406,7 +406,7 @@ function GestionProductos({ apiUrl }) {
             
             {/* ── SELECTOR DE DESTINO E IMPRESORA (ALIMENTOS VS BEBIDAS) ── */}
             <div style={{ background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
-              <label style={{ display: 'block', color: '#fff', fontSize: '0.86rem', fontWeight: 700, marginBottom: '10px' }}>
+              <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.86rem', fontWeight: 700, marginBottom: '10px' }}>
                 🖨️ Tipo de Producto & Destino de Impresión
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -436,7 +436,7 @@ function GestionProductos({ apiUrl }) {
                     {nuevoProducto.tipo_destino === 'cocina' ? '✓' : ''}
                   </div>
                   <div>
-                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'cocina' ? '#10b981' : '#fff', fontSize: '0.9rem' }}>🍳 Alimento</strong>
+                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'cocina' ? 'var(--kpi-green)' : 'var(--text-primary)', fontSize: '0.9rem' }}>🍳 Alimento</strong>
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Impresora / KDS de Cocina</span>
                   </div>
                 </button>
@@ -467,7 +467,7 @@ function GestionProductos({ apiUrl }) {
                     {nuevoProducto.tipo_destino === 'bar' ? '✓' : ''}
                   </div>
                   <div>
-                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'bar' ? '#3b82f6' : '#fff', fontSize: '0.9rem' }}>🍹 Bebida / Trago</strong>
+                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'bar' ? 'var(--kpi-blue)' : 'var(--text-primary)', fontSize: '0.9rem' }}>🍹 Bebida / Trago</strong>
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Impresora / KDS de Bar</span>
                   </div>
                 </button>
@@ -497,13 +497,13 @@ function GestionProductos({ apiUrl }) {
                 style={{
                   width: '100%',
                   padding: '12px 16px',
-                  background: 'rgba(255,255,255,0.02)',
+                  background: 'var(--bg-card-hover)',
                   border: 'none',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   cursor: 'pointer',
-                  color: '#fff',
+                  color: 'var(--text-primary)',
                   fontWeight: 700,
                   fontSize: '0.88rem'
                 }}
@@ -511,7 +511,7 @@ function GestionProductos({ apiUrl }) {
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   ⚙️ Clasificación del Plato & Opciones Avanzadas
                 </span>
-                <span style={{ color: 'var(--gold, #f5b842)', fontSize: '0.8rem' }}>
+                <span style={{ color: 'var(--kpi-gold)', fontSize: '0.8rem' }}>
                   {acordeonOpcionesAbierto ? '▲ Ocultar' : '▼ Desplegar Opciones'}
                 </span>
               </button>
@@ -552,9 +552,9 @@ function GestionProductos({ apiUrl }) {
                               gap: '8px',
                               padding: '9px 10px',
                               borderRadius: '8px',
-                              background: activo ? 'rgba(245, 184, 61, 0.18)' : 'rgba(255,255,255,0.02)',
-                              border: `1.5px solid ${activo ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
-                              color: activo ? 'var(--gold, #f5b842)' : '#fff',
+                              background: activo ? 'rgba(245, 184, 61, 0.18)' : 'var(--bg-card-hover)',
+                              border: `1.5px solid ${activo ? 'var(--kpi-gold)' : 'var(--border-light)'}`,
+                              color: activo ? 'var(--kpi-gold)' : 'var(--text-primary)',
                               fontSize: '0.82rem',
                               fontWeight: activo ? 700 : 500,
                               cursor: 'pointer'
@@ -576,24 +576,24 @@ function GestionProductos({ apiUrl }) {
                       Personalización al tomar el pedido:
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-card-hover)', borderRadius: '8px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={nuevoProducto.requiere_guarnicion}
                           onChange={(e) => setNuevoProducto({ ...nuevoProducto, requiere_guarnicion: e.target.checked })}
                           style={{ width: '17px', height: '17px', accentColor: 'var(--gold, #f5b842)' }}
                         />
-                        <span style={{ fontSize: '0.84rem', color: '#fff', fontWeight: 600 }}>🍟 Solicitar Guarnición</span>
+                        <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>🍟 Solicitar Guarnición</span>
                       </label>
 
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-card-hover)', borderRadius: '8px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={nuevoProducto.requiere_termino}
                           onChange={(e) => setNuevoProducto({ ...nuevoProducto, requiere_termino: e.target.checked })}
                           style={{ width: '17px', height: '17px', accentColor: 'var(--gold, #f5b842)' }}
                         />
-                        <span style={{ fontSize: '0.84rem', color: '#fff', fontWeight: 600 }}>🥩 Solicitar Término de Cocción</span>
+                        <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>🥩 Solicitar Término de Cocción</span>
                       </label>
                     </div>
                   </div>
@@ -604,7 +604,7 @@ function GestionProductos({ apiUrl }) {
                       Impuestos y Ley:
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-card-hover)', borderRadius: '8px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={nuevoProducto.aplica_itbis}
@@ -612,12 +612,12 @@ function GestionProductos({ apiUrl }) {
                           style={{ width: '17px', height: '17px', accentColor: '#10b981' }}
                         />
                         <div>
-                          <span style={{ fontSize: '0.84rem', color: '#fff', fontWeight: 600, display: 'block' }}>🏛️ ITBIS Fiscal (18%)</span>
+                          <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>🏛️ ITBIS Fiscal (18%)</span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_itbis ? 'Gravado con 18%' : 'Exento (0%)'}</span>
                         </div>
                       </label>
 
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-card-hover)', borderRadius: '8px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={nuevoProducto.aplica_propina}
@@ -625,7 +625,7 @@ function GestionProductos({ apiUrl }) {
                           style={{ width: '17px', height: '17px', accentColor: 'var(--gold, #f5b842)' }}
                         />
                         <div>
-                          <span style={{ fontSize: '0.84rem', color: '#fff', fontWeight: 600, display: 'block' }}>⚖️ Propina Legal (10%)</span>
+                          <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>⚖️ Propina Legal (10%)</span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_propina ? 'Ley 16-92 (10%)' : 'Exenta (0%)'}</span>
                         </div>
                       </label>
@@ -656,7 +656,7 @@ function GestionProductos({ apiUrl }) {
                   style={{
                     background: 'rgba(245, 184, 61, 0.15)',
                     border: '1px solid rgba(245, 184, 61, 0.35)',
-                    color: 'var(--gold, #f5b842)',
+                    color: 'var(--kpi-gold)',
                     borderRadius: '8px',
                     padding: '4px 10px',
                     fontSize: '0.75rem',
@@ -689,7 +689,7 @@ function GestionProductos({ apiUrl }) {
       {pestana === 'categorias' && (
         <div className="admin-panel-formulario">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-            <h3 style={{ margin: 0, color: '#fff', fontSize: '1.2rem' }}>Configuración de Menú y Comandas</h3>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.2rem' }}>Configuración de Menú y Comandas</h3>
             
             {/* Sub-pestañas de configuración */}
             <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-base, #07090D)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
@@ -930,7 +930,7 @@ function GestionProductos({ apiUrl }) {
       {pestana === 'importar' && (
         <div className="admin-panel-formulario" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#fff' }}>Importación Masiva de Productos</h3>
+            <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>Importación Masiva de Productos</h3>
             <p className="import-texto-ayuda" style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
               Descarga la plantilla CSV oficial en blanco con los parámetros del sistema, edítala y súbela:
             </p>
@@ -944,21 +944,21 @@ function GestionProductos({ apiUrl }) {
 
           {/* Guía de Parámetros del Sistema */}
           <div style={{ background: 'var(--bg-input, rgba(255,255,255,0.03))', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-subtle)' }}>
-            <strong style={{ color: 'var(--gold, #f5b842)', fontSize: '0.85rem', display: 'block', marginBottom: '8px' }}>
+            <strong style={{ color: 'var(--kpi-gold)', fontSize: '0.85rem', display: 'block', marginBottom: '8px' }}>
               📋 Parámetros Exactos de la Plantilla CSV:
             </strong>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px', fontSize: '0.78rem' }}>
-              <div><code style={{ color: '#fff' }}>nombre</code>: <span style={{ color: 'var(--green, #10b981)' }}>(Obligatorio)</span> Nombre del producto.</div>
-              <div><code style={{ color: '#fff' }}>precio</code>: <span style={{ color: 'var(--green, #10b981)' }}>(Obligatorio)</span> Precio en RD$ (ej. 650.00).</div>
-              <div><code style={{ color: '#fff' }}>categoria</code>: <span>(Opcional)</span> Alimentos, Bar, Postres...</div>
-              <div><code style={{ color: '#fff' }}>tasa_itbis</code>: <span>(Opcional)</span> 18 (por defecto) o 0 (exento).</div>
-              <div><code style={{ color: '#fff' }}>aplica_propina</code>: <span>(Opcional)</span> 10 (por defecto), 0 o NO.</div>
-              <div><code style={{ color: '#fff' }}>imagen_url</code>: <span>(Opcional)</span> Enlace URL a la foto.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>nombre</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Nombre del producto.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>precio</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Precio en RD$ (ej. 650.00).</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>categoria</code>: <span>(Opcional)</span> Alimentos, Bar, Postres...</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>tasa_itbis</code>: <span>(Opcional)</span> 18 (por defecto) o 0 (exento).</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> 10 (por defecto), 0 o NO.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>imagen_url</code>: <span>(Opcional)</span> Enlace URL a la foto.</div>
             </div>
           </div>
 
           <div className="form-group">
-            <label style={{ fontWeight: 600, color: '#fff' }}>Seleccionar Archivo CSV para Cargar</label>
+            <label style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Seleccionar Archivo CSV para Cargar</label>
             <input type="file" accept=".csv,text/csv" className="form-input-file" onChange={manejarArchivoImportacion} ref={importFileInputRef} />
           </div>
 
@@ -982,9 +982,9 @@ function GestionProductos({ apiUrl }) {
 
       {editModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} onClick={() => setEditModal(null)}>
-          <div style={{ background: 'var(--bg-secondary, #111827)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px', width: 'min(100%, 480px)', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-color)', borderRadius: '16px', padding: '24px', width: 'min(100%, 480px)', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: 'var(--gold)' }}>Editar Producto</h3>
+              <h3 style={{ margin: 0, color: 'var(--kpi-gold)' }}>Editar Producto</h3>
               <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}><X size={18} /></button>
             </div>
             <form onSubmit={guardarEdicion} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -994,7 +994,7 @@ function GestionProductos({ apiUrl }) {
               
               {/* ── SELECTOR DE DESTINO E IMPRESORA (ALIMENTOS VS BEBIDAS) EN EDICIÓN ── */}
               <div style={{ background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
-                <label style={{ display: 'block', color: '#fff', fontSize: '0.84rem', fontWeight: 700, marginBottom: '8px' }}>
+                <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.84rem', fontWeight: 700, marginBottom: '8px' }}>
                   🖨️ Tipo de Producto & Destino de Impresión
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -1024,7 +1024,7 @@ function GestionProductos({ apiUrl }) {
                       {editForm.tipo_destino === 'cocina' ? '✓' : ''}
                     </div>
                     <div>
-                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'cocina' ? '#10b981' : '#fff', fontSize: '0.85rem' }}>🍳 Alimento</strong>
+                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'cocina' ? 'var(--kpi-green)' : 'var(--text-primary)', fontSize: '0.85rem' }}>🍳 Alimento</strong>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cocina</span>
                     </div>
                   </button>
@@ -1055,7 +1055,7 @@ function GestionProductos({ apiUrl }) {
                       {editForm.tipo_destino === 'bar' ? '✓' : ''}
                     </div>
                     <div>
-                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'bar' ? '#3b82f6' : '#fff', fontSize: '0.85rem' }}>🍹 Bebida / Trago</strong>
+                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'bar' ? 'var(--kpi-blue)' : 'var(--text-primary)', fontSize: '0.85rem' }}>🍹 Bebida / Trago</strong>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Bar</span>
                     </div>
                   </button>
@@ -1085,19 +1085,19 @@ function GestionProductos({ apiUrl }) {
                   style={{
                     width: '100%',
                     padding: '10px 14px',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--bg-card-hover)',
                     border: 'none',
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     cursor: 'pointer',
-                    color: '#fff',
+                    color: 'var(--text-primary)',
                     fontWeight: 700,
                     fontSize: '0.84rem'
                   }}
                 >
                   <span>⚙️ Clasificación del Plato & Opciones Avanzadas</span>
-                  <span style={{ color: 'var(--gold, #f5b842)', fontSize: '0.76rem' }}>
+                  <span style={{ color: 'var(--kpi-gold)', fontSize: '0.76rem' }}>
                     {editAcordeonAbierto ? '▲ Ocultar' : '▼ Desplegar'}
                   </span>
                 </button>
@@ -1138,9 +1138,9 @@ function GestionProductos({ apiUrl }) {
                                 gap: '6px',
                                 padding: '7px 8px',
                                 borderRadius: '6px',
-                                background: activo ? 'rgba(245, 184, 61, 0.18)' : 'rgba(255,255,255,0.02)',
-                                border: `1.5px solid ${activo ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
-                                color: activo ? 'var(--gold, #f5b842)' : '#fff',
+                                background: activo ? 'rgba(245, 184, 61, 0.18)' : 'var(--bg-card-hover)',
+                                border: `1.5px solid ${activo ? 'var(--kpi-gold)' : 'var(--border-light)'}`,
+                                color: activo ? 'var(--kpi-gold)' : 'var(--text-primary)',
                                 fontSize: '0.78rem',
                                 fontWeight: activo ? 700 : 500,
                                 cursor: 'pointer'
@@ -1162,24 +1162,24 @@ function GestionProductos({ apiUrl }) {
                         Requisitos de comanda:
                       </label>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'var(--bg-card-hover)', borderRadius: '6px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={editForm.requiere_guarnicion}
                             onChange={(e) => setEditForm({ ...editForm, requiere_guarnicion: e.target.checked })}
                             style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                           />
-                          <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 600 }}>🍟 Solicitar Guarnición</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>🍟 Solicitar Guarnición</span>
                         </label>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'var(--bg-card-hover)', borderRadius: '6px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={editForm.requiere_termino}
                             onChange={(e) => setEditForm({ ...editForm, requiere_termino: e.target.checked })}
                             style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                           />
-                          <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 600 }}>🥩 Solicitar Término</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>🥩 Solicitar Término</span>
                         </label>
                       </div>
                     </div>
@@ -1190,7 +1190,7 @@ function GestionProductos({ apiUrl }) {
                         Impuestos y Ley:
                       </label>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'var(--bg-card-hover)', borderRadius: '6px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={editForm.aplica_itbis}
@@ -1198,12 +1198,12 @@ function GestionProductos({ apiUrl }) {
                             style={{ width: '16px', height: '16px', accentColor: '#10b981' }}
                           />
                           <div>
-                            <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 600, display: 'block' }}>🏛️ ITBIS (18%)</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>🏛️ ITBIS (18%)</span>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_itbis ? 'Gravado (18%)' : 'Exento'}</span>
                           </div>
                         </label>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'var(--bg-card-hover)', borderRadius: '6px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
                           <input
                             type="checkbox"
                             checked={editForm.aplica_propina}
@@ -1211,7 +1211,7 @@ function GestionProductos({ apiUrl }) {
                             style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                           />
                           <div>
-                            <span style={{ fontSize: '0.8rem', color: '#fff', fontWeight: 600, display: 'block' }}>⚖️ Propina (10%)</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>⚖️ Propina (10%)</span>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_propina ? 'Ley (10%)' : 'Exenta'}</span>
                           </div>
                         </label>
@@ -1240,7 +1240,7 @@ function GestionProductos({ apiUrl }) {
                     style={{
                       background: 'rgba(245, 184, 61, 0.15)',
                       border: '1px solid rgba(245, 184, 61, 0.35)',
-                      color: 'var(--gold, #f5b842)',
+                      color: 'var(--kpi-gold)',
                       borderRadius: '8px',
                       padding: '4px 10px',
                       fontSize: '0.75rem',

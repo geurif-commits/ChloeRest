@@ -159,7 +159,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
   }, []);
 
   return (
-    <div className="admin-layout" style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: '#07090f' }}>
+    <div className="admin-layout" style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)' }}>
       
       {/* ── Overlay Fondo Móvil / Drawer ── */}
       {menuMovilAbierto && (
@@ -399,7 +399,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
                 <h1 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
                   {moduloActual.titulo}
                 </h1>
-                <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-muted)', display: 'block' }}>
+                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>
                   {moduloActual.grupo} • {moduloActual.desc || 'Panel de Administración'}
                 </span>
               </div>
@@ -473,7 +473,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
             flex: 1,
             overflowY: 'auto',
             padding: '20px',
-            background: 'radial-gradient(circle at 50% 0%, rgba(245, 184, 61, 0.04), transparent 40%), #07090f'
+            background: 'radial-gradient(circle at 50% 0%, rgba(245, 184, 61, 0.04), transparent 40%), var(--bg-base)'
           }}
         >
           {pestana === 'dashboard' && <DashboardGerencial apiUrl={urlBase} />}

@@ -383,7 +383,7 @@ function GestionNCF({ alVolver, apiUrl }) {
           </div>
 
           <div className="admin-section" style={{ flex: 1 }}>
-            <h3 className="admin-section-title" style={{ color: 'var(--gold)' }}>
+            <h3 className="admin-section-title" style={{ color: 'var(--kpi-gold)' }}>
               <FileText size={18} /> Secuencias NCF Registradas ({secuencias.length})
             </h3>
             <div style={{ overflowX: 'auto' }}>
@@ -591,9 +591,9 @@ function GestionNCF({ alVolver, apiUrl }) {
               </div>
 
               <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '10px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                <AlertCircle size={16} style={{ color: 'var(--gold)', marginTop: '2px', flexShrink: 0 }} />
+                <AlertCircle size={16} style={{ color: 'var(--kpi-gold)', marginTop: '2px', flexShrink: 0 }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', lineHeight: '1.5' }}>
-                  <b style={{ color: 'var(--gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a AlgoBack &#8594; 4) AlgoBack firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
+                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a AlgoBack &#8594; 4) AlgoBack firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
                 </p>
               </div>
             </div>
@@ -744,7 +744,7 @@ function GestionNCF({ alVolver, apiUrl }) {
           {datos607 && (
             <div className="admin-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <h4 style={{ margin: 0, fontSize: '1rem', color: '#fff' }}>
+                <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>
                   📊 Vista Previa de Ventas Reportadas (Período: {datos607.periodo}) — RNC Emisor: {datos607.rncEmisor || 'N/D'}
                 </h4>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
@@ -773,14 +773,14 @@ function GestionNCF({ alVolver, apiUrl }) {
                     </thead>
                     <tbody>
                       {datos607.registros.map((r, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                           <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{idx + 1}</td>
                           <td style={{ padding: '8px', fontFamily: 'monospace' }}>{r.rnc_cedula || 'Consumidor Final'}</td>
-                          <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 600, color: 'var(--gold, #f5b842)' }}>{r.ncf}</td>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 600, color: 'var(--kpi-gold)' }}>{r.ncf}</td>
                           <td style={{ padding: '8px' }}>{r.fecha_comprobante}</td>
                           <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600 }}>RD$ {r.monto_facturado}</td>
-                          <td style={{ padding: '8px', textAlign: 'right', color: '#00f576' }}>RD$ {r.itbis_facturado}</td>
-                          <td style={{ padding: '8px', textAlign: 'right', color: '#38bdf8' }}>RD$ {r.propina_legal}</td>
+                          <td style={{ padding: '8px', textAlign: 'right', color: 'var(--kpi-green)' }}>RD$ {r.itbis_facturado}</td>
+                          <td style={{ padding: '8px', textAlign: 'right', color: 'var(--kpi-cyan)' }}>RD$ {r.propina_legal}</td>
                           <td style={{ padding: '8px' }}>
                             {Number(r.efectivo) > 0 ? 'Efectivo' : (Number(r.tarjeta) > 0 ? 'Tarjeta' : 'Transferencia')}
                           </td>

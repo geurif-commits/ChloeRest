@@ -29,6 +29,7 @@ import {
 
 import { aplicarPersonalizacion } from './personalizacion.js';
 
+import './ui/theme/tokens.css';
 import './App.css';
 import './ui/theme/overrides-pedido.css';
 

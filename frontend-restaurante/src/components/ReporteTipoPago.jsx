@@ -108,7 +108,7 @@ function ReporteTipoPago({ apiUrl }) {
           <div className="tarjetas-grid">
             <div className="tarjeta-resumen">
               <h4><TrendingUp size={16} /> Total Facturado</h4>
-              <h2 style={{ color: 'var(--gold)' }}>RD$ {formatearRD(totales.total)}</h2>
+              <h2 style={{ color: 'var(--kpi-gold)' }}>RD$ {formatearRD(totales.total)}</h2>
             </div>
             <div className="tarjeta-resumen">
               <h4><Receipt size={16} /> ITBIS</h4>
@@ -167,7 +167,7 @@ function ReporteTipoPago({ apiUrl }) {
                         <td className="text-right">RD$ {formatearRD(fac.subtotal)}</td>
                         <td className="text-right">RD$ {formatearRD(fac.itbis)}</td>
                         <td className="text-right">RD$ {formatearRD(fac.propina)}</td>
-                        <td className="text-right" style={{ fontWeight: '700', color: 'var(--gold)' }}>RD$ {formatearRD(fac.total)}</td>
+                        <td className="text-right" style={{ fontWeight: '700', color: 'var(--kpi-gold)' }}>RD$ {formatearRD(fac.total)}</td>
                         <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{new Date(fac.fecha_cierre).toLocaleDateString('es-DO')}</td>
                       </tr>
                     ))

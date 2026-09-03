@@ -835,11 +835,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'sans-serif', overflow: 'hidden' }}>
-      <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, #14141b, #1c1a14)', borderBottom: '1px solid rgba(214,164,77,0.35)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+      <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-elevated))', borderBottom: '1px solid rgba(214,164,77,0.35)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(214,164,77,0.16)', border: '1px solid rgba(214,164,77,0.5)', display: 'grid', placeItems: 'center', fontSize: '1.3rem' }}>👑</div>
           <div>
-            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#d6a44d', fontWeight: 700 }}>Panel del Propietario</div>
+            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--kpi-gold)', fontWeight: 700 }}>Panel del Propietario</div>
             <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{nombreNegocio}</div>
           </div>
         </div>
@@ -881,11 +881,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
               </div>
               <div className="tarjeta-resumen">
                 <h4>Solicitudes pagadas</h4>
-                <h2 style={{ color: '#00f576' }}>{resumen?.solicitudes?.pagadas || 0}</h2>
+                <h2 style={{ color: 'var(--kpi-green)' }}>{resumen?.solicitudes?.pagadas || 0}</h2>
               </div>
               <div className="tarjeta-resumen">
                 <h4>Facturas emitidas</h4>
-                <h2 style={{ color: '#8ab4f8' }}>{resumen?.facturas?.total || 0}</h2>
+                <h2 style={{ color: 'var(--kpi-cyan)' }}>{resumen?.facturas?.total || 0}</h2>
               </div>
               <div className="tarjeta-resumen">
                 <h4>Planes activos</h4>
@@ -909,7 +909,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
           <div className="admin-panel-lista">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   🔑 Licencias Emitidas, Activas y Usadas
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>
@@ -926,7 +926,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                   onChange={(e) => setBusquedaLicencia(e.target.value)}
                   style={{ ...inputStyle, width: '240px', padding: '6px 12px', fontSize: '0.82rem' }}
                 />
-                <div style={{ display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.03)', padding: '3px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '3px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                   {[
                     { id: 'todas', label: `Todas (${licencias.length})` },
                     { id: 'activas', label: `Activas (${licencias.filter(l => l.activa && !l.revocada).length})` },
@@ -958,19 +958,19 @@ function PanelDueno({ apiUrl, config, alVolver }) {
             <div className="tarjetas-grid" style={{ marginBottom: '18px' }}>
               <div className="tarjeta-resumen">
                 <h4>Total Licencias</h4>
-                <h2 style={{ color: '#fff' }}>{licencias.length}</h2>
+                <h2 style={{ color: 'var(--text-primary)' }}>{licencias.length}</h2>
               </div>
               <div className="tarjeta-resumen">
                 <h4>Licencias Activas</h4>
-                <h2 style={{ color: '#00f576' }}>{licencias.filter(l => l.activa && !l.revocada).length}</h2>
+                <h2 style={{ color: 'var(--kpi-green)' }}>{licencias.filter(l => l.activa && !l.revocada).length}</h2>
               </div>
               <div className="tarjeta-resumen">
                 <h4>Licencias Revocadas</h4>
-                <h2 style={{ color: '#ef4444' }}>{licencias.filter(l => !l.activa || l.revocada).length}</h2>
+                <h2 style={{ color: 'var(--kpi-red)' }}>{licencias.filter(l => !l.activa || l.revocada).length}</h2>
               </div>
               <div className="tarjeta-resumen">
                 <h4>Terminales POS Vinculadas</h4>
-                <h2 style={{ color: '#38bdf8' }}>{licencias.reduce((acc, l) => acc + (l.total_dispositivos || 0), 0)}</h2>
+                <h2 style={{ color: 'var(--kpi-cyan)' }}>{licencias.reduce((acc, l) => acc + (l.total_dispositivos || 0), 0)}</h2>
               </div>
             </div>
 
@@ -1022,11 +1022,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                           <tr key={lic.id} style={{ opacity: estaActiva ? 1 : 0.75 }}>
                             <td style={{ fontWeight: 'bold' }}>#{lic.id}</td>
                             <td>
-                              <div style={{ fontWeight: 'bold', color: '#fff' }}>{lic.nombre_negocio || lic.empresa_nombre}</div>
+                              <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{lic.nombre_negocio || lic.empresa_nombre}</div>
                               <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-dim)' }}>Empresa ID: {lic.empresa_id}</div>
                             </td>
                             <td>
-                              <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: '#f5c542', wordBreak: 'break-all' }}>
+                              <div style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: 'var(--kpi-gold)', wordBreak: 'break-all' }}>
                                 {lic.clave}
                               </div>
                               <button
@@ -1048,7 +1048,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>{lic.telefono}</div>
                             </td>
                             <td>
-                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: lic.dispositivos_activos > 0 ? '#00f576' : 'var(--admin-text-muted)' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: lic.dispositivos_activos > 0 ? 'var(--kpi-green)' : 'var(--admin-text-muted)' }}>
                                 {lic.dispositivos_activos || 0} activos
                               </span>
                               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>
@@ -1057,16 +1057,16 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                             </td>
                             <td>
                               {estaActiva ? (
-                                <span className="badge-rol cajero" style={{ background: 'rgba(0,245,118,0.15)', color: '#00f576', border: '1px solid rgba(0,245,118,0.3)' }}>
+                                <span className="badge-rol cajero" style={{ background: 'rgba(0,245,118,0.15)', color: 'var(--kpi-green)', border: '1px solid rgba(0,245,118,0.3)' }}>
                                   🟢 Activa
                                 </span>
                               ) : (
                                 <div>
-                                  <span className="badge-rol default" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+                                  <span className="badge-rol default" style={{ background: 'rgba(239,68,68,0.15)', color: 'var(--kpi-red)', border: '1px solid rgba(239,68,68,0.3)' }}>
                                     ⛔ Revocada
                                   </span>
                                   {lic.motivo_revocacion && (
-                                    <div style={{ fontSize: '0.68rem', color: '#f87171', marginTop: '2px' }}>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--kpi-red)', marginTop: '2px' }}>
                                       {lic.motivo_revocacion}
                                     </div>
                                   )}
@@ -1216,7 +1216,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                   <button className="btn-guardar-admin" type="button" onClick={() => copiarClave(claveGenerada)}>📋</button>
                 </div>
                 {pinInicialGenerado && (
-                  <p style={{ color: '#f5c542', margin: '10px 0 0', fontSize: '0.85rem' }}>
+                  <p style={{ color: 'var(--kpi-gold)', margin: '10px 0 0', fontSize: '0.85rem' }}>
                     PIN inicial del Administrador: <code>{pinInicialGenerado}</code>. Entrégalo junto con la clave; se exigirá cambiarlo en el primer acceso.
                   </p>
                 )}
@@ -1233,14 +1233,14 @@ function PanelDueno({ apiUrl, config, alVolver }) {
           <div className="admin-panel-lista">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>Gestión de Solicitudes y Licencias</h3>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>Gestión de Solicitudes y Licencias</h3>
                 <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
                   Administra las solicitudes entrantes, genera licencias y envía las instrucciones a los clientes.
                 </span>
               </div>
 
               {/* Subtabs: Pendientes / Histórico / Todas */}
-              <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                 {[
                   { id: 'pendientes', label: `📥 Pendientes (${solicitudes.filter(s => s.estado === 'Pendiente').length})` },
                   { id: 'historico', label: `📜 Histórico Atendidas (${solicitudes.filter(s => s.estado === 'Atendida' || s.estado === 'Pagada').length})` },
@@ -1309,7 +1309,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                             <div style={{ fontSize: '0.85rem' }}>{s.telefono}</div>
                             <div style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>{s.email}</div>
                             {s.provincia && <div style={{ fontSize: '0.75rem', color: 'var(--admin-text-dim)' }}>{s.provincia}</div>}
-                            {s.metodo_pago && <div style={{ fontSize: '0.75rem', color: '#00f576', marginTop: '3px' }}>Pago: {s.metodo_pago}</div>}
+                            {s.metodo_pago && <div style={{ fontSize: '0.75rem', color: 'var(--kpi-green)', marginTop: '3px' }}>Pago: {s.metodo_pago}</div>}
                           </td>
                           <td>
                             <span className={`badge-rol ${s.estado === 'Pagada' ? 'cajero' : s.estado === 'Atendida' ? 'cajero' : s.estado === 'Rechazada' ? 'default' : 'capitan'}`}>{s.estado}</span>
@@ -1318,10 +1318,10 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                           <td>
                             {s.clave_generada ? (
                               <div>
-                                <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 'bold', color: '#f5c542', wordBreak: 'break-all' }}>{s.clave_generada}</div>
-                                {s.clave_pin_inicial && <div style={{ fontSize: '0.68rem', color: '#f5c542' }}>PIN: {s.clave_pin_inicial}</div>}
+                                <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--kpi-gold)', wordBreak: 'break-all' }}>{s.clave_generada}</div>
+                                {s.clave_pin_inicial && <div style={{ fontSize: '0.68rem', color: 'var(--kpi-gold)' }}>PIN: {s.clave_pin_inicial}</div>}
                                 {s.clave_enviada_en ? (
-                                  <div style={{ fontSize: '0.68rem', color: '#00f576' }}>Clave Entregada ✓</div>
+                                  <div style={{ fontSize: '0.68rem', color: 'var(--kpi-green)' }}>Clave Entregada ✓</div>
                                 ) : (
                                   <div style={{ fontSize: '0.68rem', color: 'var(--admin-text-dim)' }}>Sin enviar aún</div>
                                 )}
@@ -1330,7 +1330,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                   {s.email && (
                                     <button
                                       className="btn-solicitud atender"
-                                      style={{ padding: '3px 7px', fontSize: '0.72rem', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.35)', color: '#38bdf8' }}
+                                      style={{ padding: '3px 7px', fontSize: '0.72rem', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.35)', color: 'var(--kpi-cyan)' }}
                                       onClick={() => enviarEmailActivacion(s)}
                                       disabled={enviandoEmail === s.id}
                                       title="Enviar correo con la clave, pasos de activación y soporte"
@@ -1416,15 +1416,15 @@ function PanelDueno({ apiUrl, config, alVolver }) {
               >
                 <div
                   style={{
-                    background: '#0b0f19',
-                    border: '1px solid rgba(255,255,255,0.15)',
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border-color)',
                     borderRadius: '16px',
                     maxWidth: '620px',
                     width: '100%',
                     maxHeight: '90vh',
                     overflowY: 'auto',
                     padding: '24px',
-                    boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '14px'
@@ -1432,28 +1432,28 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       📧 Correo de Activación
                     </h3>
                     <button
                       onClick={() => setModalEmail(null)}
-                      style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', color: '#fff', cursor: 'pointer' }}
+                      style={{ background: 'var(--bg-elevated)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', color: 'var(--text-primary)', cursor: 'pointer' }}
                     >
                       ✕
                     </button>
                   </div>
 
-                  <p style={{ fontSize: '0.85rem', color: '#94a3b8', margin: 0 }}>
-                    Destinatario: <strong style={{ color: '#fff' }}>{modalEmail.email}</strong> • Asunto: <strong style={{ color: 'var(--gold, #f5b842)' }}>{modalEmail.asunto}</strong>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                    Destinatario: <strong style={{ color: 'var(--text-primary)' }}>{modalEmail.email}</strong> • Asunto: <strong style={{ color: 'var(--kpi-gold)' }}>{modalEmail.asunto}</strong>
                   </p>
 
                   <div style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
+                    background: 'var(--bg-input)',
+                    border: '1px solid var(--border-subtle)',
                     borderRadius: '10px',
                     padding: '14px',
                     fontSize: '0.78rem',
-                    color: '#cbd5e1',
+                    color: 'var(--text-secondary)',
                     whiteSpace: 'pre-wrap',
                     maxHeight: '320px',
                     overflowY: 'auto',

@@ -143,7 +143,7 @@ function Inventario({ alVolver, apiUrl }) {
   if (cargando) {
     return (
       <div className="admin-empty">
-        <Warehouse size={36} style={{ color: 'var(--gold)', animation: 'pulse 1.5s infinite' }} />
+        <Warehouse size={36} style={{ color: 'var(--kpi-gold)', animation: 'pulse 1.5s infinite' }} />
         <p style={{ color: 'var(--text-muted)' }}>Cargando almacén e inventario...</p>
       </div>
     );
@@ -160,7 +160,7 @@ function Inventario({ alVolver, apiUrl }) {
             </button>
           )}
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Warehouse size={22} style={{ color: 'var(--gold)' }} />
+            <Warehouse size={22} style={{ color: 'var(--kpi-gold)' }} />
             <span>Control de Stock y Almacén</span>
           </h2>
         </div>
@@ -186,7 +186,7 @@ function Inventario({ alVolver, apiUrl }) {
         <div className="admin-section">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 className="admin-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <History size={18} style={{ color: 'var(--gold)' }} />
+              <History size={18} style={{ color: 'var(--kpi-gold)' }} />
               <span>Registro de Entradas, Salidas y Mermas</span>
             </h3>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
@@ -228,7 +228,7 @@ function Inventario({ alVolver, apiUrl }) {
                           {m.tipo_movimiento}
                         </span>
                       </td>
-                      <td style={{ fontWeight: 800, color: 'var(--gold)' }}>
+                      <td style={{ fontWeight: 800, color: 'var(--kpi-gold)' }}>
                         {Number(m.cantidad).toLocaleString()} {m.unidad_medida}
                       </td>
                       <td style={{ color: 'var(--text-secondary)' }}>
@@ -251,11 +251,11 @@ function Inventario({ alVolver, apiUrl }) {
           {/* Formulario de Alta de Insumo */}
           <div className="admin-section" style={{ minWidth: 0 }}>
             <h3 className="admin-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-              <Plus size={18} style={{ color: 'var(--gold)' }} />
+              <Plus size={18} style={{ color: 'var(--kpi-gold)' }} />
               <span>Registrar Insumo / Ingrediente</span>
             </h3>
 
-            <div style={{ background: 'rgba(245, 184, 61, 0.08)', border: '1px solid rgba(245, 184, 61, 0.2)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--gold)', marginBottom: '14px' }}>
+            <div style={{ background: 'rgba(245, 184, 61, 0.08)', border: '1px solid rgba(245, 184, 61, 0.2)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--kpi-gold)', marginBottom: '14px' }}>
               El <strong>Número de Artículo</strong> se genera y vincula automáticamente al guardar.
             </div>
 
@@ -332,7 +332,7 @@ function Inventario({ alVolver, apiUrl }) {
           <div className="admin-section" style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
               <h3 className="admin-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Package size={18} style={{ color: 'var(--gold)' }} />
+                <Package size={18} style={{ color: 'var(--kpi-gold)' }} />
                 <span>Existencias en Almacén ({ingredientesFiltrados.length})</span>
               </h3>
 
@@ -375,7 +375,7 @@ function Inventario({ alVolver, apiUrl }) {
 
                       return (
                         <tr key={item.id}>
-                          <td style={{ fontWeight: 800, color: 'var(--gold)', fontSize: '0.8rem' }}>
+                          <td style={{ fontWeight: 800, color: 'var(--kpi-gold)', fontSize: '0.8rem' }}>
                             {item.numero_articulo || `#${item.id}`}
                           </td>
                           <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -422,7 +422,7 @@ function Inventario({ alVolver, apiUrl }) {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
           <div className="admin-section" style={{ width: '100%', maxWidth: '440px', background: 'rgba(15, 20, 35, 0.98)', border: '1px solid rgba(245, 184, 61, 0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--gold)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <SlidersHorizontal size={18} />
                 <span>Ajustar Stock: {itemAjuste.nombre}</span>
               </h3>
@@ -436,7 +436,7 @@ function Inventario({ alVolver, apiUrl }) {
             </div>
 
             <p style={{ margin: '0 0 14px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              Stock actual en almacén: <strong style={{ color: 'var(--gold)' }}>{itemAjuste.stock_actual} {itemAjuste.unidad_medida}</strong>
+              Stock actual en almacén: <strong style={{ color: 'var(--kpi-gold)' }}>{itemAjuste.stock_actual} {itemAjuste.unidad_medida}</strong>
             </p>
 
             <form onSubmit={procesarAjuste} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

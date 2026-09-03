@@ -1,0 +1,1203 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   CHLOE RESTAURANT POS — tokens.css (compatibilidad)
+   Tokens de diseno y estilos legacy que viven en design-system.css pero
+   que dejaron de importarse (regresion 5059d34). Este archivo SI se carga.
+   Contenido: tokens :root, tema claro, reglas de formularios y bloques
+   legacy en uso (.badge, .glow, .confirm-*, .cobro-*).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ===== 1) TOKENS OSCUROS (:root default) ===== */
+
+/* ===== TOKENS :root + alias --admin-* (extraido de design-system.css:15-353) ===== */
+:root {
+  --muted: var(--text-secondary);
+  --font-sans: var(--font-family, 'Inter', sans-serif);
+  --admin-bg: var(--bg-base);
+  --admin-surface: var(--bg-panel);
+  --admin-card: var(--bg-card);
+  --admin-border: var(--border-color);
+  --admin-text: var(--text-primary);
+  --admin-muted: var(--text-secondary);
+}
+
+
+/* ═════════════════════════════════════════════════════════════════════
+   ROOT DESIGN TOKENS
+   ═════════════════════════════════════════════════════════════════════ */
+
+:root {
+
+  /* ───────────────────────────────────────────────────────────────────
+     BACKGROUND SYSTEM
+     ─────────────────────────────────────────────────────────────────── */
+
+  --bg-base: #070B14;
+
+  --bg-primary: #0B1020;
+
+  --bg-secondary: #111827;
+
+  --bg-panel: #151B2B;
+
+  --bg-card: #1A2236;
+
+  --bg-card-hover: #1F2942;
+
+  --bg-elevated: #1E2A44;
+
+  --bg-input: #0D1220;
+
+  --bg-input-hover: #131A2C;
+
+  --bg-overlay: rgba(7, 11, 20, 0.88);
+
+  /* Chloe Noir: gradiente sutil de profundidad para fondos principales */
+  --bg-gradient:
+    radial-gradient(1200px 600px at 15% -10%, rgba(245, 184, 61, 0.06), transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, rgba(91, 140, 255, 0.05), transparent 55%),
+    var(--bg-base);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     GOLD / BRAND
+     ─────────────────────────────────────────────────────────────────── */
+
+  --gold: #F5B83D;
+  --gold-light: #F8CC6A;
+  --gold-bright: #FADE96;
+  --gold-dark: #D9A030;
+  --gold-deep: #B8862A;
+  --gold-soft: rgba(245, 184, 61, 0.08);
+  --gold-glow: rgba(245, 184, 61, 0.25);
+  --gold-glow-strong: rgba(245, 184, 61, 0.40);
+  /* Chloe Noir: acento champagne para títulos y detalles premium */
+  --gold-champagne: #E8C87A;
+  --gold-champagne-soft: rgba(232, 200, 122, 0.10);
+  --gold-champagne-glow: rgba(232, 200, 122, 0.22);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     BLUE
+     ─────────────────────────────────────────────────────────────────── */
+
+  --blue: #5B8CFF;
+
+  --blue-light: #7DA6FF;
+
+  --blue-dark: #4270DB;
+
+  --blue-soft: rgba(91, 140, 255, 0.08);
+
+  --blue-glow: rgba(91, 140, 255, 0.20);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     GREEN
+     ─────────────────────────────────────────────────────────────────── */
+
+  --green: #00E676;
+
+  --green-light: #33EB91;
+
+  --green-dark: #00C864;
+
+  --green-soft: rgba(0, 230, 118, 0.08);
+
+  --green-glow: rgba(0, 230, 118, 0.20);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     PURPLE
+     ─────────────────────────────────────────────────────────────────── */
+
+  --purple: #8B5CF6;
+
+  --purple-light: #A78BFA;
+
+  --purple-dark: #7C3AED;
+
+  --purple-soft: rgba(139, 92, 246, 0.08);
+
+  --purple-glow: rgba(139, 92, 246, 0.20);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     RED
+     ─────────────────────────────────────────────────────────────────── */
+
+  --red: #EF4444;
+
+  --red-light: #F87171;
+
+  --red-dark: #DC2626;
+
+  --red-soft: rgba(239, 68, 68, 0.08);
+
+  --red-glow: rgba(239, 68, 68, 0.20);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     ORANGE / WARNING
+     ─────────────────────────────────────────────────────────────────── */
+
+  --orange: #F59E0B;
+
+  --orange-light: #FBBF24;
+
+  --orange-dark: #D97706;
+
+  --orange-soft: rgba(245, 158, 11, 0.08);
+
+  --orange-glow: rgba(245, 158, 11, 0.20);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     TEXT
+     ─────────────────────────────────────────────────────────────────── */
+
+  --white: #F8FAFC;
+
+  --text-primary: #F8FAFC;
+
+  --text-secondary: #CBD5E1;
+
+  --text-muted: #94A3B8;
+
+  --text-dim: #64748B;
+
+  --dim: #475569;
+
+  --text-disabled: #334155;
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     BORDERS
+     ─────────────────────────────────────────────────────────────────── */
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+
+  --border-light: rgba(255, 255, 255, 0.08);
+
+  --border-medium: rgba(255, 255, 255, 0.12);
+
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --border-gold: rgba(245, 184, 61, 0.35);
+
+  --border-blue: rgba(91, 140, 255, 0.35);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     MESAS — colores de estado (configurables desde admin)
+     ─────────────────────────────────────────────────────────────────── */
+
+  --mesa-disponible: #00f576;
+  --mesa-ocupada: #ff4444;
+  --mesa-reservada: #d6a44d;
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     RADIUS
+     ─────────────────────────────────────────────────────────────────── */
+
+  --radius-xs: 6px;
+
+  --radius-sm: 8px;
+
+  --radius-md: 12px;
+
+  --radius-lg: 18px;
+
+  --radius-xl: 24px;
+
+  --radius-2xl: 32px;
+
+  --radius-full: 9999px;
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     SPACING
+     ─────────────────────────────────────────────────────────────────── */
+
+  --space-xs: 4px;
+
+  --space-sm: 8px;
+
+  --space-md: 16px;
+
+  --space-lg: 24px;
+
+  --space-xl: 32px;
+
+  --space-2xl: 40px;
+
+  --space-3xl: 48px;
+
+  --space-4xl: 64px;
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     SHADOWS
+     ─────────────────────────────────────────────────────────────────── */
+
+  --shadow-xs:
+    0 1px 3px rgba(0, 0, 0, 0.25);
+
+  --shadow-sm:
+    0 2px 8px rgba(0, 0, 0, 0.30);
+
+  --shadow-md:
+    0 8px 24px rgba(0, 0, 0, 0.40);
+
+  --shadow-lg:
+    0 16px 48px rgba(0, 0, 0, 0.50);
+
+  --shadow-xl:
+    0 24px 70px rgba(0, 0, 0, 0.60);
+
+  --shadow-gold:
+    0 0 20px rgba(245, 184, 61, 0.15);
+
+  --shadow-gold-strong:
+    0 0 35px rgba(245, 184, 61, 0.30);
+
+  --shadow-blue:
+    0 0 25px rgba(91, 140, 255, 0.18);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     TYPOGRAPHY
+     ─────────────────────────────────────────────────────────────────── */
+
+  --font-family:
+    'Inter',
+    'Manrope',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+
+  /* Chloe Noir: tipografía display para títulos y branding */
+  --font-display:
+    'Fraunces',
+    'Inter',
+    Georgia,
+    serif;
+
+  --weight-light: 300;
+
+  --weight-normal: 400;
+
+  --weight-medium: 500;
+
+  --weight-semibold: 600;
+
+  --weight-bold: 700;
+
+  --weight-extrabold: 800;
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     ANIMATIONS
+     ─────────────────────────────────────────────────────────────────── */
+
+  --anim-instant: 100ms ease;
+
+  --anim-fast: 150ms ease;
+
+  --anim-normal: 250ms ease;
+
+  --anim-slow: 350ms ease;
+
+  --anim-slower: 500ms ease;
+
+  --anim-spring:
+    500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     GLASS
+     ─────────────────────────────────────────────────────────────────── */
+
+  --glass-bg:
+    rgba(15, 23, 42, 0.78);
+
+  --glass-bg-heavy:
+    rgba(15, 23, 42, 0.92);
+
+  --glass-border:
+    1px solid rgba(255, 255, 255, 0.06);
+
+  --glass-blur:
+    blur(16px);
+
+  --glass-blur-heavy:
+    blur(24px);
+
+
+  /* ───────────────────────────────────────────────────────────────────
+     LAYOUT
+     ─────────────────────────────────────────────────────────────────── */
+
+  --sidebar-width: 260px;
+
+  --sidebar-collapsed: 76px;
+
+  --header-height: 68px;
+
+  --content-max-width: 1600px;
+
+}
+
+/* ===== 1b) Alias --admin-* extra usados en estilos inline JSX ===== */
+:root {
+  --border-color: var(--border-medium);
+  --admin-accent: var(--accent);
+  --admin-surface-alt: var(--bg-elevated);
+  --admin-text-dim: var(--text-dim);
+  --admin-text-muted: var(--text-muted);
+}
+
+/* ===== 2) TEMA CLARO: redefinicion coherente de tokens de superficie ===== */
+
+:root[data-theme='claro'] {
+  color-scheme: light;
+
+  --bg-base: #eef1f6;
+  --bg-primary: #dfe4ed;
+  --bg-panel: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f2f5fa;
+  --bg-elevated: #e8ecf3;
+  --bg-input: #ffffff;
+  --bg-input-hover: #f2f4f9;
+  --bg-overlay: rgba(17, 24, 39, 0.45);
+  --bg-gradient:
+    radial-gradient(1200px 600px at 15% -10%, rgba(217, 160, 48, 0.10), transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, rgba(37, 99, 235, 0.08), transparent 55%),
+    var(--bg-base);
+
+  --white: #111827;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #4b5563;
+  --text-dim: #6b7280;
+  --dim: #6b7280;
+  --text-disabled: #9ca3af;
+
+  --border-subtle: rgba(17, 24, 39, 0.08);
+  --border-light: rgba(17, 24, 39, 0.10);
+  --border-medium: rgba(17, 24, 39, 0.14);
+  --border-strong: rgba(17, 24, 39, 0.22);
+  --border-gold: rgba(184, 134, 42, 0.45);
+  --border-blue: rgba(37, 99, 235, 0.40);
+
+  --shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.06);
+  --shadow-sm: 0 2px 8px rgba(17, 24, 39, 0.08);
+  --shadow-md: 0 8px 24px rgba(17, 24, 39, 0.12);
+  --shadow-lg: 0 16px 48px rgba(17, 24, 39, 0.16);
+  --shadow-xl: 0 24px 70px rgba(17, 24, 39, 0.20);
+  --shadow-gold: 0 0 20px rgba(217, 160, 48, 0.22);
+  --shadow-gold-strong: 0 0 35px rgba(217, 160, 48, 0.35);
+  --shadow-blue: 0 0 25px rgba(37, 99, 235, 0.20);
+
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-bg-heavy: rgba(255, 255, 255, 0.95);
+  --glass-border: 1px solid rgba(17, 24, 39, 0.08);
+
+  --admin-bg: var(--bg-base);
+  --admin-surface: var(--bg-panel);
+  --admin-card: var(--bg-card);
+  --admin-border: var(--border-medium);
+  --admin-text: var(--text-primary);
+  --admin-muted: var(--text-secondary);
+  --admin-text-muted: var(--text-muted);
+
+  /* Remap de acentos usados como texto/badges: versiones oscuras legibles
+     sobre superficies claras. Los fondos -soft/-glow no cambian. */
+  --green: #0b7a4b;
+  --green-light: #0b7a4b;
+  --red: #b91c1c;
+  --red-light: #b91c1c;
+  --blue: #1d4ed8;
+  --blue-light: #1d4ed8;
+  --purple: #6d28d9;
+  --purple-light: #6d28d9;
+  --orange: #92400e;
+  --orange-light: #92400e;
+}
+
+:root:not([data-theme='claro']) {
+  color-scheme: dark;
+  --admin-text-muted: var(--text-muted);
+  --admin-surface-alt: var(--bg-elevated);
+  --kpi-gold: var(--gold, #f5b83d);
+  --kpi-green: var(--green, #10b981);
+  --kpi-cyan: #38bdf8;
+  --kpi-red: var(--red, #ef4444);
+  --kpi-amber: #f59e0b;
+  --kpi-blue: #3b82f6;
+  --kpi-purple: #8b5cf6;
+}
+
+:root[data-theme='claro'] {
+  --admin-surface-alt: var(--bg-elevated);
+  --admin-text-muted: var(--text-muted);
+  --kpi-gold: #96690c;
+  --kpi-green: #0b7a4b;
+  --kpi-cyan: #0369a1;
+  --kpi-red: #b91c1c;
+  --kpi-amber: #92400e;
+  --kpi-blue: #1d4ed8;
+  --kpi-purple: #6d28d9;
+}
+/* ===== 3) FORMULARIOS: legibilidad garantizada en recuadros y listas =====
+
+/* Fondo y texto explicitos para controles sin clase (selects nativos,
+   inputs heredados) — la especificidad de tipo no pisa clases propias. */
+input,
+select,
+textarea {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+  opacity: 1;
+}
+
+/* Lista desplegable (popup de opciones): fondo oscuro en temas oscuros,
+   claro en el tema claro — nunca texto claro sobre fondo blanco. */
+select option {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+}
+
+select optgroup {
+  background-color: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+/* ===== .badge y variantes (extraido de design-system.css:748-810) ===== */
+/* ═════════════════════════════════════════════════════════════════════
+   BADGES
+   ═════════════════════════════════════════════════════════════════════ */
+
+.badge {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  min-height: 28px;
+
+  padding:
+    0
+    10px;
+
+  border-radius: var(--radius-full);
+
+  font-size: 0.72rem;
+
+  font-weight: var(--weight-semibold);
+
+  letter-spacing: 0.01em;
+}
+
+
+.badge-success {
+  color: var(--green-light);
+
+  background: var(--green-soft);
+
+  border: 1px solid rgba(48, 209, 88, 0.18);
+}
+
+
+.badge-warning {
+  color: var(--orange-light);
+
+  background: var(--orange-soft);
+
+  border: 1px solid rgba(255, 159, 10, 0.18);
+}
+
+
+.badge-danger {
+  color: var(--red-light);
+
+  background: var(--red-soft);
+
+  border: 1px solid rgba(255, 69, 58, 0.18);
+}
+
+
+.badge-info {
+  color: var(--blue-light);
+
+  background: var(--blue-soft);
+
+  border: 1px solid rgba(61, 124, 255, 0.18);
+}
+
+
+
+/* ===== .glow (extraido de design-system.css:1042-1047) ===== */
+.glow {
+  animation:
+    glow 2.5s ease-in-out infinite;
+}
+
+
+
+/* ===== .confirm-* + .cobro-* hasta fin de archivo (extraido de design-system.css:1145-1744) ===== */
+/* ═════════════════════════════════════════════════════════════════════
+   CONFIRM MODAL
+   ═════════════════════════════════════════════════════════════════════ */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay);
+  animation: fadeIn var(--anim-fast) forwards;
+}
+
+.confirm-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  max-width: 400px;
+  width: 92%;
+  box-shadow: var(--shadow-xl);
+  animation: scaleIn var(--anim-normal) forwards;
+}
+
+.confirm-msg {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin-bottom: var(--space-lg);
+}
+
+.confirm-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.confirm-btn {
+  min-height: 40px;
+  padding: 0 var(--space-lg);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  border: none;
+  transition: all var(--anim-fast);
+}
+
+.confirm-btn-cancel {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.confirm-btn-cancel:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+}
+
+.confirm-btn-ok {
+  color: #fff;
+}
+
+.confirm-btn-ok:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   COBRO MODAL — Flujo de pago de 2 pasos
+   ══════════════════════════════════════════════════════════════ */
+
+.cobro-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.cobro-slider {
+  position: relative;
+  overflow: hidden;
+}
+
+.cobro-slide {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.cobro-slide--hide {
+  display: none;
+}
+
+.cobro-slide--animating {
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.cobro-slide--animating-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.cobro-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  width: min(400px, 95vw);
+  height: min(600px, 90vh);
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.2s ease-out;
+}
+
+.cobro-header {
+  padding: 12px 16px 0;
+}
+
+.cobro-header__mesa {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cobro-header__icono {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.cobro-header__mesa h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.cobro-header__sub {
+  margin: 1px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-dimmed);
+}
+
+.cobro-header__back {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1rem;
+  flex-shrink: 0;
+  transition: all var(--anim-fast);
+}
+
+.cobro-header__back:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+/* Detalles de la cuenta */
+.cobro-detalles {
+  padding: 10px 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cobro-detalles__lista {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  background: var(--bg-card);
+}
+
+.cobro-detalles__vacia {
+  text-align: center;
+  color: var(--text-dimmed);
+  padding: 24px 0;
+  font-size: 0.85rem;
+}
+
+.cobro-detalles__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.85rem;
+}
+
+.cobro-detalles__item:last-child { border-bottom: none; }
+
+.cobro-detalles__qty {
+  color: var(--gold);
+  font-weight: 700;
+  min-width: 28px;
+  font-size: 0.8rem;
+}
+
+.cobro-detalles__nombre {
+  flex: 1;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.cobro-detalles__precio {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Totales */
+.cobro-totales {
+  margin-top: 12px;
+  padding: 12px 8px 0;
+}
+
+.cobro-totales__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.cobro-totales__row--total {
+  border-top: 1px solid var(--border-medium);
+  margin-top: 6px;
+  padding-top: 10px;
+  font-size: 1.15rem;
+  color: var(--green);
+  font-weight: 800;
+}
+
+/* Botones de acción */
+.cobro-acciones {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 14px;
+}
+
+.cobro-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: none;
+  transition: all var(--anim-fast);
+}
+
+.cobro-btn--cancelar {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+}
+
+.cobro-btn--cancelar:hover { background: var(--bg-card-hover); border-color: var(--border-medium); }
+
+.cobro-btn--pagar {
+  flex: 1.5;
+  background: var(--green);
+  color: var(--bg-base);
+  font-weight: 800;
+  box-shadow: 0 4px 16px rgba(0, 200, 83, 0.25);
+}
+
+.cobro-btn--pagar:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* Formulario de pago */
+.cobro-pago {
+  padding: 10px 16px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.cobro-pago__metodos { margin-bottom: 10px; }
+.cobro-pago__moneda { margin-bottom: 10px; }
+
+.cobro-pago__grid {
+  display: flex;
+  gap: 6px;
+}
+
+.cobro-pago__btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 6px;
+  background: var(--bg-card);
+  border: 2px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all var(--anim-fast);
+}
+
+.cobro-pago__btn:hover { border-color: var(--border-medium); background: var(--bg-card-hover); }
+
+.cobro-pago__btn.activo {
+  border-color: var(--green);
+  background: rgba(0, 200, 83, 0.08);
+  color: var(--green);
+  font-weight: 700;
+}
+
+.cobro-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-dimmed);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.cobro-select,
+.cobro-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family);
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color var(--anim-fast);
+  box-sizing: border-box;
+}
+
+.cobro-select:focus,
+.cobro-input:focus {
+  border-color: var(--green);
+}
+
+.cobro-input--monto {
+  font-size: 1.2rem;
+  font-weight: 800;
+  padding: 10px 10px;
+}
+
+.cobro-pago__efectivo { margin-bottom: 10px; }
+
+.cobro-pago__equiv {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--green);
+  margin-top: 3px;
+}
+
+.cobro-pago__cambio {
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cobro-pago__cambio span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dimmed);
+}
+
+.cobro-pago__cambio strong {
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.cobro-pago__cambio.positivo {
+  background: rgba(0, 200, 83, 0.08);
+  border: 1px solid rgba(0, 200, 83, 0.25);
+}
+.cobro-pago__cambio.positivo strong { color: var(--green); }
+
+.cobro-pago__cambio.negativo {
+  background: rgba(255, 51, 102, 0.08);
+  border: 1px solid rgba(255, 51, 102, 0.25);
+}
+.cobro-pago__cambio.negativo strong { color: var(--red); }
+
+.cobro-pago__tarjeta { margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+.cobro-pago__transfer {
+  padding: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.cobro-pago__transfer p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+/* ─── Layout compacto Paso 2 ─── */
+
+.cobro-header--tight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.cobro-header--tight .cobro-header__back {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.cobro-header__total {
+  display: flex;
+  flex-direction: column;
+}
+
+.cobro-header__total-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-dimmed);
+  letter-spacing: 0.05em;
+}
+
+.cobro-header__total-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--green);
+}
+
+.cobro-pago--scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cobro-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.cobro-row__metodos {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.cobro-pago__btn--sm {
+  padding: 6px 4px;
+  font-size: 0.7rem;
+}
+
+.cobro-select--tiny {
+  width: auto;
+  min-width: 60px;
+  padding: 6px 6px;
+  font-size: 0.78rem;
+}
+
+.cobro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cobro-campo--row {
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+
+.cobro-campo--sm {
+  gap: 4px;
+}
+
+.cobro-input--4dig {
+  width: 80px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cobro-input--small {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.cobro-mixto {
+  margin-top: 2px;
+  padding: 6px 8px;
+  background: #0a0a0f;
+  border-radius: 6px;
+  border: 1px solid #2a2a38;
+}
+
+.cobro-mixto__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: #9494ad;
+}
+
+.cobro-mixto__toggle input {
+  width: 12px;
+  height: 12px;
+  accent-color: #00f576;
+}
+
+.cobro-mixto__body {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #2a2a38;
+}
+
+.cobro-mixto__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;
+  background: #0a0a0f;
+  border-radius: 4px;
+  font-size: 0.72rem;
+}
+
+.cobro-mixto__total span { color: #9494ad; }
+.cobro-mixto__total strong { color: #00f576; font-weight: 700; }
+
+.cobro-acciones--tight {
+  padding: 8px 14px 12px;
+}
+
+@media (max-width: 768px) {
+  .cobro-modal { width: 98vw; height: auto; max-height: 95vh; border-radius: var(--radius-lg); }
+  .cobro-header { padding: 10px 12px 0; }
+  .cobro-header--tight { padding: 8px 12px; }
+  .cobro-detalles { padding: 8px 12px; }
+  .cobro-detalles__lista { max-height: 140px; }
+  .cobro-acciones { padding: 8px 12px 12px; flex-direction: column; }
+  .cobro-acciones--tight { padding: 8px 12px 12px; }
+  .cobro-btn { flex: none !important; }
+  .cobro-pago { padding: 8px 12px; }
+  .cobro-pago--scroll { padding: 8px 10px; }
+  .cobro-input--monto { font-size: 1.1rem; }
+  .cobro-pago__cambio strong { font-size: 1.2rem; }
+  .cobro-row { flex-wrap: wrap; }
+  .cobro-select--tiny { min-width: 55px; }
+}
+
+@media print {
+  .cobro-overlay { display: none !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4) OVERRIDES TEMA CLARO (scoped, especificidad 0,2,0 — no afecta oscuro)
+   Corrigen clases cuyo color de acento/gold fijo quedaria ilegible sobre
+   superficies claras. El dorado --gold se conserva brillante (fondo de
+   botones con texto oscuro); aqui solo se re-acentua el TEXTO.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme='claro'] .admin-tab.activo {
+  color: var(--kpi-gold);
+}
+
+:root[data-theme='claro'] .admin-badge-warning {
+  color: var(--kpi-amber);
+}
+
+:root[data-theme='claro'] .tabla-reporte td.ncf-cell {
+  color: var(--kpi-gold);
+}
+
+/* Boton fantasma "Reabrir" de solicitudes (fondo translucido blanco) */
+:root[data-theme='claro'] .btn-solicitud.reabrir {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+  color: var(--text-secondary);
+}
+
+:root[data-theme='claro'] .badge-categoria.cocina {
+  border-color: rgba(146, 64, 14, 0.25);
+}
+
+:root[data-theme='claro'] .badge-categoria.bar {
+  border-color: rgba(29, 78, 216, 0.25);
+}
+
+:root[data-theme='claro'] .badge-rol.admin {
+  border-color: rgba(185, 28, 28, 0.25);
+}
+
+:root[data-theme='claro'] .badge-rol.cajero {
+  border-color: rgba(11, 122, 75, 0.25);
+}
+
+:root[data-theme='claro'] .badge-rol.capitan {
+  border-color: rgba(146, 64, 14, 0.25);
+}

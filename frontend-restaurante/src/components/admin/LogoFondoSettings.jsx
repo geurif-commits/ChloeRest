@@ -133,7 +133,7 @@ export default function LogoFondoSettings({ apiUrl }) {
             borderRadius: '8px',
             border: 'none',
             background: modoMovilTab === 'config' ? 'var(--gold, #f5b842)' : 'transparent',
-            color: modoMovilTab === 'config' ? '#0b0f19' : '#fff',
+            color: modoMovilTab === 'config' ? '#0b0f19' : 'var(--text-secondary)',
             fontWeight: 700,
             fontSize: '0.85rem',
             display: 'flex',
@@ -155,7 +155,7 @@ export default function LogoFondoSettings({ apiUrl }) {
             borderRadius: '8px',
             border: 'none',
             background: modoMovilTab === 'preview' ? 'var(--gold, #f5b842)' : 'transparent',
-            color: modoMovilTab === 'preview' ? '#0b0f19' : '#fff',
+            color: modoMovilTab === 'preview' ? '#0b0f19' : 'var(--text-secondary)',
             fontWeight: 700,
             fontSize: '0.85rem',
             display: 'flex',
@@ -187,11 +187,11 @@ export default function LogoFondoSettings({ apiUrl }) {
           {/* Card 1: Logotipo */}
           <div className="admin-card" style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Store size={18} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#fff' }}>Logotipo Principal</h3>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Logotipo Principal</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
                   Cabecera, pantallas de PIN e impresiones térmicas.
                 </p>
@@ -252,11 +252,11 @@ export default function LogoFondoSettings({ apiUrl }) {
           {/* Card 2: Fondo de Pantalla y Textos */}
           <div className="admin-card" style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.15)', color: 'var(--kpi-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ImageIcon size={18} />
               </div>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#fff' }}>Fondo de Pantalla de Acceso (PIN)</h3>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>Fondo de Pantalla de Acceso (PIN)</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
                   Personaliza la imagen y nivel de opacidad del login.
                 </p>
@@ -305,7 +305,7 @@ export default function LogoFondoSettings({ apiUrl }) {
             <div className="admin-form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label className="admin-label" style={{ margin: 0 }}>Opacidad de Imagen de Fondo</label>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gold, #f5b842)', background: 'rgba(245, 184, 61, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--kpi-gold)', background: 'rgba(245, 184, 61, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>
                   {Math.round(opacidad * 100)}%
                 </span>
               </div>
@@ -374,7 +374,7 @@ export default function LogoFondoSettings({ apiUrl }) {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Eye size={18} style={{ color: colorAcento }} />
-                    <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: '#fff' }}>Vista Previa en Vivo</h3>
+                    <h3 style={{ margin: 0, fontSize: '0.96rem', fontWeight: 800, color: 'var(--text-primary)' }}>Vista Previa en Vivo</h3>
                   </div>
                   
                   {/* Badge de Skin Aplicado */}
