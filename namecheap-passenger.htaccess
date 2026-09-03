@@ -3,4 +3,5 @@ PassengerAppRoot "/home/chlogdyh/chloerest"
 PassengerBaseURI "/"
 PassengerNodejs "/opt/alt/alt-nodejs24/root/usr/bin/node"
 PassengerAppType node
-PassengerStartupFile server.js
+# Backend TypeScript compilado (migración desde server.js legacy).
+PassengerStartupFile dist/server.js

@@ -1,8 +1,24 @@
-import db from '../db.js';
-import { config } from '../config.js';
-import { hashPin } from '../auth.js';
+// Reset de datos operativos preservando empresa 1 y administrador.
+// Versión TypeScript: usa el backend compilado en dist/ (migración desde db.js/config.js/auth.js legacy).
+import { createDatabase, getDatabase } from '../dist/db/index.js';
+import { config } from '../dist/lib/config.js';
+import { hashPin } from '../dist/services/authService.js';
 
 const preserve = new Set(['app_migrations', 'empresas', 'planes_licencia']);
+
+createDatabase({
+  user: process.env.DB_USER || 'postgres',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'postgres',
+  password: process.env.DB_PASSWORD || undefined,
+  port: Number(process.env.DB_PORT || 5432),
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 8000,
+  allowExitOnIdle: false,
+});
+
+const db = getDatabase();
 
 try {
   const result = await db.queryUnscoped(

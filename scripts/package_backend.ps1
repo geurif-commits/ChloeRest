@@ -11,8 +11,8 @@ Write-Output "[package_backend] Repo root: $repoRoot"
 Write-Output "[package_backend] Instalando dependencias (si es necesario)..."
 npm ci
 
-Write-Output "[package_backend] Ejecutando build del servidor (esbuild)..."
-npm run build:server
+Write-Output "[package_backend] Ejecutando build del servidor (esbuild TS)..."
+npm run build:server:win
 
 Write-Output "[package_backend] Empaquetando con pkg (ServidorPOS.exe)..."
 npm run package:win

@@ -16,9 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:legacy": "node --test \"tests/*.test.mjs\"",
-    "build:server:legacy": "esbuild server.js --bundle --platform=node --target=node18 --format=cjs --outfile=bundle.cjs --external:pg-native --external:mock-aws-s3 --external:aws-sdk --external:nock",
-    "package:win": "npm run build:server:legacy && pkg bundle.cjs --targets node18-win-x64 --output ServidorPOS.exe --no-bytecode --public"
+    "build:server:win": "esbuild src/server.ts --bundle --platform=node --target=node18 --format=cjs --outfile=bundle.cjs --external:pg-native --external:mock-aws-s3 --external:aws-sdk --external:nock",
+    "package:win": "npm run build:server:win && pkg bundle.cjs --targets node18-win-x64 --output ServidorPOS.exe --no-bytecode --public"
   },
   "keywords": [],
   "author": "",
