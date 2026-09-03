@@ -19,7 +19,6 @@ import {
   ArrowLeft,
   Sparkles
 } from 'lucide-react';
-import BotonSalirElectron from './BotonSalirElectron.jsx';
 import './WelcomeScreen.css';
 
 const PROVINCIAS = [
@@ -62,28 +61,52 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
   const [confirmandoPago, setConfirmandoPago] = useState(false);
   const [metodoSeleccionado, setMetodoSeleccionado] = useState(null);
   const [camposVisitados, setCamposVisitados] = useState({});
+  const [reiniciarPlanes, setReiniciarPlanes] = useState(0);
+  const [planesAgotado, setPlanesAgotado] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
-    fetch(`${URL_CENTRAL}/api/planes`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (cancelado || !d || !Array.isArray(d.planes)) return;
-        setPlanes(d.planes);
-      })
-      .catch(() => {});
+    (async () => {
+      setPlanesAgotado(false);
+      for (let intento = 0; intento <= 3 && !cancelado; intento += 1) {
+        try {
+          const r = await fetch(`${URL_CENTRAL}/api/planes`);
+          const d = r.ok ? await r.json() : null;
+          if (cancelado) return;
+          if (d && Array.isArray(d.planes) && d.planes.length > 0) {
+            setPlanes(d.planes);
+            return;
+          }
+        } catch {
+          // reintentar abajo (red/arranque lento del servidor central)
+        }
+        if (intento < 3 && !cancelado) {
+          await new Promise((res) => setTimeout(res, 2000));
+        }
+      }
+      if (!cancelado) setPlanesAgotado(true);
+    })();
     return () => { cancelado = true; };
-  }, []);
+  }, [reiniciarPlanes]);
 
   useEffect(() => {
     let cancelado = false;
-    fetch(`${URL_CENTRAL}/api/metodos-pago`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (cancelado || !d || !Array.isArray(d.metodos)) return;
-        setMetodosPago(d.metodos.filter((m) => m.activo !== false));
-      })
-      .catch(() => {});
+    let intentos = 0;
+    const cargar = () => {
+      fetch(`${URL_CENTRAL}/api/metodos-pago`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelado || !d || !Array.isArray(d.metodos)) return;
+          setMetodosPago(d.metodos.filter((m) => m.activo !== false));
+        })
+        .catch(() => {
+          if (!cancelado && intentos < 3) {
+            intentos += 1;
+            setTimeout(cargar, 2000);
+          }
+        });
+    };
+    cargar();
     return () => { cancelado = true; };
   }, []);
 
@@ -177,7 +200,6 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
   if (solicitudEnviada) {
     return (
       <div className="welcome-screen">
-        <BotonSalirElectron />
         <div className="welcome-container">
           <div className="welcome-sent-card">
             <div className="welcome-success-icon">
@@ -249,7 +271,6 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
 
   return (
     <div className="welcome-screen">
-      <BotonSalirElectron />
       <div className="welcome-container">
         <div className="welcome-layout">
           {/* Columna izquierda: Presentación & Planes */}
@@ -281,7 +302,16 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
               </p>
 
               <div className="welcome-plans-grid">
-                {planes.length === 0 ? (
+                {planes.length === 0 && planesAgotado ? (
+                  <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                    <p style={{ color: '#f87171', fontSize: '0.85rem', margin: '0 0 10px' }}>
+                      No se pudieron cargar los planes disponibles.
+                    </p>
+                    <button type="button" onClick={() => setReiniciarPlanes((n) => n + 1)} className="welcome-btn-change" style={{ padding: '8px 16px', fontSize: '0.8rem' }}>
+                      Reintentar
+                    </button>
+                  </div>
+                ) : planes.length === 0 ? (
                   <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Cargando planes disponibles...</p>
                 ) : (
                   planes

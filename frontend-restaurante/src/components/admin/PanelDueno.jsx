@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { toastAviso } from '../Toast.jsx';
 import GestionDispositivos from './GestionDispositivos.jsx';
 import FacturaActivacion from './FacturaActivacion.jsx';
-import BotonSalirElectron from '../BotonSalirElectron.jsx';
 import { Delete, LockKeyhole } from 'lucide-react';
 import './admin.css';
 
@@ -775,7 +774,6 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
     return (
       <div className="owner-pin-screen" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', maxHeight: '100dvh', background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, fontFamily: 'sans-serif', padding: '16px', boxSizing: 'border-box', overflow: 'auto' }}>
-        <BotonSalirElectron />
         <div className="owner-pin-card" style={{ background: '#181820', border: '2px solid #d6a44d', borderRadius: '16px', padding: '24px 20px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(214,164,77,0.2)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <div className="owner-pin-badge"><LockKeyhole size={22} /></div>
 

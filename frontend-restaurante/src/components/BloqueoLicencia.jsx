@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
-import BotonSalirElectron from './BotonSalirElectron.jsx';
 
 function BloqueoLicencia({ motivo, contacto, apiUrl, alIniciarSesionAdmin }) {
   const [mostrandoLogin, setMostrandoLogin] = useState(false);
@@ -76,7 +75,6 @@ function BloqueoLicencia({ motivo, contacto, apiUrl, alIniciarSesionAdmin }) {
       background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 9999, fontFamily: 'sans-serif', padding: '20px', boxSizing: 'border-box'
     }}>
-      <BotonSalirElectron />
       <div style={{
         background: '#181820', border: '2px solid #ff5252', borderRadius: '16px',
         padding: '35px', maxWidth: '550px', width: '100%', textAlign: 'center',

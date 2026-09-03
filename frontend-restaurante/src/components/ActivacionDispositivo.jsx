@@ -12,7 +12,6 @@ import {
   Delete
 } from 'lucide-react';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
-import BotonSalirElectron from './BotonSalirElectron.jsx';
 import './ActivacionDispositivo.css';
 
 function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, alActivar, onSolicitarPlan, onVolver }) {
@@ -118,7 +117,6 @@ function ActivacionDispositivo({ apiUrl, alIniciarSesionAdmin, alActivar, onSoli
 
   return (
     <div className="activacion-shell">
-      <BotonSalirElectron />
       <div className="activacion-card">
         {onVolver && (
           <button type="button" onClick={onVolver} className="activacion-back-btn">

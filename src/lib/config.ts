@@ -24,12 +24,28 @@ export const config = {
   telegramOwnerChatId: process.env.TELEGRAM_OWNER_CHAT_ID || null,
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || null,
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'https://chloerestaurant.lat',
-  corsOrigins: (process.env.CORS_ORIGINS ||
-    'https://chloerestaurant.lat,https://www.chloerestaurant.lat,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
-  )
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  /*
+   * Orígenes CORS permitidos. La variable CORS_ORIGINS (si existe) se combina
+   * SIEMPRE con los orígenes de escritorio/desarrollo: la app Electron carga
+   * desde http://127.0.0.1:3000 o file:// (origin 'null') y esos fetch
+   * cross-origin al servidor central deben funcionar sin depender del .env
+   * de producción.
+   */
+  corsOrigins: [
+    ...new Set([
+      ...(process.env.CORS_ORIGINS ||
+        'https://chloerestaurant.lat,https://www.chloerestaurant.lat,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
+      )
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'null',
+    ]),
+  ],
   autoFreePort: process.env.AUTO_FREE_PORT === '1',
   login: {
     maxAttempts: Number(process.env.LOGIN_MAX_ATTEMPTS || 5),

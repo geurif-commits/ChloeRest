@@ -5,7 +5,6 @@ import {
   normalizarUrl
 } from '../configApi.js';
 
-import BotonSalirElectron from './BotonSalirElectron.jsx';
 
 function ConfigurarIP({ alGuardar }) {
 
@@ -122,7 +121,6 @@ function ConfigurarIP({ alGuardar }) {
           fontFamily: 'sans-serif'
         }}
       >
-        <BotonSalirElectron />
         <div style={{ textAlign: 'center' }}>
 
           <div
@@ -179,7 +177,6 @@ function ConfigurarIP({ alGuardar }) {
         boxSizing: 'border-box'
       }}
     >
-      <BotonSalirElectron />
 
       <div
         style={{

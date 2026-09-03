@@ -13,13 +13,35 @@ import paramiko
 import urllib.request
 import json
 
+LOCAL_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+def _leer_pass_desde_env_local():
+    """Fallback: DEPLOY_PASS desde .env del proyecto (gitignored) si no hay variable de entorno."""
+    env_path = os.path.join(LOCAL_ROOT, '.env')
+    if not os.path.exists(env_path):
+        return ''
+    try:
+        with open(env_path, encoding='utf-8') as fh:
+            for linea in fh:
+                linea = linea.strip()
+                if linea.startswith('DEPLOY_PASS='):
+                    valor = linea.split('=', 1)[1].strip()
+                    return valor.strip('"').strip("'")
+    except OSError:
+        return ''
+    return ''
+
+
+def _obtener_pass():
+    return os.environ.get('DEPLOY_PASS') or _leer_pass_desde_env_local()
+
+
 HOST = os.environ.get('DEPLOY_HOST', '104.207.79.62')
 PORT = int(os.environ.get('DEPLOY_PORT', '21098'))
 USER = os.environ.get('DEPLOY_USER', 'chlogdyh')
-PASS = os.environ.get('DEPLOY_PASS', '')
+PASS = _obtener_pass()
 REMOTE_APP_DIR = '/home/chlogdyh/chloerest'
 
-LOCAL_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 LOCAL_FRONTEND_DIST = os.path.join(LOCAL_ROOT, 'frontend-restaurante', 'dist')
 TAR_PATH = os.path.join(LOCAL_ROOT, 'dist.tar.gz')
 

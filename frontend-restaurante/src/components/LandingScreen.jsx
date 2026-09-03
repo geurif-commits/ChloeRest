@@ -19,7 +19,6 @@ import {
 import { useState, useEffect } from 'react';
 
 import './LandingScreen.css';
-import BotonSalirElectron from './BotonSalirElectron.jsx';
 import { URL_CENTRAL } from '../configApi.js';
 
 const CARACTERISTICAS = [
@@ -110,23 +109,32 @@ function LandingScreen({ onAcceder, onRegistrarse, onAccesoPropietario, config, 
 
   useEffect(() => {
     let cancelado = false;
-    fetch(`${URL_CENTRAL}/api/planes`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelado || !data || !Array.isArray(data.planes) || data.planes.length === 0) return;
-        setPlanes(data.planes);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelado) setPlanesLoading(false);
-      });
+    (async () => {
+      for (let intento = 0; intento <= 2 && !cancelado; intento += 1) {
+        try {
+          const res = await fetch(`${URL_CENTRAL}/api/planes`);
+          const data = res.ok ? await res.json() : null;
+          if (cancelado) return;
+          if (data && Array.isArray(data.planes) && data.planes.length > 0) {
+            setPlanes(data.planes);
+            setPlanesLoading(false);
+            return;
+          }
+        } catch {
+          // reintentar abajo (red/arranque lento del servidor central)
+        }
+        if (intento < 2 && !cancelado) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+      if (!cancelado) setPlanesLoading(false);
+    })();
     return () => { cancelado = true; };
   }, []);
 
   return (
     <div className="landing-root">
 
-      <BotonSalirElectron top="16px" right="16px" />
 
       {/* ── Fondo ── */}
       <div className="landing-bg">
