@@ -31,6 +31,19 @@ BACKEND_FILES = [
 # importa módulos relativos (app.js, lib/, db/, routers/, services/).
 DIST_DIR = os.path.join(LOCAL_ROOT, 'dist')
 
+def sftp_mkdir_p(sftp, remote_dir):
+    """Crea la cadena de directorios remota sin fallar si ya existe."""
+    parts = remote_dir.replace('\\', '/').split('/')
+    current = ''
+    for part in parts:
+        if not part:
+            continue
+        current = current + '/' + part if current else part
+        try:
+            sftp.stat(current)
+        except IOError:
+            sftp.mkdir(current)
+
 def build_and_pack():
     print("[1] Compilando Frontend...")
     frontend_dir = os.path.join(LOCAL_ROOT, 'frontend-restaurante')
@@ -85,9 +98,9 @@ def deploy():
         for file in files:
             full_p = os.path.join(root, file)
             rel_p = os.path.relpath(full_p, DIST_DIR)
-            remote_p = f"{REMOTE_APP_DIR}/dist/{rel_p}"
-            sftp.mkdir(os.path.dirname(remote_p))
-            sftp.put(full_p, remote_p)
+            remote_dir = f"{REMOTE_APP_DIR}/dist/{os.path.dirname(rel_p)}"
+            sftp_mkdir_p(sftp, remote_dir)
+            sftp.put(full_p, f"{REMOTE_APP_DIR}/dist/{rel_p}")
     print("  dist/ (Backend TypeScript compilado)")
 
     sftp.put(TAR_PATH, f"{REMOTE_APP_DIR}/dist.tar.gz")
@@ -102,15 +115,31 @@ def deploy():
         f"rm -f {REMOTE_APP_DIR}/dist.tar.gz && "
         f"mkdir -p {REMOTE_APP_DIR}/tmp && "
         f"touch {REMOTE_APP_DIR}/tmp/restart.txt && "
-        # Limpiar backend legacy (ya migrado a TypeScript en dist/)
+        # Corte defensivo: solo se borra el backend legacy si el .htaccess del
+        # hosting ya apunta a dist/server.js. Si no, se conserva (el deploy
+        # queda en el estado anterior, sin caída) y se avisa.
+        f"if grep -qs 'dist/server\\.js' /home/{USER}/public_html/.htaccess 2>/dev/null || "
+        f"grep -qs 'dist/server\\.js' {REMOTE_APP_DIR}/.htaccess 2>/dev/null || "
+        f"grep -qs 'dist/server\\.js' /home/{USER}/.htaccess 2>/dev/null; then "
         f"rm -f {REMOTE_APP_DIR}/server.js {REMOTE_APP_DIR}/auth.js {REMOTE_APP_DIR}/db.js "
         f"{REMOTE_APP_DIR}/config.js {REMOTE_APP_DIR}/migrations.js {REMOTE_APP_DIR}/telegramBot.js "
         f"{REMOTE_APP_DIR}/audit.js {REMOTE_APP_DIR}/index.js {REMOTE_APP_DIR}/smoke.js && "
         f"rm -rf {REMOTE_APP_DIR}/routes {REMOTE_APP_DIR}/lib && "
+        f"echo 'LEGACY_REMOVED: .htaccess apunta a dist/server.js'; "
+        f"else "
+        f"mv -f {REMOTE_APP_DIR}/server.js {REMOTE_APP_DIR}/server.js.legacy.bak 2>/dev/null; "
+        f"echo 'AVISO: el .htaccess del hosting NO apunta a dist/server.js. "
+        f"El backend legacy se conserva (produccion intacta). "
+        f"Actualiza el .htaccess (PassengerStartupFile dist/server.js) y vuelve a ejecutar deploy.py.'; "
+        f"fi && "
         f"pkill -9 -u {USER} node || true"
     )
     stdin, stdout, stderr = ssh.exec_command(cmd)
-    stdout.channel.recv_exit_status()
+    out = stdout.read().decode('utf-8', errors='replace')
+    err = stderr.read().decode('utf-8', errors='replace')
+    print(out.strip())
+    if err.strip():
+        print("stderr:", err.strip())
     print("Extracción y reinicio de Node completados.")
 
     if os.path.exists(TAR_PATH):
