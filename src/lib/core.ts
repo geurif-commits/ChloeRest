@@ -232,3 +232,55 @@ export const validateRequired = (
 export const sleep = (ms: number): Promise<void> => {
   return new Promise(resolve => setTimeout(resolve, ms));
 };
+
+/**
+ * Entero positivo validado; lanza 400 si no lo es. Puerto de lib/core.js.
+ */
+export function positiveInteger(value: unknown, field: string): number {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric <= 0) {
+    throw httpError(400, `${field} no es válido.`);
+  }
+  return numeric;
+}
+
+/**
+ * Redondea a 2 decimales sin errores de coma flotante. Puerto de lib/core.js.
+ */
+export function money(value: unknown): number {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * IP del cliente desde la petición (req.ip respeta 'trust proxy'). Puerto de lib/core.js.
+ */
+export function clientIp(req: Request): string | null {
+  return req.ip || req.socket.remoteAddress || null;
+}
+
+/**
+ * Parsea una línea CSV respetando comillas dobles. Puerto de lib/core.js.
+ */
+export function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      values.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current);
+  return values.map((value) => value.trim());
+}

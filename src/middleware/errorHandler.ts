@@ -54,6 +54,39 @@ export const errorHandler = (err: Error, req: Request, res: Response, _next: Nex
         ip: clientIp,
       });
     }
+  } else if (err instanceof Error && 'code' in err && (err as Error & { code: string }).code === '23505') {
+    // Violación de unicidad de PostgreSQL (paridad con server.js legacy)
+    statusCode = 409;
+    response = {
+      success: false,
+      error: 'La operacion duplica un registro existente.',
+      code: 'DUPLICATE_KEY',
+      timestamp,
+    };
+
+    logger.warn({
+      action: 'DB_UNIQUE_VIOLATION',
+      method: req.method,
+      path: req.path,
+    });
+  } else if (err instanceof Error && (err as Error & { name?: string }).name === 'MulterError') {
+    // Errores de subida de archivos (multer): tamaño u otros límites
+    statusCode = 400;
+    response = {
+      success: false,
+      error: 'El archivo no cumple con los requisitos.',
+      code: 'UPLOAD_INVALID',
+      timestamp,
+    };
+
+    logger.warn({
+      action: 'UPLOAD_ERROR',
+      method: req.method,
+      path: req.path,
+      error: {
+        message: err.message,
+      },
+    });
   } else if (err instanceof SyntaxError && 'body' in err) {
     // JSON parse error
     statusCode = 400;

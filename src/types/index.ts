@@ -89,25 +89,31 @@ export interface ISuccessResponse<T = unknown> {
 
 export type UserRole =
   | 'Administrador'
-  | 'Supervisor'
   | 'Cajero'
   | 'Camarero'
+  | 'Capitán de Camareros'
   | 'Cocina'
-  | 'Gerente'
-  | 'Propietario';
+  | 'Bar'
+  | 'Dueno';
 
+/**
+ * Datos de sesión persistidos en app_sessions (no es un JWT: el sistema real
+ * usa un token aleatorio opaco validado contra la tabla de sesiones).
+ */
 export interface IAuthPayload {
   userId: number;
+  nombre: string;
   userRole: UserRole;
-  empresaId: number;
-  iat: number;
-  exp: number;
+  empresaId: number | null;
+  isDueno: boolean;
 }
 
 export interface IRequestContext {
   userId: number;
+  nombre: string;
   userRole: UserRole;
-  empresaId: number;
+  empresaId: number | null;
+  isDueno: boolean;
   ip: string;
   userAgent: string;
 }
