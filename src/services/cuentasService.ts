@@ -122,18 +122,21 @@ export async function siguienteComprobante(
   }
 
   const row = sequence.rows[0];
-  if (row.secuencia_actual >= row.secuencia_final) {
+  // pg devuelve BIGINT como string; comparar numérico, no lexicográfico.
+  const actual = Number(row.secuencia_actual);
+  const final = Number(row.secuencia_final);
+  if (actual >= final) {
     throw httpError(
       400,
-      `Secuencia de ${tipoComprobante} agotada (${row.secuencia_actual}/${row.secuencia_final}). Crea una nueva secuencia o amplía el rango.`
+      `Secuencia de ${tipoComprobante} agotada (${actual}/${final}). Crea una nueva secuencia o amplía el rango.`
     );
   }
 
   await client.query('UPDATE dgii_secuencias SET secuencia_actual = secuencia_actual + 1 WHERE id = $1', [row.id]);
-  const ncf = `${row.prefijo || tipoComprobante}${String(row.secuencia_actual).padStart(8, '0')}`;
+  const ncf = `${row.prefijo || tipoComprobante}${String(actual).padStart(8, '0')}`;
 
   // Alerta silenciosa si quedan menos de 1000 comprobantes (legacy: console.warn)
-  const restantes = row.secuencia_final - row.secuencia_actual;
+  const restantes = final - actual;
   if (restantes < 1000) {
     logger.warn({ action: 'SECUENCIA_NCF_AGOTANDOSE', tipoComprobante, restantes, ncf });
   }

@@ -260,6 +260,31 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     }
   };
 
+  const [pinReseteado, setPinReseteado] = useState(null);
+
+  const resetearPinAdmin = async (lic) => {
+    const nombre = lic.nombre_negocio || lic.empresa_nombre || 'este negocio';
+    if (!window.confirm(`¿Generar un NUEVO PIN de administrador para "${nombre}"? El PIN actual dejará de funcionar de inmediato.`)) return;
+    setAccionLicenciaId(lic.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/licencias/${lic.id}/reset-pin`, {
+        method: 'POST',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error generando el PIN.');
+        return;
+      }
+      setPinReseteado({ negocio: nombre, pin: data.pin });
+      cargarTodo();
+    } catch {
+      toastAviso('Error al generar el PIN.');
+    } finally {
+      setAccionLicenciaId(null);
+    }
+  };
+
   const limpiarDatosPrueba = async () => {
     if (confirmacionReset !== 'BORRAR PRUEBAS') return;
     setResetEstado('Borrando información…');
@@ -359,7 +384,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       setToken(data.token);
       cargarTodo(data.token);
     } catch {
-      setErrorLogin('No se pudo conectar con el servidor.');
+      setErrorLogin(`No se pudo conectar con el servidor (${apiUrl}). Verifica que el backend esté en ejecución.`);
+      setPin('');
     } finally {
       setCargando(false);
     }
@@ -387,13 +413,20 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       setPinNoConfigurado(false);
       cargarTodo(data.token);
     } catch {
-      setErrorLogin('No se pudo conectar con el servidor.');
+      setErrorLogin(`No se pudo conectar con el servidor (${apiUrl}). Verifica que el backend esté en ejecución.`);
+      setPin('');
     } finally {
       setCargando(false);
     }
   };
 
+  // Longitud efectiva: en modo login se auto-acepta al completarla (6 por
+  // defecto si aún se desconoce); en modo setup (crear PIN) el mínimo es 4
+  // y la confirmación siempre es manual.
+  const longitudPinEfectiva = pinNoConfigurado ? 4 : (pinLongitud > 0 ? pinLongitud : 6);
+
   const agregarNumeroPin = (num) => {
+    if (cargando) return;
     setPin((prev) => {
       if (prev.length < 12) {
         setErrorLogin('');
@@ -406,9 +439,9 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const borrarNumeroPin = () => setPin((prev) => prev.slice(0, -1));
 
   useEffect(() => {
-    if (!token && !pinNoConfigurado && pinLongitud > 0 && pin.length === pinLongitud) login();
+    if (!token && !pinNoConfigurado && pin.length === longitudPinEfectiva) login();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, pinLongitud]);
+  }, [pin, pinLongitud, pinNoConfigurado]);
 
   useEffect(() => {
     if (token) return;
@@ -421,7 +454,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         if (pinNoConfigurado) {
           if (pin.length >= 4) establecerPin();
         } else {
-          if (pinLongitud === 0 || pin.length === pinLongitud) login();
+          if (pin.length === longitudPinEfectiva) login();
         }
       }
     };
@@ -763,7 +796,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         <button className="owner-pin-key" type="button" onClick={() => agregarNumeroPin('0')}>0</button>
         <button
           type="submit"
-          disabled={cargando || pin.length < (pinNoConfigurado ? 4 : (pinLongitud > 0 ? pinLongitud : 4))}
+          disabled={cargando || pin.length < longitudPinEfectiva}
           className="owner-pin-enter"
           aria-label="Confirmar PIN"
         >
@@ -952,6 +985,52 @@ function PanelDueno({ apiUrl, config, alVolver }) {
               </div>
             </div>
 
+            {/* PIN regenerado (se muestra una sola vez) */}
+            {pinReseteado && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap',
+                padding: '14px 16px', marginBottom: '16px', borderRadius: '12px',
+                background: 'rgba(0, 245, 118, 0.08)',
+                border: '1px solid rgba(0, 245, 118, 0.35)'
+              }}>
+                <span style={{ fontSize: '1.3rem' }}>🔑</span>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <strong style={{ color: '#00f576', fontSize: '0.9rem', display: 'block' }}>
+                    Nuevo PIN de {pinReseteado.negocio}
+                  </strong>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>
+                    Entrégalo al cliente ahora: solo se muestra esta vez. Se exigirá cambiarlo al ingresar.
+                  </span>
+                </div>
+                <code style={{
+                  fontSize: '1.6rem', fontWeight: 900, letterSpacing: '6px',
+                  color: '#0b0f19', background: '#00f576',
+                  padding: '6px 14px 6px 20px', borderRadius: '10px'
+                }}>
+                  {pinReseteado.pin}
+                </code>
+                <button
+                  type="button"
+                  className="btn-solicitud atender"
+                  style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                  onClick={() => {
+                    try { navigator.clipboard.writeText(pinReseteado.pin); toastAviso('PIN copiado.'); } catch {}
+                  }}
+                >
+                  📋 Copiar
+                </button>
+                <button
+                  type="button"
+                  className="btn-accion"
+                  onClick={() => setPinReseteado(null)}
+                  title="Ocultar"
+                  style={{ fontSize: '1rem' }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Tarjetas resumen de licencias */}
             <div className="tarjetas-grid" style={{ marginBottom: '18px' }}>
               <div className="tarjeta-resumen">
@@ -1104,6 +1183,16 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                     ✅ Reactivar
                                   </button>
                                 )}
+
+                                <button
+                                  className="btn-solicitud atender"
+                                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  disabled={accionLicenciaId === lic.id}
+                                  onClick={() => resetearPinAdmin(lic)}
+                                  title="Generar nuevo PIN de administrador para este negocio"
+                                >
+                                  🔑 PIN Admin
+                                </button>
 
                                 <button
                                   className="btn-accion delete"

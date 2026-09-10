@@ -20,6 +20,7 @@ import {
   revocarLicencia,
   reactivarLicencia,
   eliminarLicencia,
+  resetearPinAdminLicencia,
   listarLicenciasDueno,
   listarFacturasDueno,
   resumenDueno,
@@ -143,6 +144,15 @@ router.delete('/api/dueno/licencias/:id', requireDueno, route(async (req: Reques
   res.json({ ok: true, mensaje: 'Licencia eliminada permanentemente del sistema.' });
 }));
 
+// POST /api/dueno/licencias/:id/reset-pin — regenera el PIN de administrador
+// de la empresa (recuperación a solicitud del cliente). Devuelve el PIN nuevo
+// en claro una sola vez; el admin deberá cambiarlo al ingresar.
+router.post('/api/dueno/licencias/:id/reset-pin', requireDueno, route(async (req: Request, res: Response) => {
+  const resultado = await resetearPinAdminLicencia(Number(req.params.id));
+  await auditar('RESET_PIN_ADMIN', 'licencias', Number(req.params.id), req, { empresaId: resultado.empresaId });
+  res.json({ ok: true, pin: resultado.pin, mensaje: 'Nuevo PIN de administrador generado. Entrégalo al cliente: se exigirá cambiarlo al ingresar.' });
+}));
+
 // POST /api/dueno/login (acceso universal del dueño, sin rate-limit de sesión)
 router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
   const db = getDatabase();
@@ -176,13 +186,45 @@ router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
 
   if (!esValido) {
     registrarIntentoFallido(ip);
-    res.status(401).json({ error: 'PIN de propietario incorrecto.' });
+    // Sin PIN configurado en ningún lado → el frontend ofrece crearlo (modo setup).
+    const sinConfigurar = !config.ownerPin && !storedHash;
+    res.status(401).json({ error: 'PIN de propietario incorrecto.', pinNoConfigurado: sinConfigurar });
     return;
   }
 
   // Al autenticarse el dueño con éxito, liberamos cualquier bloqueo previo en esta IP
   registrarIntentoExitoso(ip);
   logger.info({ action: 'DUENO_LOGIN_OK' });
+  const exp = Date.now() + 12 * 3600 * 1000;
+  res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp }), expiraEn: new Date(exp).toISOString() });
+}));
+
+// POST /api/dueno/establecer-pin (solo si aún no hay PIN de propietario).
+// Permite crear el PIN inicial en instalaciones frescas. De un solo uso:
+// si ya existe PIN (env o BD), se rechaza.
+router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Response) => {
+  const db = getDatabase();
+  const ip = clientIp(req);
+  verificarRateLimit(ip);
+  const pin = String(req.body.pin || '').trim();
+  assertValidPin(pin);
+  if (pin.length < 4) {throw httpError(400, 'El PIN debe tener al menos 4 dígitos.');}
+
+  const cfg = await db.queryUnscoped<{ owner_pin_hash: string | null }>(
+    'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
+  );
+  if (config.ownerPin || cfg.rows[0]?.owner_pin_hash) {
+    registrarIntentoFallido(ip);
+    throw httpError(400, 'El PIN de propietario ya está configurado. Usa el acceso normal.');
+  }
+
+  const nuevoHash = hashPin(pin);
+  await db.queryUnscoped(
+    'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2, actualizado_en = CURRENT_TIMESTAMP WHERE id = 1',
+    [nuevoHash, pin.length]
+  );
+  registrarIntentoExitoso(ip);
+  logger.info({ action: 'DUENO_PIN_CREADO' });
   const exp = Date.now() + 12 * 3600 * 1000;
   res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp }), expiraEn: new Date(exp).toISOString() });
 }));

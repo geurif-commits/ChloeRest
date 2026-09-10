@@ -16,13 +16,13 @@
 /* Grid de productos: 6 columnas fijas para que siempre se vean 6 por fila */
 .pedido-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-xs, 8px);             /* Espacio uniforme entre tarjetas */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-xs, 8px);             /* 5 tarjetas por fila */
 }
 
-/* Tarjeta individual de producto: proporción 3:2.5 (rectangular) */
+/* Tarjeta individual de producto: altura ceñida al contenido */
 .pedido-producto {
-  aspect-ratio: 2 / 1.5;     /* Forma rectangular: 2 de ancho por 1.5 de alto */
+  aspect-ratio: auto;     /* sin altura forzada: el recuadro abraza imagen + nombre + precio */
   background: linear-gradient(145deg, var(--bg-card, #151D31), var(--bg-panel, #101625));
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.045));
   border-radius: var(--radius-sm, 8px);

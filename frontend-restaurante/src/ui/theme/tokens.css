@@ -20,6 +20,34 @@
   --admin-muted: var(--text-secondary);
 }
 
+/* Paletas oficiales: todos los módulos consumen estos mismos tokens. */
+:root[data-theme="claro-luxury-gold"] {
+  color-scheme: light;
+  --bg-base: #f6f1e8; --bg-primary: #fffdf8; --bg-secondary: #f0e8da;
+  --bg-panel: #fffaf1; --bg-card: #ffffff; --bg-card-hover: #fff7e8;
+  --bg-elevated: #ffffff; --bg-input: #fffdf9; --bg-input-hover: #fff7ea;
+  --bg-gradient: radial-gradient(900px 420px at 10% -10%, rgba(212,158,46,.14), transparent 60%), var(--bg-base);
+  --text-primary: #241d13; --text-secondary: #655744; --text-muted: #8d7b63; --text-dim: #aa987f;
+  --border-subtle: rgba(92,65,25,.12); --border-light: rgba(92,65,25,.18); --border-medium: rgba(92,65,25,.25); --border-strong: rgba(92,65,25,.38);
+  --gold: #b98016; --gold-light: #d69e2e; --gold-bright: #f5c96a; --gold-dark: #8f6411; --gold-soft: rgba(185,128,22,.10); --gold-glow: rgba(185,128,22,.22);
+  --accent: #b98016; --accent-hover: #8f6411; --success: #16805c; --shadow-sm: 0 2px 10px rgba(70,48,18,.08); --shadow-md: 0 12px 30px rgba(70,48,18,.12);
+}
+
+:root[data-theme="negro-brillante"] {
+  color-scheme: dark;
+  --bg-base: #050608; --bg-primary: #090b10; --bg-secondary: #101319; --bg-panel: #12161d;
+  --bg-card: #171b22; --bg-card-hover: #20262f; --bg-elevated: #242b35; --bg-input: #0d1015; --bg-input-hover: #171c24;
+  --bg-gradient: radial-gradient(1000px 500px at 15% -10%, rgba(245,184,61,.10), transparent 58%), var(--bg-base);
+  --text-primary: #fffaf0; --text-secondary: #d6c9b2; --text-muted: #a99b84; --text-dim: #756b5b;
+  --border-subtle: rgba(255,255,255,.08); --border-light: rgba(255,255,255,.12); --border-medium: rgba(255,255,255,.18); --border-strong: rgba(245,184,61,.38);
+  --gold: #f5b83d; --gold-light: #f8cc6a; --gold-bright: #ffe6a6; --gold-dark: #d69e2e; --gold-soft: rgba(245,184,61,.10); --gold-glow: rgba(245,184,61,.28);
+  --accent: #f5b83d; --accent-hover: #d69e2e; --success: #35d49a; --shadow-sm: 0 2px 10px rgba(0,0,0,.28); --shadow-md: 0 14px 34px rgba(0,0,0,.38);
+}
+
+:root[data-theme="claro-luxury-gold"], :root[data-theme="negro-brillante"] {
+  background: var(--bg-gradient); color: var(--text-primary);
+}
+
 
 /* ═════════════════════════════════════════════════════════════════════
    ROOT DESIGN TOKENS
@@ -360,7 +388,7 @@
 
 /* ===== 2) TEMA CLARO: redefinicion coherente de tokens de superficie ===== */
 
-:root[data-theme='claro'] {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] {
   color-scheme: light;
 
   --bg-base: #eef1f6;
@@ -427,7 +455,7 @@
   --orange-light: #92400e;
 }
 
-:root:not([data-theme='claro']) {
+:root:not([data-theme='claro']):not([data-theme='claro-luxury-gold']) {
   color-scheme: dark;
   --admin-text-muted: var(--text-muted);
   --admin-surface-alt: var(--bg-elevated);
@@ -440,7 +468,7 @@
   --kpi-purple: #8b5cf6;
 }
 
-:root[data-theme='claro'] {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] {
   --admin-surface-alt: var(--bg-elevated);
   --admin-text-muted: var(--text-muted);
   --kpi-gold: #96690c;
@@ -568,6 +596,8 @@ select optgroup {
   justify-content: center;
   background: var(--bg-overlay);
   animation: fadeIn var(--anim-fast) forwards;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 .confirm-modal {
@@ -576,7 +606,10 @@ select optgroup {
   border-radius: var(--radius-lg);
   padding: var(--space-xl);
   max-width: 400px;
-  width: 92%;
+  width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
   box-shadow: var(--shadow-xl);
   animation: scaleIn var(--anim-normal) forwards;
 }
@@ -639,6 +672,8 @@ select optgroup {
   justify-content: center;
   z-index: 9999;
   animation: fadeIn 0.15s ease-out;
+  padding: 16px;
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -682,9 +717,10 @@ select optgroup {
   background: var(--bg-panel);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-xl);
-  width: min(400px, 95vw);
-  height: min(600px, 90vh);
-  overflow: hidden;
+  width: min(400px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  box-sizing: border-box;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
   animation: slideUp 0.2s ease-out;
 }
@@ -1163,41 +1199,41 @@ select optgroup {
    botones con texto oscuro); aqui solo se re-acentua el TEXTO.
    ═══════════════════════════════════════════════════════════════════════ */
 
-:root[data-theme='claro'] .admin-tab.activo {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .admin-tab.activo {
   color: var(--kpi-gold);
 }
 
-:root[data-theme='claro'] .admin-badge-warning {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .admin-badge-warning {
   color: var(--kpi-amber);
 }
 
-:root[data-theme='claro'] .tabla-reporte td.ncf-cell {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .tabla-reporte td.ncf-cell {
   color: var(--kpi-gold);
 }
 
 /* Boton fantasma "Reabrir" de solicitudes (fondo translucido blanco) */
-:root[data-theme='claro'] .btn-solicitud.reabrir {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .btn-solicitud.reabrir {
   background: var(--bg-card-hover);
   border-color: var(--border-medium);
   color: var(--text-secondary);
 }
 
-:root[data-theme='claro'] .badge-categoria.cocina {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .badge-categoria.cocina {
   border-color: rgba(146, 64, 14, 0.25);
 }
 
-:root[data-theme='claro'] .badge-categoria.bar {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .badge-categoria.bar {
   border-color: rgba(29, 78, 216, 0.25);
 }
 
-:root[data-theme='claro'] .badge-rol.admin {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .badge-rol.admin {
   border-color: rgba(185, 28, 28, 0.25);
 }
 
-:root[data-theme='claro'] .badge-rol.cajero {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .badge-rol.cajero {
   border-color: rgba(11, 122, 75, 0.25);
 }
 
-:root[data-theme='claro'] .badge-rol.capitan {
+:root[data-theme='claro'], :root[data-theme='claro-luxury-gold'] .badge-rol.capitan {
   border-color: rgba(146, 64, 14, 0.25);
 }

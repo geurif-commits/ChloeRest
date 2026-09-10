@@ -2,17 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import { aplicarPersonalizacion } from '../../personalizacion.js';
 import { obtenerSesion } from '../../api.js';
 import { toastAviso } from '../Toast.jsx';
-import { Palette, Check, Sparkles, Sun, Moon, Save, RefreshCw, Layers, Smartphone, KeyRound } from 'lucide-react';
+import { Palette, Save, RefreshCw, Layers, Smartphone, KeyRound } from 'lucide-react';
 import { LOGIN_TEMAS } from '../../themes/loginThemes.js';
 import './admin.css';
 
 const TEMAS = [
-  { id: 'noche', name: 'Noche Luxury (Predeterminado)', color: '#00f576', accent: '#f5b842', desc: 'Fondo oscuro profundo con acentos dorados y verdes esmeralda.', dark: true },
-  { id: 'oceano', name: 'Océano Profundo', color: '#00b4d8', accent: '#38bdf8', desc: 'Oscuro con reflejos azul marino y cian de alto contraste.', dark: true },
-  { id: 'lava', name: 'Lava Grill', color: '#ff6b35', accent: '#fb923c', desc: 'Oscuro con tonalidades ámbar, rojizas y fuego para asadores.', dark: true },
-  { id: 'esmeralda', name: 'Esmeralda Jardín', color: '#2dc653', accent: '#4ade80', desc: 'Oscuro con acentos verdes orgánicos para cafeterías y bistrós.', dark: true },
-  { id: 'amatista', name: 'Amatista Lounge', color: '#a855f7', accent: '#c084fc', desc: 'Ambiente nocturno con tonos púrpuras y violetas elegantes.', dark: true },
-  { id: 'claro', name: 'Luz Diurna (Claro)', color: '#1a73e8', accent: '#2563eb', desc: 'Fondo blanco de alta luminosidad para ambientes exteriores o terrazas.', dark: false },
+  { id: 'claro-luxury-gold', name: 'Claro Luxury Gold', color: '#F5B83D', accent: '#17120A', desc: 'Superficies marfil, contraste limpio y dorado premium para una operación luminosa.', dark: false },
+  { id: 'negro-brillante', name: 'Negro Brillante', color: '#F5B83D', accent: '#07090F', desc: 'Negro profundo, paneles grafito y acentos dorados para una experiencia ejecutiva.', dark: true },
+];
+
+const TAMANOS_MARCA = [
+  { id: 'mediano', name: 'Mediano', desc: 'Logo 110px · Nombre mediano' },
+  { id: 'grande', name: 'Grande (Recomendado)', desc: 'Logo 170px · Nombre grande' },
+  { id: 'gigante', name: 'Gigante', desc: 'Logo 230px · Nombre extra grande' },
+];
+
+const LANDING_THEMES = [
+  { id: 'obsidiana-gold', name: 'Obsidiana Gold', desc: 'Oscuro, dorado y tecnológico.', color: '#D6A44D' },
+  { id: 'marfil-editorial', name: 'Marfil Editorial', desc: 'Claro, elegante y gastronómico.', color: '#F0D39A' },
+  { id: 'noir-executive', name: 'Noir Executive', desc: 'Negro premium con cobre profundo.', color: '#B9783D' },
 ];
 
 export default function TemaSettings({ apiUrl }) {
@@ -20,12 +28,14 @@ export default function TemaSettings({ apiUrl }) {
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [config, setConfig] = useState({
-    tema_activo: 'noche',
-    login_theme: 'chef_noir',
-    color_primario: '#00f576',
-    color_secundario: '#00b852',
+    tema_activo: localStorage.getItem('POS_THEME') || 'claro-luxury-gold',
+    login_theme: 'olive_garden',
+    login_marca_tamano: 'grande',
+    color_primario: '#F5B83D',
+    color_secundario: '#D69E2E',
     nombre_negocio: '',
     slogan: ''
+    ,landing_theme: localStorage.getItem('POS_LANDING_THEME') || 'obsidiana-gold'
   });
   const configRef = useRef(config);
   const debounceRef = useRef(null);
@@ -40,12 +50,14 @@ export default function TemaSettings({ apiUrl }) {
         if (res.ok) {
           const data = await res.json();
           const nueva = {
-            tema_activo: data.tema_activo || 'noche',
-            login_theme: data.login_theme || 'chef_noir',
-            color_primario: data.color_primario || '#00f576',
-            color_secundario: data.color_secundario || '#00b852',
+            tema_activo: data.tema_activo || localStorage.getItem('POS_THEME') || 'claro-luxury-gold',
+            login_theme: data.login_theme || 'olive_garden',
+            login_marca_tamano: data.login_marca_tamano || 'grande',
+            color_primario: data.color_primario || '#F5B83D',
+            color_secundario: data.color_secundario || '#D69E2E',
             nombre_negocio: data.nombre_negocio || '',
             slogan: data.slogan || ''
+            ,landing_theme: data.landing_theme || localStorage.getItem('POS_LANDING_THEME') || 'obsidiana-gold'
           };
           setConfig(nueva);
           configRef.current = nueva;
@@ -63,6 +75,10 @@ export default function TemaSettings({ apiUrl }) {
     const nueva = { ...configRef.current, [campo]: valor };
     configRef.current = nueva;
     setConfig(nueva);
+    if (campo === 'landing_theme') {
+      localStorage.setItem('POS_LANDING_THEME', valor);
+      window.dispatchEvent(new CustomEvent('landing-theme-updated', { detail: valor }));
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => aplicarPersonalizacion(configRef.current), 200);
   };
@@ -82,7 +98,8 @@ export default function TemaSettings({ apiUrl }) {
     try {
       const fd = new FormData();
       fd.append('tema_activo', config.tema_activo);
-      fd.append('login_theme', config.login_theme || 'chef_noir');
+      fd.append('login_theme', config.login_theme || 'olive_garden');
+      fd.append('login_marca_tamano', config.login_marca_tamano || 'grande');
       fd.append('color_primario', config.color_primario);
       fd.append('color_secundario', config.color_secundario);
       fd.append('nombre_negocio', config.nombre_negocio);
@@ -134,10 +151,10 @@ export default function TemaSettings({ apiUrl }) {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Tema y Paleta Visual General del Sistema
+                Tema Universal Claro del Sistema
               </h3>
               <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
-                Selecciona la ambientación visual para todas las pantallas del POS, Mesas, KDS y Administración.
+                Tema claro moderno y único para todas las pantallas del POS, Mesas, KDS y Administración.
               </p>
             </div>
           </div>
@@ -208,7 +225,7 @@ export default function TemaSettings({ apiUrl }) {
             gap: '12px'
           }}>
             {LOGIN_TEMAS.map((t) => {
-              const esActivo = (config.login_theme || 'chef_noir') === t.id;
+              const esActivo = (config.login_theme || 'olive_garden') === t.id;
               return (
                 <div
                   key={t.id}
@@ -257,6 +274,71 @@ export default function TemaSettings({ apiUrl }) {
                   <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--admin-text-muted)', lineHeight: 1.35 }}>{t.desc}</p>
                 </div>
               );
+            })}
+          </div>
+        </div>
+
+        {/* ── Tamaño de Logo y Nombre en el Login ── */}
+        <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Smartphone size={20} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                Tamaño de Logo y Nombre en el Login
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
+                Controla qué tan grande se ven el logotipo y el nombre del negocio en la pantalla de acceso PIN.
+              </p>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: '12px'
+          }}>
+            {TAMANOS_MARCA.map((tm) => {
+              const esActivo = (config.login_marca_tamano || 'grande') === tm.id;
+              return (
+                <div
+                  key={tm.id}
+                  onClick={() => cambiar('login_marca_tamano', tm.id)}
+                  style={{
+                    padding: '14px',
+                    borderRadius: '12px',
+                    background: esActivo ? 'rgba(245, 184, 61, 0.12)' : 'var(--bg-card-hover)',
+                    border: `1.5px solid ${esActivo ? 'var(--kpi-gold)' : 'var(--border-subtle)'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center'
+                  }}
+                >
+                  <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'block', marginBottom: '4px' }}>
+                    {esActivo ? '✓ ' : ''}{tm.name}
+                  </strong>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)' }}>{tm.desc}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Ajuste Fino de Colores Primario y Secundario */}
+        <div className="admin-card landing-theme-settings" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Diseño de Landing Screen</h3>
+            <p style={{ margin: '5px 0 0', color: 'var(--admin-text-muted)', fontSize: '0.78rem' }}>Selecciona la primera impresión comercial del sistema.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '12px' }}>
+            {LANDING_THEMES.map((skin) => {
+              const activo = config.landing_theme === skin.id;
+              return <button type="button" key={skin.id} onClick={() => cambiar('landing_theme', skin.id)} style={{ textAlign: 'left', padding: '14px', borderRadius: '12px', border: `1px solid ${activo ? skin.color : 'var(--border-subtle)'}`, background: activo ? `${skin.color}20` : 'var(--bg-card-hover)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <span style={{ display: 'block', width: '28px', height: '8px', borderRadius: '8px', background: skin.color, marginBottom: '10px' }} />
+                <strong>{activo ? '✓ ' : ''}{skin.name}</strong>
+                <small style={{ display: 'block', marginTop: '4px', color: 'var(--text-secondary)' }}>{skin.desc}</small>
+              </button>;
             })}
           </div>
         </div>

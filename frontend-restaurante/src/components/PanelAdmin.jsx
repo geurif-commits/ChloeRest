@@ -89,17 +89,11 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
     const hora12 = ahora.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: true
     });
-    const fecha = ahora.toLocaleDateString('es-DO', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
-    const fechaFormat = fecha.charAt(0).toUpperCase() + fecha.slice(1);
-    return { hora: hora12, fecha: fechaFormat };
+    const dd = String(ahora.getDate()).padStart(2, '0');
+    const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+    return { hora: hora12, fecha: `${dd}/${mm}` };
   };
 
   const [tiempoActual, setTiempoActual] = useState(obtenerFechaHora12);
@@ -131,7 +125,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
   useEffect(() => {
     const timer = setInterval(() => {
       setTiempoActual(obtenerFechaHora12());
-    }, 1000);
+    }, 10000);
     return () => clearInterval(timer);
   }, []);
 
@@ -181,8 +175,8 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
         style={{
           width: '270px',
           flexShrink: 0,
-          background: 'rgba(12, 17, 29, 0.98)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--bg-panel)',
+          borderRight: '1px solid var(--border-light)',
           display: 'flex',
           flexDirection: 'column',
           zIndex: 1100,
@@ -190,7 +184,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
         }}
       >
         {/* Encabezado del Sidebar */}
-        <div style={{ padding: '18px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ padding: '18px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
             <div style={{
               width: '38px',
@@ -216,7 +210,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
               <span style={{
                 fontSize: '0.92rem',
                 fontWeight: 800,
-                color: '#fff',
+                color: 'var(--text-primary)',
                 display: 'block',
                 letterSpacing: '-0.02em',
                 whiteSpace: 'nowrap',
@@ -252,7 +246,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
         <nav style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {GRUPOS_NAVEGACION.map((grupo) => (
             <div key={grupo.titulo} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'rgba(255, 255, 255, 0.35)', letterSpacing: '0.08em', padding: '0 10px 4px', textTransform: 'uppercase' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.08em', padding: '0 10px 4px', textTransform: 'uppercase' }}>
                 {grupo.titulo}
               </span>
               {grupo.items.map((item) => {
@@ -270,8 +264,8 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
                       padding: '9px 12px',
                       borderRadius: '10px',
                       border: esActivo ? '1px solid rgba(245, 184, 61, 0.35)' : '1px solid transparent',
-                      background: esActivo ? 'rgba(245, 184, 61, 0.14)' : 'transparent',
-                      color: esActivo ? 'var(--gold, #f5b842)' : '#94a3b8',
+                      background: esActivo ? 'var(--gold-soft)' : 'transparent',
+                      color: esActivo ? 'var(--gold, #b98016)' : 'var(--text-secondary)',
                       fontWeight: esActivo ? 700 : 500,
                       fontSize: '0.84rem',
                       cursor: 'pointer',
@@ -280,7 +274,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
                       width: '100%'
                     }}
                   >
-                    <ItemIcono size={17} style={{ color: esActivo ? 'var(--gold, #f5b842)' : '#64748b', flexShrink: 0 }} />
+                    <ItemIcono size={17} style={{ color: esActivo ? 'var(--gold, #b98016)' : 'var(--text-muted)', flexShrink: 0 }} />
                     <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.etiqueta}
                     </span>
@@ -293,7 +287,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
         </nav>
 
         {/* Footer del Sidebar: Usuario y Salida */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', background: 'rgba(0, 0, 0, 0.2)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
               width: '32px',
@@ -310,7 +304,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
               {usuario.nombre?.charAt(0)?.toUpperCase() || 'A'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: '0.8rem', color: '#fff', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {usuario.nombre || 'Administrador'}
               </strong>
               <small style={{ fontSize: '0.68rem', color: 'var(--gold, #f5b842)' }}>
@@ -347,9 +341,9 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
           style={{
             height: '60px',
             flexShrink: 0,
-            background: 'rgba(12, 17, 29, 0.96)',
+            background: 'var(--bg-panel)',
             backdropFilter: 'blur(10px)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            borderBottom: '1px solid var(--border-light)',
             padding: '0 20px',
             display: 'flex',
             alignItems: 'center',
@@ -364,10 +358,10 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
               className="admin-menu-toggle-btn"
               onClick={() => setMenuMovilAbierto(true)}
               style={{
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-medium)',
                 borderRadius: '8px',
-                color: '#fff',
+                color: 'var(--text-primary)',
                 padding: '7px 10px',
                 cursor: 'pointer',
                 display: 'flex',
@@ -396,10 +390,10 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
                 <IconoActual size={17} />
               </div>
               <div>
-                <h1 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
+                <h1 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                   {moduloActual.titulo}
                 </h1>
-                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
                   {moduloActual.grupo} • {moduloActual.desc || 'Panel de Administración'}
                 </span>
               </div>
@@ -409,7 +403,7 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
           {/* Derecha: Reloj 12h & Fecha + Estado En Línea + Botón Volver a Caja */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'nowrap' }}>
             {/* Reloj en formato 12 Horas con Fecha del Día con diseño idéntico al de En Línea */}
-            <div style={{
+            <div className="admin-topbar__pill admin-topbar__pill--reloj" style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
@@ -429,12 +423,12 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
             </div>
 
             {/* Estado En Línea */}
-            <div style={{
+            <div className="admin-topbar__pill admin-topbar__pill--online" style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
               padding: '4px 10px',
-              borderRadius: '20px',
+              borderRadius: '10px',
               background: 'rgba(16, 185, 129, 0.12)',
               border: '1px solid rgba(16, 185, 129, 0.25)',
               fontSize: '0.72rem',
@@ -449,14 +443,16 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
             <button
               type="button"
               onClick={alVolver}
-              className="admin-btn admin-btn-primary"
+              className="admin-btn admin-btn-primary admin-topbar__volver"
               style={{
                 padding: '7px 14px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
                 fontSize: '0.78rem',
-                fontWeight: 700
+                fontWeight: 700,
+                flexShrink: 0,
+                minHeight: '36px'
               }}
               title="Volver a la vista del Punto de Venta"
             >

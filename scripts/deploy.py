@@ -74,7 +74,7 @@ def build_and_pack():
         print("ERROR: Error de compilación Vite.")
         sys.exit(1)
 
-    print("[1b] Compilando Backend TypeScript (tsc)...")
+    print("[1b] Compilando Backend TypeScript (tsc incremental)...")
     res = subprocess.run(['npm', 'run', 'build'], cwd=LOCAL_ROOT, shell=True)
     if res.returncode != 0:
         print("ERROR: Error de compilación TypeScript (tsc).")
@@ -108,7 +108,7 @@ def deploy():
     ssh.connect(HOST, port=PORT, username=USER, password=PASS, timeout=20)
     sftp = ssh.open_sftp()
 
-    print("\n[4] Subiendo Backend (dist/ compilado) y Paquete Frontend...")
+    print("\n[3] Subiendo Backend (dist/ compilado) y Paquete Frontend...")
     for bf in BACKEND_FILES:
         lp = os.path.join(LOCAL_ROOT, bf)
         if os.path.exists(lp):
@@ -129,7 +129,7 @@ def deploy():
     print("  dist.tar.gz (Paquete completo de Frontend)")
     sftp.close()
 
-    print("\n[5] Extrayendo archivos en producción...")
+    print("\n[4] Extrayendo archivos en producción...")
     cmd = (
         f"mkdir -p {REMOTE_APP_DIR}/public && "
         f"rm -rf {REMOTE_APP_DIR}/public/assets && "
@@ -167,7 +167,7 @@ def deploy():
     if os.path.exists(TAR_PATH):
         os.remove(TAR_PATH)
 
-    print("\n[6] Verificando disponibilidad...")
+    print("\n[5] Verificando disponibilidad...")
     time.sleep(3)
     for i in range(1, 8):
         try:

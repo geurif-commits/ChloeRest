@@ -21,6 +21,15 @@ import {
 } from 'lucide-react';
 import './WelcomeScreen.css';
 
+const PLANES_FALLBACK = [
+  { nombre: 'Mensual', duracion_codigo: '30D', moneda: 'RD$', precio: 29 },
+  { nombre: 'Trimestral', duracion_codigo: '90D', moneda: 'RD$', precio: 79 },
+  { nombre: 'Semestral', duracion_codigo: '6M', moneda: 'RD$', precio: 149 },
+  { nombre: 'Anual', duracion_codigo: '12M', moneda: 'RD$', precio: 249, destacado: true },
+  { nombre: 'Bianual', duracion_codigo: '24M', moneda: 'RD$', precio: 449 },
+  { nombre: 'Vitalicia', duracion_codigo: 'L', moneda: 'RD$', precio: 499 },
+];
+
 const PROVINCIAS = [
   'Distrito Nacional', 'Azua', 'Bahoruco', 'Barahona', 'Dajabón', 'Duarte',
   'Elías Piña', 'El Seibo', 'Espaillat', 'Hato Mayor', 'Hermanas Mirabal',
@@ -51,7 +60,7 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
   const [form, setForm] = useState({ propietario: '', negocio: '', telefono: '', email: '', provincia: 'La Romana' });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const [planes, setPlanes] = useState([]);
+  const [planes, setPlanes] = useState(PLANES_FALLBACK);
   const [plan, setPlan] = useState(planSeleccionado || null);
   const [solicitudEnviada, setSolicitudEnviada] = useState(false);
   const [metodosPago, setMetodosPago] = useState([]);
@@ -70,7 +79,7 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
       setPlanesAgotado(false);
       for (let intento = 0; intento <= 3 && !cancelado; intento += 1) {
         try {
-          const r = await fetch(`${URL_CENTRAL}/api/planes`);
+          const r = await fetch(`${apiUrl}/api/planes`);
           const d = r.ok ? await r.json() : null;
           if (cancelado) return;
           if (d && Array.isArray(d.planes) && d.planes.length > 0) {

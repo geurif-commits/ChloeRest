@@ -11,7 +11,26 @@ const BACKEND_HOST = '127.0.0.1';
 const BACKEND_PORT = 3000;
 const DB_HOST = 'localhost';
 const DB_PORT = 5432;
-const DB_SUPER_PASSWORD = '012011';
+
+function readLocalEnvValue(name) {
+  if (process.env[name]) return process.env[name];
+  const candidates = [
+    path.join(__dirname, '.env'),
+    path.join(process.resourcesPath || __dirname, '.env'),
+  ];
+  for (const file of candidates) {
+    if (!fs.existsSync(file)) continue;
+    const line = fs.readFileSync(file, 'utf8')
+      .split(/\r?\n/)
+      .find((entry) => entry.startsWith(`${name}=`));
+    if (line) return line.slice(name.length + 1).trim().replace(/^['"]|['"]$/g, '');
+  }
+  return '';
+}
+
+// Nunca incrustar credenciales de PostgreSQL en el ejecutable. En una instalación
+// local se toma de la configuración privada empaquetada o del entorno del equipo.
+const DB_SUPER_PASSWORD = readLocalEnvValue('POSTGRES_SUPER_PASSWORD') || readLocalEnvValue('DB_PASSWORD');
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,6 +97,10 @@ function installPostgresSilently(installerPath) {
 async function ensureDatabase() {
   if (await checkDatabase()) {
     console.log(`PostgreSQL disponible en ${DB_HOST}:${DB_PORT}.`);
+    return;
+  }
+  if (!DB_SUPER_PASSWORD) {
+    console.warn('PostgreSQL no está disponible y falta POSTGRES_SUPER_PASSWORD en la configuración local.');
     return;
   }
   const installerPath = findPostgresInstaller();
@@ -212,7 +235,7 @@ async function startBackendIfNeeded() {
     backendProcess = null;
   });
 
-  const attempts = 15;
+  const attempts = 40;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const healthy = await checkBackendHealth();
     if (healthy) {
@@ -239,19 +262,14 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
+      webSecurity: true,
       preload: path.join(__dirname, 'preload.cjs')
     },
     autoHideMenuBar: true
   });
 
-  // Mostrar la ventana solo cuando esté lista para renderizar (evita pantalla blanca)
-  mainWindow.once('ready-to-show', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+  // Ventana se mantiene oculta hasta que se solicite explícitamente (ipcMain.on('mostrar-ventana'))
+  // mainWindow.once('ready-to-show', ...) eliminado intencionalmente para arranque silencioso
 
   // Reactivación del foco tras diálogos nativos
   ipcMain.on('reenfocar-ventana', () => {
@@ -286,6 +304,15 @@ function createWindow() {
   });
   ipcMain.handle('ventana-esta-maximizada', () => {
     return mainWindow && !mainWindow.isDestroyed() ? mainWindow.isMaximized() : false;
+  });
+
+  // Mostrar ventana bajo demanda (para arranque silencioso)
+  ipcMain.handle('mostrar-ventana', () => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+    return { ok: true };
   });
 
   // Abrir link de pasarela de pago en el navegador predeterminado
@@ -401,14 +428,31 @@ function createWindow() {
     }
   });
 
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-      mainWindow.focus();
+  // did-finish-load ya no muestra la ventana automáticamente; se muestra bajo demanda
+  // mainWindow.webContents.on('did-finish-load', ...) eliminado intencionalmente
+
+  // Reenganche: si la ventana quedó en el fallback local (file://) y el
+  // backend levanta después, se recarga hacia el servidor automáticamente
+  // para que el login y el resto del POS vuelvan a funcionar sin reiniciar.
+  const reenganche = setInterval(async () => {
+    try {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        clearInterval(reenganche);
+        return;
+      }
+      const urlActual = mainWindow.webContents.getURL();
+      if (!urlActual.startsWith('file:')) return;
+      if (await checkBackendHealth()) {
+        console.log('Backend disponible: recargando hacia el servidor...');
+        await mainWindow.loadURL(appUrl);
+      }
+    } catch {
+      // reintentar en el próximo ciclo
     }
-  });
+  }, 5000);
 
   mainWindow.on('closed', () => {
+    clearInterval(reenganche);
     mainWindow = null;
   });
 }

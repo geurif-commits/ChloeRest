@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { sanitizarDecimal } from '../../utils/input.js';
 import { toastAviso } from '../Toast.jsx';
 
@@ -38,7 +38,7 @@ function CierreView({
 
   const urlBase = apiUrl;
 
-  const cargarHistorial = async () => {
+  const cargarHistorial = useCallback(async () => {
     setCargandoHistorial(true);
     try {
       const params = new URLSearchParams();
@@ -54,11 +54,11 @@ function CierreView({
     } finally {
       setCargandoHistorial(false);
     }
-  };
+  }, [filtroDesde, filtroHasta, urlBase]);
 
   useEffect(() => {
     if (pestana === 'historial') cargarHistorial();
-  }, [pestana]);
+  }, [pestana, cargarHistorial]);
 
   if (!cierreCajaData && !cierreReciente) return null;
 

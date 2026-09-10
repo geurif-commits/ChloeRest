@@ -23,11 +23,15 @@ export async function registrarAuditoria(
   db: IQueryable,
   { usuarioId = null, accion, entidad, entidadId = null, detalle = {}, ip = null }: IRegistrarAuditoriaParams
 ): Promise<void> {
+  // El Dueño opera con userId 0 (sin fila en usuarios): normalizar a NULL para
+  // no violar la FK auditoria_operaciones_usuario_id_fkey (causaba 500 sistémico
+  // en cada guardado del dueño: negocio, personalización, licencias, etc.).
+  const uid = typeof usuarioId === 'number' && usuarioId > 0 ? usuarioId : null;
   await db.query(
     `INSERT INTO auditoria_operaciones (usuario_id, accion, entidad, entidad_id, detalle, ip, empresa_id)
      VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)`,
     [
-      usuarioId,
+      uid,
       accion,
       entidad,
       entidadId === null ? null : String(entidadId),

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sanitizarEntero } from '../utils/input.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
 import {
   FileText, Send, History, Settings, Save, ArrowLeft, Pencil, Trash2,
-  Plus, AlertCircle, CheckCircle, Clock, RefreshCw, Download, BarChart3, Database
+  Plus, AlertCircle, CheckCircle, Clock, RefreshCw, Download, BarChart3
 } from 'lucide-react';
 
 function GestionNCF({ alVolver, apiUrl }) {
@@ -42,7 +42,7 @@ function GestionNCF({ alVolver, apiUrl }) {
   const [cuentaIdEcf, setCuentaIdEcf] = useState('');
   const [enviandoEcf, setEnviandoEcf] = useState(false);
   const [historialEcf, setHistorialEcf] = useState([]);
-  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [, setCargandoHistorial] = useState(false);
   const [subPestañaEcf, setSubPestañaEcf] = useState('config');
 
   const [reporteAnio, setReporteAnio] = useState(new Date().getFullYear());
@@ -77,13 +77,7 @@ function GestionNCF({ alVolver, apiUrl }) {
     window.open(`${urlBase}/api/dgii/reporte-606?anio=${reporteAnio}&mes=${reporteMes}&formato=txt&token=${token}`, '_blank');
   };
 
-  useEffect(() => {
-    cargarSecuencias();
-    cargarConfigEcf();
-    cargarHistorialEcf();
-  }, []);
-
-  const cargarHistorialEcf = async () => {
+  const cargarHistorialEcf = useCallback(async () => {
     setCargandoHistorial(true);
     try {
       const res = await fetch(urlBase + '/api/dgii/ecf/historial');
@@ -91,12 +85,12 @@ function GestionNCF({ alVolver, apiUrl }) {
         const data = await res.json();
         setHistorialEcf(Array.isArray(data) ? data : []);
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar historial e-CF:", error);
     } finally {
       setCargandoHistorial(false);
     }
-  };
+  }, [urlBase]);
 
   const enviarEcf = async () => {
     if (!cuentaIdEcf) return toastAviso("Ingresa el ID de la cuenta.");
@@ -115,38 +109,44 @@ function GestionNCF({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al enviar e-CF.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error de conexión al enviar e-CF.");
     } finally {
       setEnviandoEcf(false);
     }
   };
 
-  const cargarSecuencias = async () => {
+  const cargarSecuencias = useCallback(async () => {
     try {
       const res = await fetch(urlBase + '/api/dgii/secuencias');
       if (res.ok) {
         const data = await res.json();
         setSecuencias(Array.isArray(data) ? data : []);
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar secuencias NCF:", error);
     } finally {
       setCargando(false);
     }
-  };
+  }, [urlBase]);
 
-  const cargarConfigEcf = async () => {
+  const cargarConfigEcf = useCallback(async () => {
     try {
       const res = await fetch(urlBase + '/api/dgii/config');
       if (res.ok) {
         const data = await res.json();
         setConfigEcf((prev) => ({ ...prev, ...data }));
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar config e-CF DGII:", error);
     }
-  };
+  }, [urlBase]);
+
+  useEffect(() => {
+    cargarSecuencias();
+    cargarConfigEcf();
+    cargarHistorialEcf();
+  }, [cargarSecuencias, cargarConfigEcf, cargarHistorialEcf]);
 
   const guardarSecuencia = async (e) => {
     e.preventDefault();
@@ -176,7 +176,7 @@ function GestionNCF({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error);
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error al guardar secuencia NCF.");
     }
   };
@@ -197,7 +197,7 @@ function GestionNCF({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al guardar configuración e-CF.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error de conexión al guardar configuración e-CF.");
     } finally {
       setGuardandoEcf(false);
@@ -220,7 +220,7 @@ function GestionNCF({ alVolver, apiUrl }) {
       try {
         const res = await fetch(urlBase + '/api/dgii/secuencias/' + id, { method: 'DELETE' });
         if (res.ok) { cargarSecuencias(); }
-      } catch (error) { toastAviso("Error al eliminar secuencia."); }
+      } catch { toastAviso("Error al eliminar secuencia."); }
     }});
   };
 

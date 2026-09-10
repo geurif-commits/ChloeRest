@@ -3,12 +3,7 @@ import { aplicarPersonalizacion, fondoLogin } from '../personalizacion.js';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 
 const TEMAS = [
-  { id: 'noche', name: 'Noche', color: '#00f576' },
-  { id: 'oceano', name: 'Oceano', color: '#00b4d8' },
-  { id: 'lava', name: 'Lava', color: '#ff6b35' },
-  { id: 'esmeralda', name: 'Esmeralda', color: '#2dc653' },
-  { id: 'amatista', name: 'Amatista', color: '#a855f7' },
-  { id: 'claro', name: 'Claro', color: '#1a73e8' },
+  { id: 'claro', name: 'Claro Universal', color: '#1a73e8' },
 ];
 
 function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
@@ -18,7 +13,7 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const [error, setError] = useState('');
   const [nombreNegocio, setNombreNegocio] = useState(config.nombre_negocio || configRegistro?.negocio || '');
   const [slogan, setSlogan] = useState(config.slogan || '');
-  const [temaActivo, setTemaActivo] = useState(config.tema_activo || 'noche');
+  const [temaActivo, setTemaActivo] = useState('claro');
   const [colorPrimario, setColorPrimario] = useState(config.color_primario || '#00f576');
   const [colorSecundario, setColorSecundario] = useState(config.color_secundario || '');
   const [opacidad, setOpacidad] = useState(Number(config.opacidad_fondo || 1));

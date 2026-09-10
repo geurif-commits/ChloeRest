@@ -1,32 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  LockKeyhole,
-  Clock3,
-  Server,
-  Store,
-  User,
   ShieldCheck,
   ChefHat,
   Wine,
   Delete,
   Settings,
   MapPin,
-  Sparkles,
-  Layers,
   CheckCircle2,
   RefreshCw,
-  MonitorCog,
   Palette,
   X,
-  Check,
   Moon,
   Crown,
-  Zap,
-  Coffee,
-  Leaf,
-  Waves,
-  Flame,
-  Martini,
   Sun
 } from 'lucide-react';
 import './login-screen.css';
@@ -52,7 +37,7 @@ const TECLAS_KEYPAD = [
 ];
 
 // Mapa de iconos lucide para badges de temas (reemplaza emojis)
-const ICONOS_TEMA = { Crown, Zap, Coffee, Leaf, Waves, Flame, Martini, Sun };
+const ICONOS_TEMA = { Crown, Sun };
 function IconoTema({ nombre, size = 12 }) {
   const Icon = ICONOS_TEMA[nombre];
   return Icon ? <Icon size={size} /> : null;
@@ -73,7 +58,6 @@ function LoginScreen({
   const [fecha, setFecha] = useState('');
   const [logoActual, setLogoActual] = useState(logoPredeterminado);
   const [fondoActual, setFondoActual] = useState(fondoPredeterminado);
-  const [sistemaInfo, setSistemaInfo] = useState(null);
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 900 : false
   );
@@ -90,7 +74,7 @@ function LoginScreen({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  /* Reloj y Fecha en tiempo real */
+  /* Reloj y Fecha en tiempo real (12h estilo Santo Domingo, sin segundos) */
   useEffect(() => {
     const actualizarReloj = () => {
       const ahora = new Date();
@@ -98,22 +82,20 @@ function LoginScreen({
         ahora.toLocaleTimeString('es-DO', {
           hour: '2-digit',
           minute: '2-digit',
-          second: '2-digit',
           hour12: true,
         })
       );
-      setFecha(
-        ahora.toLocaleDateString('es-DO', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        })
-      );
+      const fechaRaw = ahora.toLocaleDateString('es-DO', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+      setFecha(fechaRaw.charAt(0).toUpperCase() + fechaRaw.slice(1));
     };
 
     actualizarReloj();
-    const intervalo = setInterval(actualizarReloj, 1000);
+    const intervalo = setInterval(actualizarReloj, 10000);
     return () => clearInterval(intervalo);
   }, []);
 
@@ -139,27 +121,6 @@ function LoginScreen({
       setFondoActual(fondoPredeterminado);
     }
   }, [configSistema, apiUrl]);
-
-  /* Info del sistema */
-  useEffect(() => {
-    let activo = true;
-    const cargar = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/sistema/info`);
-        if (res.ok && activo) {
-          setSistemaInfo(await res.json());
-        }
-      } catch {
-        /* No bloqueante */
-      }
-    };
-    cargar();
-    const interval = setInterval(cargar, 30000);
-    return () => {
-      activo = false;
-      clearInterval(interval);
-    };
-  }, [apiUrl]);
 
   /* Iniciar sesión */
   const iniciarSesion = useCallback(
@@ -239,12 +200,10 @@ function LoginScreen({
 
   const nombreNegocio = configSistema?.nombre_negocio || 'Mi Negocio';
   const slogan = configSistema?.slogan || 'Sistema Profesional de Gestión Gastronómica & POS';
-  const version = configSistema?.version || '2.1.0';
   const provincia = configSistema?.provincia || 'Santo Domingo, DO';
-  const cajaAbierta = Boolean(sistemaInfo?.caja_abierta);
-  const cajeraTurno = sistemaInfo?.cajera_nombre || null;
   const [skinActual, setSkinActual] = useState(() => {
-    return configSistema?.login_theme || localStorage.getItem('chloe_login_skin') || 'chef_noir';
+    const guardado = configSistema?.login_theme || localStorage.getItem('chloe_login_skin') || 'olive_garden';
+    return LOGIN_TEMAS.some((t) => t.id === guardado) ? guardado : 'olive_garden';
   });
   const [mostrarSelectorSkin, setMostrarSelectorSkin] = useState(false);
 
@@ -256,8 +215,10 @@ function LoginScreen({
   });
 
   useEffect(() => {
-    if (configSistema?.login_theme) {
+    if (configSistema?.login_theme && LOGIN_TEMAS.some((t) => t.id === configSistema.login_theme)) {
       setSkinActual(configSistema.login_theme);
+    } else if (configSistema) {
+      setSkinActual('olive_garden');
     }
   }, [configSistema?.login_theme]);
 
@@ -338,6 +299,9 @@ function LoginScreen({
   };
 
   const temaInfo = LOGIN_TEMAS.find(t => t.id === skinActual) || LOGIN_TEMAS[0];
+  const marcaTamano = ['mediano', 'grande', 'gigante'].includes(configSistema?.login_marca_tamano)
+    ? configSistema.login_marca_tamano
+    : 'grande';
 
   return (
     <main className="modern-login" data-login-skin={skinActual}>
@@ -635,9 +599,9 @@ function LoginScreen({
 
       {/* Contenedor Principal */}
       <div className="modern-login__container">
-        {/* Columna Izquierda: Identidad de Marca y Métricas (Desktop) */}
+        {/* Columna Izquierda: Logo y Nombre del Negocio (Desktop) */}
         {!isMobile && (
-          <section className="modern-login__brand-panel">
+          <section className={`modern-login__brand-panel brand-size-${marcaTamano}`}>
             <div className="brand-crest">
               {logoActual ? (
                 <img
@@ -655,54 +619,6 @@ function LoginScreen({
             <p className="brand-slogan">{slogan}</p>
 
             <div className="brand-rule" />
-
-            {/* Reloj Moderno */}
-            <div className="modern-clock">
-              <div className="modern-clock__icon">
-                <Clock3 size={24} />
-              </div>
-              <div className="modern-clock__content">
-                <span className="modern-clock__time">{hora || '00:00:00'}</span>
-                <span className="modern-clock__date">{fecha}</span>
-              </div>
-            </div>
-
-            {/* Diagnóstico de Terminal */}
-            <div className="system-telemetry">
-              <div className="telemetry-card">
-                <div className="telemetry-card__icon">
-                  <Server size={17} />
-                </div>
-                <div className="telemetry-card__info">
-                  <span className="telemetry-label">Servidor Central</span>
-                  <span className="telemetry-value telemetry-value--green">
-                    {servidorOnline ? 'Conectado (Latencia Óptima)' : 'Reintentando conexión...'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="telemetry-card">
-                <div className="telemetry-card__icon">
-                  <Store size={17} />
-                </div>
-                <div className="telemetry-card__info">
-                  <span className="telemetry-label">Estado de Caja</span>
-                  <span className="telemetry-value">
-                    {cajaAbierta ? (cajeraTurno ? `Turno Activo: ${cajeraTurno}` : 'Caja Abierta') : 'Caja Cerrada'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="telemetry-card">
-                <div className="telemetry-card__icon">
-                  <ShieldCheck size={17} />
-                </div>
-                <div className="telemetry-card__info">
-                  <span className="telemetry-label">Seguridad Multi-empresa</span>
-                  <span className="telemetry-value telemetry-value--gold">Cifrado RLS Activo • v{version}</span>
-                </div>
-              </div>
-            </div>
           </section>
         )}
 
@@ -728,8 +644,7 @@ function LoginScreen({
           {/* Encabezado de la Tarjeta */}
           <div className="card-header" style={{ textAlign: 'center', justifyContent: 'center', marginBottom: '18px' }}>
             <div className="card-header__text" style={{ textAlign: 'center', width: '100%' }}>
-              <h2 className="card-header__title" style={{ margin: '0 0 6px', fontSize: '1.45rem', fontWeight: 800 }}>Introduce tu PIN</h2>
-              <p className="card-header__desc" style={{ margin: 0, fontSize: '0.84rem' }}>Digita tu clave numérica de {pinLength} dígitos</p>
+              <h2 className="card-header__title" style={{ margin: 0, fontSize: '1.45rem', fontWeight: 800 }}>Introduce tu PIN</h2>
             </div>
           </div>
 

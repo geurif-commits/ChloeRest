@@ -11,6 +11,7 @@ import crypto from 'node:crypto';
 import { hashPin } from '../services/authService.js';
 import { config } from '../lib/config.js';
 import { createLogger } from '../lib/logger.js';
+import { SCHEMA_BASE_SQL } from './schemaBase.js';
 import type { Database } from './index.js';
 
 const logger = createLogger('migrations');
@@ -677,6 +678,70 @@ const migrations: IMigracion[] = [{
       ALTER TABLE ingredientes ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(10,2) NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: '039_login_marca_tamano',
+    sql: `
+      -- Tamaño del logo y nombre en la pantalla de login PIN (mediano/grande/gigante).
+      ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS login_marca_tamano VARCHAR(20) NOT NULL DEFAULT 'grande';
+    `,
+  },
+  {
+    id: '040_tema_claro_universal',
+    sql: `
+      -- Retiro del tema oscuro: universal claro en todo el sistema.
+      ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'claro';
+      UPDATE configuracion_sistema SET tema_activo = 'claro' WHERE tema_activo IS DISTINCT FROM 'claro';
+      UPDATE configuracion_sistema SET login_theme = 'olive_garden' WHERE login_theme IS DISTINCT FROM 'olive_garden';
+    `,
+  },
+  {
+    id: '041_rls_licencias',
+    sql: `
+      -- La tabla fue creada durante la migración multiempresa, pero quedó
+      -- fuera de la lista dinámica que habilita RLS. Se corrige de forma
+      -- idempotente para proteger instalaciones ya migradas.
+      ALTER TABLE licencias ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE licencias FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS aislamiento_empresa ON licencias;
+      CREATE POLICY aislamiento_empresa ON licencias
+        USING (
+          current_setting('app.platform', true) = 'true'
+          OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER
+        )
+        WITH CHECK (
+          current_setting('app.platform', true) = 'true'
+          OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER
+        );
+    `,
+  },
+  {
+    id: '042_fix_ncf_unique_global_a_empresa',
+    sql: `
+      -- Los índices únicos uq_cuentas_ncf y uq_cuentas_mesa_abierta eran GLOBALES
+      -- (sin empresa_id): con RLS forzado, la tabla cuentas es multitenant, así que
+      -- dos restaurantes distintos podían colisionar con el mismo NCF (ej. empresa 4
+      -- ya emitió B0200000001 y el primer cobro de otra empresa lanzaba 409
+      -- DUPLICATE_KEY). Se sustituyen por índices únicos acotados por empresa_id.
+      DROP INDEX IF EXISTS uq_cuentas_ncf;
+      DROP INDEX IF EXISTS uq_cuentas_mesa_abierta;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_cuentas_ncf_empresa ON cuentas(empresa_id, ncf_ecf_generado) WHERE ncf_ecf_generado IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_cuentas_mesa_abierta_empresa ON cuentas(empresa_id, mesa_id) WHERE estado = 'Abierta' AND mesa_id IS NOT NULL;
+    `,
+  },
+  {
+    id: '043_norm_temas_dos_opciones',
+    sql: `
+      -- Normaliza tema_activo a los dos temas oficiales del sistema
+      -- (claro-luxury-gold y negro-brillante). Los valores legacy de la fase
+      -- tema-unico (040 normalizó a 'claro') o del sistema original ('noche',
+      -- 'oscuro', etc.) se mapean al tema claro por defecto.
+      UPDATE configuracion_sistema
+        SET tema_activo = 'claro-luxury-gold'
+        WHERE tema_activo IS NULL
+           OR tema_activo NOT IN ('claro-luxury-gold', 'negro-brillante');
+      ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'claro-luxury-gold';
+    `,
+  },
 ];
 export async function runMigrations(pool: Database): Promise<void> {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());
@@ -687,6 +752,22 @@ export async function runMigrations(pool: Database): Promise<void> {
     // internas del runner puedan atravesar RLS sin restricciones de empresa.
     // Obligatorio desde que migration 024 habilitó Row Level Security en todas las tablas.
     await client.query("SELECT set_config('app.platform', 'true', false), set_config('app.empresa_id', '1', false)");
+
+    // Instalaciones frescas (ej. Electron): si no existen las tablas esenciales,
+    // aplicar el esquema base embebido antes de las migraciones 001+ (que solo
+    // alteran/agregan). Sin esto, la 001 falla y el servidor queda degradado.
+    // Se ejecuta sentencia por sentencia (no el lote completo de una vez).
+    const base = await client.query("SELECT to_regclass('public.usuarios') AS existe");
+    if (!base.rows[0]?.existe) {
+      const sinComentarios = SCHEMA_BASE_SQL.split('\n')
+        .filter((linea) => !linea.trim().startsWith('--'))
+        .join('\n');
+      const sentencias = sinComentarios.split(';').map((s) => s.trim()).filter(Boolean);
+      for (const sql of sentencias) {
+        await client.query(sql);
+      }
+      logger.info({ action: 'SCHEMA_BASE_APLICADO', details: { sentencias: sentencias.length } });
+    }
     
     // Garantizar tablas esenciales de caja independientemente del historial de migraciones
     await client.query(`

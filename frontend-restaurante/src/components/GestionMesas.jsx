@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sanitizarEntero } from '../utils/input.js';
 import { toastAviso, toastError } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
@@ -17,21 +17,21 @@ function GestionMesas({ apiUrl }) {
   const [busqueda, setBusqueda] = useState('');
   const urlBase = apiUrl;
 
-  useEffect(() => {
-    cargarMesas();
-  }, []);
-
-  const cargarMesas = async () => {
+  const cargarMesas = useCallback(async () => {
     try {
       const res = await fetch(`${urlBase}/api/mesas`);
       const data = await res.json();
       setMesas(Array.isArray(data) ? data : []);
-    } catch (error) {
+    } catch {
       console.error("Error cargando mesas:", error);
     } finally {
       setCargando(false);
     }
-  };
+  }, [urlBase]);
+
+  useEffect(() => {
+    cargarMesas();
+  }, [cargarMesas]);
 
   const generarMesasMasivas = async (e) => {
     e.preventDefault();
@@ -50,7 +50,7 @@ function GestionMesas({ apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al generar mesas.');
       }
-    } catch (error) {
+    } catch {
       toastError("Error al generar mesas.");
     }
   };
@@ -74,7 +74,7 @@ function GestionMesas({ apiUrl }) {
       } else {
         toastError("Error al actualizar el nombre de la mesa.");
       }
-    } catch (error) {
+    } catch {
       toastError("Error de conexión.");
     }
   };
@@ -96,7 +96,7 @@ function GestionMesas({ apiUrl }) {
           } else {
             toastAviso(data.error || 'Error al eliminar mesa.');
           }
-        } catch (error) {
+        } catch {
           toastError("Error al eliminar la mesa.");
         }
       }

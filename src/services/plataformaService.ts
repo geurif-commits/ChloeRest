@@ -194,6 +194,7 @@ export interface ICuerpoActivacion {
   licenciaVencimiento?: string | null;
   diasRestantes?: number | null;
   pinAdministradorGenerado?: boolean;
+  pinInicial?: string;
 }
 
 const FORMATO_CHLOE = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){1,15})$/i;
@@ -238,12 +239,14 @@ export async function activarDispositivo(params: {
 
   // Clave generada por el Bot de Telegram / Propietario aún no registrada:
   // se valida por formato y se registra dinámicamente con empresa nueva.
+  let pinInicialGenerado: string | undefined;
   if (!stored && clave !== config.licenseActivationKey) {
     const match = FORMATO_CHLOE.exec(clave);
     if (match) {
       const parsed = parsearDuracion(match[1]);
       if (parsed) {
         const pinInicial = String(crypto.randomInt(100000, 1000000));
+        pinInicialGenerado = pinInicial;
         const pinHash = hashPin(pinInicial);
         const nuevaEmpresaId = await db.transaction(async (client) => {
           const emp = await client.query<{ id: number }>(
@@ -394,6 +397,7 @@ export async function activarDispositivo(params: {
     licenciaVencimiento: vencimiento ? vencimiento.toISOString() : null,
     diasRestantes: vencimiento ? Math.max(0, Math.ceil((vencimiento.getTime() - Date.now()) / 86400000)) : null,
     pinAdministradorGenerado: Boolean(stored && stored.admin_pin_hash),
+    ...(pinInicialGenerado ? { pinInicial: pinInicialGenerado } : {}),
   };
 }
 
@@ -597,12 +601,78 @@ export async function reactivarLicencia(id: number): Promise<void> {
   logger.info({ action: 'LICENCIA_REACTIVADA', licenciaId: id, empresaId });
 }
 
-export async function eliminarLicencia(id: number): Promise<void> {
+/**
+ * Regenera el PIN de administrador de una licencia (recuperación por el dueño).
+ * Los hashes son unidireccionales: no se puede "ver" el PIN actual, se genera
+ * uno nuevo, se guarda hasheado y se devuelve en claro UNA sola vez para
+ * entregarlo al cliente. Fuerza cambio de PIN en el próximo acceso.
+ */
+export async function resetearPinAdminLicencia(id: number): Promise<{ pin: string; empresaId: number }> {
   const db = getDatabase();
   const lic = await db.query<{ id: number; empresa_id: number }>('SELECT id, empresa_id FROM licencias WHERE id = $1', [id]);
   if (!lic.rowCount) {throw httpError(404, 'Licencia no encontrada.');}
   const empresaId = lic.rows[0].empresa_id;
+  const pinNuevo = String(crypto.randomInt(100000, 1000000));
+  const pinHash = hashPin(pinNuevo);
   await db.transaction(async (client) => {
+    await client.query('UPDATE licencias SET admin_pin_hash = $1 WHERE id = $2', [pinHash, id]);
+    await client.query(
+      `UPDATE usuarios SET pin_hash = $1, requiere_cambio_pin = TRUE
+       WHERE empresa_id = $2 AND rol = 'Administrador' AND estado = 'Activo'`,
+      [pinHash, empresaId]
+    );
+  });
+  logger.info({ action: 'PIN_ADMIN_RESETEADO', licenciaId: id, empresaId });
+  return { pin: pinNuevo, empresaId };
+}
+
+export async function eliminarLicencia(id: number): Promise<void> {
+  const db = getDatabase();
+  const lic = await db.query<{ id: number; empresa_id: number; clave_texto: string | null }>(
+    'SELECT id, empresa_id, clave_texto FROM licencias WHERE id = $1',
+    [id]
+  );
+  if (!lic.rowCount) {throw httpError(404, 'Licencia no encontrada.');}
+  const empresaId = lic.rows[0].empresa_id;
+  const claveTexto = lic.rows[0].clave_texto || null;
+  await db.transaction(async (client) => {
+    if (empresaId !== 1) {
+      // Limpiar dependientes de la empresa en orden de FK (hijos primero)
+      // antes de borrar la licencia y la empresa. Sin esto, el DELETE de
+      // empresas falla con violación de FK (error 500 al eliminar licencia).
+      const tablasHijas = [
+        'e_cf_comprobantes',
+        'cuenta_detalles',
+        'app_sessions',
+        'receta_productos',
+        'inventario_movimientos',
+        'aperturas_caja',
+        'arqueos_caja',
+        'cuentas_bancarias',
+        'historial_cierres',
+        'auditoria_operaciones',
+        'dispositivos',
+        'cuentas',
+        'mesas',
+        'clientes_frecuentes',
+        'ingredientes',
+        'productos',
+        'menu_categorias',
+        'menu_guarniciones',
+        'menu_terminos',
+        'dgii_secuencias',
+        'dgii_config',
+        'usuarios',
+        'configuracion_sistema',
+        'negocio_config',
+      ];
+      for (const tabla of tablasHijas) {
+        await client.query(`DELETE FROM ${tabla} WHERE empresa_id = $1`, [empresaId]);
+      }
+      if (claveTexto) {
+        await client.query('DELETE FROM solicitudes_licencia WHERE clave_generada = $1', [claveTexto]);
+      }
+    }
     await client.query('DELETE FROM licencias WHERE id = $1', [id]);
     if (empresaId !== 1) {
       await client.query('DELETE FROM empresas WHERE id = $1', [empresaId]);
@@ -810,15 +880,6 @@ export async function eliminarMetodoPagoDueno(id: number): Promise<void> {
 
 // ──── Reset de datos de prueba (POST /api/dueno/reset-pruebas) ────
 
-const SECUENCIAS_RESET = [
-  'usuarios', 'empresas', 'licencias', 'productos', 'mesas', 'cuentas',
-  'cuenta_detalles', 'aperturas_caja', 'arqueos_caja', 'dispositivos',
-  'solicitudes_licencia', 'auditoria_operaciones', 'inventario_movimientos',
-  'receta_productos', 'dgii_secuencias', 'cuentas_bancarias',
-  'historial_cierres', 'menu_categorias', 'menu_guarniciones',
-  'menu_terminos', 'clientes_frecuentes', 'ingredientes',
-];
-
 interface IConfigFila {
   owner_pin_hash: string | null;
   owner_pin_longitud: number | null;
@@ -837,41 +898,19 @@ export async function resetearDatosPruebas(): Promise<void> {
     const ownerHash = owner.rows[0]?.owner_pin_hash || null;
     const ownerLongitud = owner.rows[0]?.owner_pin_longitud || 6;
 
-    // Borrar en orden correcto para respetar las claves foráneas.
-    // (No se usa session_replication_role: requiere superusuario y en producción
-    //  el usuario de BD no lo es, lo que provocaba error 500 al dueño.)
-    await client.query('DELETE FROM auditoria_operaciones');
-    await client.query('DELETE FROM receta_productos');
-    await client.query('DELETE FROM dgii_secuencias');
-    await client.query('DELETE FROM inventario_movimientos');
-    await client.query('DELETE FROM app_sessions');
-    await client.query('DELETE FROM aperturas_caja');
-    await client.query('DELETE FROM arqueos_caja');
-    await client.query('DELETE FROM cuentas_bancarias');
-    await client.query('DELETE FROM historial_cierres');
-    await client.query('DELETE FROM dispositivos');
-    await client.query('DELETE FROM solicitudes_licencia');
-    await client.query('DELETE FROM cuenta_detalles');
-    await client.query('DELETE FROM cuentas');
-    await client.query('DELETE FROM mesas');
-    await client.query('DELETE FROM clientes_frecuentes');
-    await client.query('DELETE FROM ingredientes');
-    await client.query('DELETE FROM productos');
-    await client.query('DELETE FROM menu_categorias');
-    await client.query('DELETE FROM menu_guarniciones');
-    await client.query('DELETE FROM menu_terminos');
-    await client.query('DELETE FROM usuarios');
-    await client.query('DELETE FROM licencias');
-    await client.query('DELETE FROM configuracion_sistema');
-    await client.query('DELETE FROM empresas');
-    await client.query('DELETE FROM negocio_config');
-    await client.query('DELETE FROM dgii_config');
-    // Reset sequences (ignore errors for missing sequences)
-    for (const seq of SECUENCIAS_RESET) {
-      await client
-        .query("SELECT setval(pg_get_serial_sequence($1, 'id'), 1, false)", [seq])
-        .catch(() => undefined);
-    }
+    // TRUNCATE con CASCADE: vacía todas las tablas de datos en una sola
+    // sentencia, sin importar el orden ni constraints adicionales, y reinicia
+    // las secuencias (RESTART IDENTITY). No toca app_migrations (historial),
+    // planes_licencia ni metodos_pago (catálogos del dueño que se preservan).
+    // TRUNCATE además no lo filtran las políticas RLS.
+    await client.query(`TRUNCATE TABLE
+      auditoria_operaciones, receta_productos, dgii_secuencias, inventario_movimientos,
+      app_sessions, aperturas_caja, arqueos_caja, cuentas_bancarias, historial_cierres,
+      dispositivos, solicitudes_licencia, cuenta_detalles, cuentas, mesas,
+      clientes_frecuentes, ingredientes, productos, menu_categorias, menu_guarniciones,
+      menu_terminos, e_cf_comprobantes, usuarios, licencias, configuracion_sistema,
+      negocio_config, empresas, dgii_config
+      RESTART IDENTITY CASCADE`);
     // Re-crear la empresa raíz y la configuración base para que el Setup Wizard
     // pueda iniciar de nuevo (setup_completado = FALSE).
     await client.query(
@@ -897,6 +936,11 @@ export async function resetearDatosPruebas(): Promise<void> {
          nombre_comercial = 'Mi Restaurante',
          empresa_id = 1`
     );
+    // Las FK originales siguen intactas (TRUNCATE no las elimina) y las
+    // secuencias reinsertadas se ajustan al MAX(id) para evitar conflictos.
+    await client.query(`SELECT setval(pg_get_serial_sequence('empresas', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM empresas), 1), true)`);
+    await client.query(`SELECT setval(pg_get_serial_sequence('configuracion_sistema', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM configuracion_sistema), 1), true)`);
+    await client.query(`SELECT setval(pg_get_serial_sequence('negocio_config', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM negocio_config), 1), true)`);
   });
   logger.info({ action: 'RESET_PRUEBAS_OK' });
 }

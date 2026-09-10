@@ -521,10 +521,10 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
         <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: 'var(--bg-secondary, #14141b)', border: '1px solid rgba(245, 184, 61, 0.4)', borderRadius: '18px', padding: '24px', width: 'min(480px, 94vw)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-light)', paddingBottom: '12px', marginBottom: '16px' }}>
               <div>
                 <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gold, #f5b842)', fontWeight: 700 }}>Opciones del Plato</span>
-                <h3 style={{ margin: '2px 0 0', color: '#fff', fontSize: '1.25rem' }}>{productoPersonalizando.nombre}</h3>
+                <h3 style={{ margin: '2px 0 0', color: 'var(--text-primary)', fontSize: '1.25rem' }}>{productoPersonalizando.nombre}</h3>
               </div>
               <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold, #f5b842)' }}>
                 RD$ {formatearRD(productoPersonalizando.precio)}
@@ -534,7 +534,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
             {/* SELECCIÓN DE GUARNICIÓN */}
             {productoPersonalizando.requiere_guarnicion && (
               <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', color: '#fff', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
+                <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
                   🍟 Seleccionar Guarnición / Acompañamiento:
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
@@ -546,9 +546,9 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
                         type="button"
                         onClick={() => setGuarnicionSeleccionada(guar)}
                         style={{
-                          background: activa ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255,255,255,0.03)',
+                          background: activa ? 'rgba(245, 184, 61, 0.2)' : 'rgba(17,24,39,0.04)',
                           color: activa ? 'var(--gold, #f5b842)' : 'var(--text-primary, #fff)',
-                          border: `1.5px solid ${activa ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
+                          border: `1.5px solid ${activa ? 'var(--gold, #f5b842)' : 'var(--border-light)'}`,
                           borderRadius: '10px',
                           padding: '10px 8px',
                           fontSize: '0.82rem',
@@ -569,7 +569,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
             {/* SELECCIÓN DE TÉRMINO */}
             {productoPersonalizando.requiere_termino && (
               <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', color: '#fff', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
+                <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
                   🥩 Seleccionar Término de Cocción:
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
@@ -581,9 +581,9 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
                         type="button"
                         onClick={() => setTerminoSeleccionado(term)}
                         style={{
-                          background: activo ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255,255,255,0.03)',
-                          color: activo ? 'var(--gold, #f5b842)' : 'var(--text-primary, #fff)',
-                          border: `1.5px solid ${activo ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
+                          background: activo ? 'rgba(245, 184, 61, 0.2)' : 'rgba(17,24,39,0.04)',
+                          color: activo ? 'var(--gold, #f5b842)' : 'var(--text-primary)',
+                          border: `1.5px solid ${activo ? 'var(--gold, #f5b842)' : 'var(--border-light)'}`,
                           borderRadius: '10px',
                           padding: '10px 8px',
                           fontSize: '0.82rem',
@@ -611,7 +611,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
                 value={notaEspecial}
                 onChange={(e) => setNotaEspecial(e.target.value)}
                 placeholder="Ej. Sin sal, salsa aparte, cebolla bien frita..."
-                style={{ width: '100%', padding: '10px 12px', background: '#0a0a0f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-input)', border: '1px solid var(--border-light)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '0.85rem' }}
               />
             </div>
 
@@ -620,7 +620,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
               <button
                 type="button"
                 onClick={() => setProductoPersonalizando(null)}
-                style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontWeight: 600, cursor: 'pointer' }}
+                style={{ flex: 1, padding: '12px', background: 'rgba(17,24,39,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '10px', fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancelar
               </button>
@@ -643,7 +643,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
           <div style={{background: 'var(--bg-secondary, #14141b)', border: '2px solid var(--accent, #00f576)', borderRadius: '16px', padding: '25px', width: 'min(460px, 95vw)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.5)'}}>
             <h2 style={{color: '#00f576', marginTop: 0}}>Cobrar {mesa.nombre_numero}</h2>
             
-            <div style={{background: '#0a0a0f', padding: '14px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #2a2a38', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.9rem'}}>
+            <div style={{background: 'var(--bg-input)', padding: '14px', borderRadius: '10px', marginBottom: '15px', border: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.9rem'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', color: '#9494ad'}}><span>Subtotal:</span><strong>RD$ {formatearRD(subtotalFactura)}</strong></div>
               {configNegocio.cobrar_itbis && (
                 <div style={{display: 'flex', justifyContent: 'space-between', color: '#9494ad'}}><span>ITBIS (18%):</span><strong>RD$ {formatearRD(itbis)}</strong></div>
@@ -651,13 +651,13 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
               {configNegocio.cobrar_propina && (
                 <div style={{display: 'flex', justifyContent: 'space-between', color: '#9494ad'}}><span>Propina Ley (10%):</span><strong>RD$ {formatearRD(propinaLey)}</strong></div>
               )}
-              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', color: '#00f576', borderTop: '1px solid #2a2a38', paddingTop: '8px', fontWeight: '800'}}><span>Total a Pagar:</span><strong>RD$ {formatearRD(totalAPagar)}</strong></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', color: '#00f576', borderTop: '1px solid var(--border-light)', paddingTop: '8px', fontWeight: '800'}}><span>Total a Pagar:</span><strong>RD$ {formatearRD(totalAPagar)}</strong></div>
             </div>
 
             {/* Configuración Fiscal DGII */}
             <div style={{marginBottom: '15px', textAlign: 'left'}}>
               <label style={{color: '#00f576', fontSize: '0.85rem', fontWeight: 'bold', display: 'block', marginBottom: '5px'}}>🏛️ Comprobante Fiscal DGII</label>
-              <select value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value)} style={{width: '100%', padding: '10px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px'}}>
+              <select value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value)} style={{width: '100%', padding: '10px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '8px'}}>
                 <option value="B02">B02 - Consumidor Final</option>
                 <option value="B01">B01 - Crédito Fiscal</option>
                 <option value="e-CF">e-CF - Factura Electrónica</option>
@@ -666,7 +666,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
               {tipoComprobante !== 'B02' && (
                 <div style={{marginTop: '10px'}}>
                   <label style={{fontSize: '0.8rem', color: '#9494ad', display: 'block', marginBottom: '4px'}}>RNC o Cédula del Cliente</label>
-                  <input type="text" placeholder="Ej: 131000001" value={rncCliente} onChange={(e) => setRncCliente(e.target.value)} style={{width: '100%', padding: '10px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px'}} />
+                  <input type="text" placeholder="Ej: 131000001" value={rncCliente} onChange={(e) => setRncCliente(e.target.value)} style={{width: '100%', padding: '10px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '8px'}} />
                 </div>
               )}
             </div>
@@ -677,7 +677,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
                   key={m} 
                   type="button"
                   onClick={() => setMetodoPago(m)}
-                  style={{flex: 1, padding: '10px', background: metodoPago === m ? '#00f576' : '#1a1a24', color: metodoPago === m ? '#000' : '#fff', border: '1px solid #2a2a38', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}
+                  style={{flex: 1, padding: '10px', background: metodoPago === m ? '#00f576' : 'var(--bg-card)', color: metodoPago === m ? '#000' : 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}
                 >
                   {m === 'Efectivo' ? '💵 ' : m === 'Tarjeta' ? '💳 ' : '🏦 '}{m}
                 </button>
@@ -685,12 +685,12 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
             </div>
 
             {metodoPago === 'Tarjeta' && (
-              <div style={{background: '#0a0a0f', padding: '10px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #2a2a38', textAlign: 'left'}}>
+              <div style={{background: 'var(--bg-input)', padding: '10px', borderRadius: '8px', marginBottom: '15px', border: '1px solid var(--border-light)', textAlign: 'left'}}>
                 <label style={{fontSize: '0.8rem', color: '#00f576', display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>💳 Detalles de Tarjeta</label>
                 <div style={{display: 'flex', gap: '10px'}}>
                   <div style={{flex: 1}}>
                     <label style={{fontSize: '0.75rem', color: '#9494ad', display: 'block', marginBottom: '3px'}}>Marca</label>
-                    <select value={tarjetaMarca} onChange={(e) => setTarjetaMarca(e.target.value)} style={{width: '100%', padding: '8px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}}>
+                    <select value={tarjetaMarca} onChange={(e) => setTarjetaMarca(e.target.value)} style={{width: '100%', padding: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '0.85rem'}}>
                       <option value="Visa">Visa</option>
                       <option value="Mastercard">Mastercard</option>
                       <option value="American Express">American Express</option>
@@ -699,7 +699,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
                   </div>
                   <div style={{flex: 1}}>
                     <label style={{fontSize: '0.75rem', color: '#9494ad', display: 'block', marginBottom: '3px'}}>Últimos 4 Dígitos</label>
-                    <input type="text" maxLength="4" placeholder="Ej: 4321" value={tarjetaUltimos4} onChange={(e) => setTarjetaUltimos4(e.target.value)} style={{width: '100%', padding: '8px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
+                    <input type="text" maxLength="4" placeholder="Ej: 4321" value={tarjetaUltimos4} onChange={(e) => setTarjetaUltimos4(e.target.value)} style={{width: '100%', padding: '8px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '0.85rem'}} />
                   </div>
                 </div>
               </div>
@@ -715,7 +715,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
                   placeholder="0.00" 
                   value={montoRecibido} 
                   onChange={(e) => manejarCambioMontoRecibido(e.target.value)} 
-                  style={{width: '100%', padding: '10px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px'}} 
+                  style={{width: '100%', padding: '10px', background: 'var(--bg-input)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '8px'}}
                 />
                 {montoRecibido && cambio >= 0 && (
                   <p style={{color: '#00f576', marginTop: '6px', fontWeight: 'bold'}}>Cambio a devolver: RD$ {formatearRD(cambio)}</p>
@@ -724,7 +724,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
             )}
 
             <div style={{display: 'flex', gap: '8px'}}>
-              <button onClick={() => setMostrandoCobro(false)} style={{flex: 1, padding: '12px', background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'}}>Cancelar</button>
+              <button onClick={() => setMostrandoCobro(false)} style={{flex: 1, padding: '12px', background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-light)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'}}>Cancelar</button>
               <button onClick={procesarFacturaDirecta} style={{flex: 1.5, padding: '12px', background: 'linear-gradient(135deg, #00f576, #00b852)', color: '#000', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer'}}>Facturar e Imprimir</button>
             </div>
 

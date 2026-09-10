@@ -1385,3 +1385,102 @@
     grid-template-columns: repeat(2, 1fr) !important;
   }
 }
+
+/* ================================================================
+   LUXURY GOLD EDITION — capa visual final de la landing comercial
+   ================================================================ */
+.landing-root {
+  --landing-ink: #070708;
+  --landing-panel: rgba(18, 16, 13, 0.88);
+  --landing-panel-soft: rgba(255, 250, 238, 0.045);
+  --landing-gold: #d6a44d;
+  --landing-gold-bright: #f3d18a;
+  --landing-champagne: #fff1c7;
+  --landing-muted: rgba(255, 244, 220, 0.62);
+  background:
+    radial-gradient(ellipse at 18% 8%, rgba(214, 164, 77, 0.16), transparent 34%),
+    radial-gradient(ellipse at 86% 86%, rgba(126, 77, 21, 0.14), transparent 32%),
+    linear-gradient(135deg, #050506 0%, #0b0a08 48%, #15100a 100%);
+  color: var(--landing-champagne);
+}
+
+.landing-bg__grid {
+  opacity: 0.16;
+  background-image: linear-gradient(rgba(243, 209, 138, 0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(243, 209, 138, 0.055) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.landing-bg__glow--1 { background: radial-gradient(circle, rgba(243, 209, 138, 0.22), transparent 68%); }
+.landing-bg__glow--2 { background: radial-gradient(circle, rgba(153, 94, 25, 0.18), transparent 68%); }
+.landing-bg__glow--3 { background: radial-gradient(circle, rgba(255, 224, 153, 0.09), transparent 68%); }
+.landing-bg__line { background: linear-gradient(90deg, transparent, rgba(243, 209, 138, 0.42), transparent); }
+.landing-bg__orb { border-color: rgba(243, 209, 138, 0.08); box-shadow: 0 0 120px rgba(214, 164, 77, 0.08); }
+
+.landing-content { width: min(1540px, calc(100% - 56px)); padding-top: 14px; }
+.landing-nav { border-bottom-color: rgba(243, 209, 138, 0.16); }
+.landing-nav__brand { color: var(--landing-champagne); letter-spacing: 0.01em; }
+.landing-nav__icon { border-color: rgba(243, 209, 138, 0.45); background: linear-gradient(145deg, rgba(243, 209, 138, 0.2), rgba(214, 164, 77, 0.04)); box-shadow: 0 0 28px rgba(214, 164, 77, 0.16); }
+.landing-nav__btn { border-color: rgba(243, 209, 138, 0.19); background: rgba(255, 248, 229, 0.045); color: var(--landing-champagne); }
+.landing-nav__btn:hover { border-color: rgba(243, 209, 138, 0.55); background: rgba(214, 164, 77, 0.12); }
+.landing-nav__btn--primary { background: linear-gradient(135deg, #f3d18a, #b77b25); color: #1b1207; box-shadow: 0 8px 28px rgba(214, 164, 77, 0.26); }
+.landing-nav__btn--primary:hover { box-shadow: 0 10px 34px rgba(214, 164, 77, 0.4); }
+
+.landing-quad { gap: 18px; }
+.landing-quad__box { border-color: rgba(243, 209, 138, 0.15); border-radius: 20px; background: linear-gradient(145deg, rgba(28, 23, 16, 0.92), rgba(10, 10, 10, 0.78)); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 242, 199, 0.06); }
+.landing-quad__box:hover { border-color: rgba(243, 209, 138, 0.48); box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42), 0 0 34px rgba(214, 164, 77, 0.08); }
+.landing-quad__head { color: var(--landing-muted); }
+.landing-quad__head h3 { color: var(--landing-champagne); font-size: 17px; }
+.landing-quad__head h3 span, .landing-section__eyebrow { color: var(--landing-gold-bright); }
+.landing-quad__live { color: var(--landing-gold-bright); }
+
+.landing-hero__eyebrow { color: var(--landing-gold-bright); letter-spacing: 0.16em; }
+.landing-hero__eyebrow-dot { background: var(--landing-gold-bright); box-shadow: 0 0 12px var(--landing-gold); }
+.landing-hero__title { background: linear-gradient(105deg, #fff8e6 10%, #f3d18a 52%, #b77b25 96%); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: 0 10px 32px rgba(214, 164, 77, 0.14); }
+.landing-hero__subtitle { color: rgba(255, 244, 220, 0.82); }
+.landing-hero__tagline { color: var(--landing-muted); }
+.landing-hero__modules span { border-color: rgba(243, 209, 138, 0.18); background: rgba(214, 164, 77, 0.07); color: rgba(255, 244, 220, 0.72); }
+.landing-hero__modules svg { color: var(--landing-gold-bright); }
+.landing-hero__proof { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 2px; }
+.landing-hero__proof span { display: inline-flex; align-items: center; gap: 6px; color: rgba(255, 244, 220, 0.58); font-size: 10px; font-weight: 700; }
+.landing-hero__proof svg { color: var(--landing-gold-bright); }
+.landing-btn--primary { background: linear-gradient(135deg, #f3d18a, #b77b25); color: #1b1207; box-shadow: 0 10px 30px rgba(214, 164, 77, 0.25); }
+.landing-btn--primary:hover { box-shadow: 0 14px 38px rgba(214, 164, 77, 0.4); }
+.landing-btn--secondary { border-color: rgba(243, 209, 138, 0.28); background: rgba(255, 248, 229, 0.045); color: var(--landing-champagne); }
+.landing-btn--secondary:hover { border-color: var(--landing-gold-bright); background: rgba(214, 164, 77, 0.12); }
+
+.landing-stat, .landing-table, .landing-feature, .landing-plan { border-color: rgba(243, 209, 138, 0.12); background: var(--landing-panel-soft); }
+.landing-stat:hover, .landing-feature:hover { border-color: rgba(243, 209, 138, 0.42); background: rgba(214, 164, 77, 0.09); }
+.landing-stat small, .landing-feature__desc { color: rgba(255, 244, 220, 0.52); }
+.landing-stat strong, .landing-feature__name, .landing-plan__price { color: var(--landing-champagne); }
+.landing-stat__icon--green { background: rgba(214, 164, 77, 0.14); color: var(--landing-gold-bright); }
+.landing-stat__icon--gold { background: rgba(243, 209, 138, 0.15); color: var(--landing-gold-bright); }
+.landing-stat__icon--blue { background: rgba(194, 149, 80, 0.13); color: #e8bd70; }
+.landing-table--occupied { border-color: rgba(214, 164, 77, 0.3); background: rgba(214, 164, 77, 0.08); }
+.landing-table--occupied small, .landing-table--reserved small { color: var(--landing-gold-bright); }
+.landing-table--reserved { border-color: rgba(243, 209, 138, 0.3); background: rgba(243, 209, 138, 0.08); }
+.landing-feature__icon { border-color: rgba(243, 209, 138, 0.28); background: rgba(214, 164, 77, 0.12); color: var(--landing-gold-bright); }
+.landing-feature::after { background: rgba(243, 209, 138, 0.14); }
+.landing-plan--highlight { border-color: rgba(243, 209, 138, 0.5); background: linear-gradient(120deg, rgba(214, 164, 77, 0.17), rgba(255, 249, 228, 0.035)); box-shadow: 0 0 42px rgba(214, 164, 77, 0.1); }
+.landing-plan__tag { background: linear-gradient(135deg, #f3d18a, #b77b25); color: #1b1207; }
+.landing-btn--planActive { border-color: rgba(243, 209, 138, 0.45); background: rgba(214, 164, 77, 0.15); color: var(--landing-gold-bright); }
+.landing-footer { border-top-color: rgba(243, 209, 138, 0.14); }
+.landing-footer__main { color: rgba(255, 244, 220, 0.6); }
+.landing-footer__sub { color: rgba(255, 244, 220, 0.34); }
+
+.landing-root--marfil-editorial {
+  background: radial-gradient(ellipse at 80% 0%, rgba(214, 164, 77, .22), transparent 35%), linear-gradient(135deg, #211a12, #43301d 52%, #17110b);
+}
+.landing-root--marfil-editorial .landing-quad__box { background: linear-gradient(145deg, rgba(77, 57, 33, .9), rgba(28, 20, 12, .86)); border-color: rgba(255, 225, 167, .24); }
+.landing-root--marfil-editorial .landing-hero__title { background: linear-gradient(105deg, #fff8e6, #f4d89a 52%, #d6a44d); -webkit-background-clip: text; background-clip: text; }
+
+.landing-root--noir-executive {
+  background: radial-gradient(ellipse at 20% 0%, rgba(150, 71, 28, .16), transparent 34%), linear-gradient(145deg, #030303, #0b0807 50%, #160d08);
+}
+.landing-root--noir-executive .landing-quad__box { background: linear-gradient(145deg, rgba(24, 17, 14, .94), rgba(7, 7, 7, .92)); border-color: rgba(185, 120, 61, .22); }
+.landing-root--noir-executive .landing-hero__title { background: linear-gradient(105deg, #fff7e5, #e0a66b 52%, #a95e2f); -webkit-background-clip: text; background-clip: text; }
+.landing-root--noir-executive .landing-btn--primary, .landing-root--noir-executive .landing-nav__btn--primary { background: linear-gradient(135deg, #e0a66b, #8b4522); }
+
+@media (max-width: 900px) {
+  .landing-content { width: calc(100% - 28px); }
+  .landing-quad__box { border-radius: 16px; }
+}

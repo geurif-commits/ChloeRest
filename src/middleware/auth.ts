@@ -32,6 +32,27 @@ interface ISessionRow {
   nombre: string;
 }
 
+/**
+ * El token del dueño representa a la plataforma y no a una fila de usuarios
+ * (su identidad lógica es 0). Para operaciones que escriben auditoría o
+ * referencias FK, usamos el administrador raíz real de la empresa 1.
+ */
+async function identidadOperativaDueno(): Promise<{ userId: number; nombre: string; empresaId: number }> {
+  try {
+    const db = getDatabase();
+    const result = await db.queryUnscoped<{ id: number; nombre: string; empresa_id: number | null }>(
+      "SELECT id, nombre, empresa_id FROM usuarios WHERE rol = 'Administrador' AND estado = 'Activo' AND (empresa_id = 1 OR empresa_id IS NULL) ORDER BY id LIMIT 1"
+    );
+    const admin = result.rows[0];
+    if (admin) {
+      return { userId: admin.id, nombre: admin.nombre, empresaId: admin.empresa_id || 1 };
+    }
+  } catch (error) {
+    logger.warn({ action: 'DUENO_IDENTIDAD_OPERATIVA_FALLIDA', error: { message: (error as Error).message } });
+  }
+  return { userId: 0, nombre: 'Propietario Sistema', empresaId: 1 };
+}
+
 function extractToken(req: Request): string {
   const header = req.get('authorization') || (req.query?.token ? `Bearer ${req.query.token}` : '');
   return header.startsWith('Bearer ') ? header.slice(7) : header || String(req.query?.token || '');
@@ -49,11 +70,12 @@ export const requireAuth = async (req: Request, _res: Response, next: NextFuncti
 
   const dueno = verificarDuenoTok(token);
   if (dueno) {
+    const identidad = await identidadOperativaDueno();
     req.auth = {
-      userId: 0,
-      nombre: 'Propietario Sistema',
+      userId: identidad.userId,
+      nombre: identidad.nombre,
       userRole: 'Dueno',
-      empresaId: 1,
+      empresaId: identidad.empresaId,
       isDueno: true,
       ip: getClientIp(req),
       userAgent: req.headers['user-agent'] || 'unknown',
@@ -143,16 +165,18 @@ export const requireAdminODueno = (req: Request, res: Response, next: NextFuncti
   const token = extractToken(req);
   const dueno = verificarDuenoTok(token);
   if (token && dueno) {
-    req.auth = {
-      userId: 0,
-      nombre: 'Propietario Sistema',
-      userRole: 'Dueno',
-      empresaId: 1,
-      isDueno: true,
-      ip: getClientIp(req),
-      userAgent: req.headers['user-agent'] || 'unknown',
-    };
-    return runWithRequestContext({ platform: true }, () => next());
+    return identidadOperativaDueno().then((identidad) => {
+      req.auth = {
+        userId: identidad.userId,
+        nombre: identidad.nombre,
+        userRole: 'Dueno',
+        empresaId: identidad.empresaId,
+        isDueno: true,
+        ip: getClientIp(req),
+        userAgent: req.headers['user-agent'] || 'unknown',
+      };
+      runWithRequestContext({ platform: true, empresaId: identidad.empresaId }, () => next());
+    });
   }
   return requireAuth(req, res, () => {
     if (!req.auth || (req.auth.userRole !== 'Administrador' && !req.auth.isDueno)) {

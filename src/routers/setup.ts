@@ -93,7 +93,10 @@ router.post(
     const logoArchivo = archivoDeCampo(req, 'logo_archivo');
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : null;
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : null;
-    const tema = String(req.body.tema_activo || 'noche').trim();
+    const temaRaw = String(req.body.tema_activo || '').trim();
+    const tema = ['claro-luxury-gold', 'negro-brillante'].includes(temaRaw)
+      ? temaRaw
+      : 'claro-luxury-gold';
     const primario = String(req.body.color_primario || '').trim() || null;
     const secundario = String(req.body.color_secundario || '').trim() || null;
     const opacidad = Number(req.body.opacidad_fondo);

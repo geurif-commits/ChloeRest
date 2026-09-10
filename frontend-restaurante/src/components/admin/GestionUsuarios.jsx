@@ -195,7 +195,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
             <UserCheck size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Salón & Mesas</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--admin-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Camareros</span>
             <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>{conteoRoles.camarero}</div>
           </div>
         </div>
@@ -339,7 +339,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {modoEdicion ? 'Editar Colaborador' : 'Registrar Nuevo Acceso'}
+                  {modoEdicion ? 'Editar Colaborador' : 'Crear Usuario Nuevo'}
                 </h3>
                 <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
                   {modoEdicion ? 'Actualiza los datos o PIN de este colaborador' : 'Ingresa los datos para autorizar el acceso'}

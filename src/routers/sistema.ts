@@ -18,14 +18,7 @@ const router = Router();
 const logger = createLogger('sistemaRouter');
 
 const LOGIN_THEMES_VALIDOS = [
-  'chef_noir',
-  'cyberpunk_neon',
-  'warm_cafe',
-  'nordic_clean',
-  'ocean_chef',
-  'crimson_grill',
   'olive_garden',
-  'night_lounge',
 ];
 
 /** true si el valor es un color hexadecimal #RRGGBB (esHex del legacy). */
@@ -99,12 +92,15 @@ async function jsonConfiguracion(
     slogan: row.slogan || null,
     logo_url: row.logo_url || alternativos?.logo_url || null,
     fondo_login_url: row.fondo_login_url || null,
-    tema_activo: row.tema_activo || 'noche',
+    tema_activo: ['claro-luxury-gold', 'negro-brillante'].includes(String(row.tema_activo || ''))
+      ? row.tema_activo
+      : 'claro-luxury-gold',
     estilo_login: row.estilo_login || 'moderno',
     color_primario: row.color_primario || null,
     color_secundario: row.color_secundario || null,
     opacidad_fondo: Number(row.opacidad_fondo || 1),
-    login_theme: row.login_theme || 'chef_noir',
+    login_theme: row.login_theme || 'olive_garden',
+    login_marca_tamano: row.login_marca_tamano || 'grande',
     color_acento: row.color_acento || null,
     fondo_tipo: row.fondo_tipo || 'imagen',
     fondo_color: row.fondo_color || null,
@@ -148,7 +144,7 @@ router.get('/api/sistema/info', route(async (_req: Request, res: Response) => {
       const mesasOcupadas = mesasRes.rowCount ? parseInt(mesasRes.rows[0].total, 10) : 0;
 
       res.json({
-        version: '2.1.0',
+        version: '2.2.0',
         caja: { abierta: cajaAbierta, monto: montoCaja },
         sucursal: negocio.provincia || 'No configurada',
         provincia: negocio.provincia || null,
@@ -163,7 +159,7 @@ router.get('/api/sistema/info', route(async (_req: Request, res: Response) => {
   } catch (error) {
     logger.warn({ action: 'SISTEMA_INFO_FALLBACK', error: (error as Error).message });
     res.json({
-      version: '2.1.0',
+      version: '2.2.0',
       caja: { abierta: false, monto: 0 },
       sucursal: 'No disponible',
       provincia: null,
@@ -178,7 +174,7 @@ router.get('/api/configuracion/sistema', route(async (req: Request, res: Respons
   const empresaId = await empresaPorDeviceId(req);
   const row = await configuracionSistemaDe(empresaId);
   if (!row) {
-    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', tiene_administrador: false });
+    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', login_marca_tamano: 'grande', tiene_administrador: false });
     return;
   }
   res.json(await jsonConfiguracion(row, empresaId));
@@ -204,7 +200,7 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
   }
 
   if (!row) {
-    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', tiene_administrador: false });
+    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', login_marca_tamano: 'grande', tiene_administrador: false });
     return;
   }
   res.json({
@@ -271,7 +267,13 @@ router.put(
     const logoAnterior = typeof row.logo_url === 'string' ? row.logo_url : null;
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : (body.quitar_fondo ? null : fondoAnterior);
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : (body.quitar_logo ? null : logoAnterior);
-    const tema = String(body.tema_activo || row.tema_activo || 'noche').trim();
+    // Solo los dos temas oficiales del sistema: claro-luxury-gold y negro-brillante.
+    const temasValidos = ['claro-luxury-gold', 'negro-brillante'];
+    const temaRaw = String(body.tema_activo || '').trim();
+    const temaPrevio = String(row.tema_activo || '').trim();
+    const tema = temasValidos.includes(temaRaw)
+      ? temaRaw
+      : (temasValidos.includes(temaPrevio) ? temaPrevio : 'claro-luxury-gold');
     const primario = String(body.color_primario || '').trim() || null;
     const secundario = String(body.color_secundario || '').trim() || null;
     const opacidad = Number(body.opacidad_fondo);
@@ -282,7 +284,12 @@ router.put(
     const slogan = String(body.slogan || '').trim() || null;
     const loginTheme = LOGIN_THEMES_VALIDOS.includes(String(body.login_theme || '').trim())
       ? String(body.login_theme).trim()
-      : String(row.login_theme || 'chef_noir');
+      : 'olive_garden';
+    const marcaTamanosValidos = ['mediano', 'grande', 'gigante'];
+    const marcaTamanoRaw = String(body.login_marca_tamano || '').trim();
+    const loginMarcaTamano = marcaTamanosValidos.includes(marcaTamanoRaw)
+      ? marcaTamanoRaw
+      : String(row.login_marca_tamano || 'grande');
     const estiloLogin = ['moderno', 'clasico'].includes(String(body.estilo_login || '').trim())
       ? String(body.estilo_login).trim()
       : String(row.estilo_login || 'moderno');
@@ -314,10 +321,10 @@ router.put(
        SET nombre_negocio = $1, slogan = $2, tema_activo = $3, color_primario = $4, color_secundario = $5,
            opacidad_fondo = $6, fondo_login_url = $7, logo_url = $8, estilo_login = $9,
            login_theme = $10, color_acento = $11, fondo_tipo = $12, fondo_color = $13,
-           fondo_gradiente = $14, fondo_blur = $15, actualizado_en = CURRENT_TIMESTAMP
+           fondo_gradiente = $14, fondo_blur = $15, login_marca_tamano = $16, actualizado_en = CURRENT_TIMESTAMP
        WHERE empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER`,
       [nombre, slogan, tema, primario, secundario, opacidadFinal, fondo, logo, estiloLogin,
-        loginTheme, acento, fondoTipo, fondoColor, fondoGradiente, fondoBlur]
+        loginTheme, acento, fondoTipo, fondoColor, fondoGradiente, fondoBlur, loginMarcaTamano]
     );
     if (nombre) {
       await db.query(
@@ -329,6 +336,12 @@ router.put(
         [nombre]
       );
     }
+    // Fuente única de logotipo: lo que se suba aquí (pantalla Logotipo y Fondo)
+    // se replica a negocio_config para que tickets, facturas y KDS usen el mismo logo.
+    await db.query(
+      'UPDATE negocio_config SET logo_url = $1 WHERE empresa_id = NULLIF(current_setting(\'app.empresa_id\', true), \'\')::INTEGER',
+      [logo]
+    );
     await registrarAuditoria(db, {
       usuarioId: req.auth!.userId,
       accion: 'ACTUALIZAR_PERSONALIZACION',
@@ -443,6 +456,15 @@ router.post(
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Activa', $12, $13, FALSE, CURRENT_TIMESTAMP, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
         [...values, mesaDisp, mesaOcup, mesaRes, comandaModo, ticketFontFamily, ticketFontSize,
           ticketLogoPosition, ticketShowQr, ticketMargin]
+      );
+    }
+    // Fuente única de logotipo: lo que se suba aquí (Datos de Empresa) se replica
+    // a configuracion_sistema para que el login y pantallas usen el mismo logo.
+    const logoFinal = logo || (current.rowCount ? (current.rows[0].logo_url || null) : null);
+    if (logoFinal) {
+      await db.query(
+        'UPDATE configuracion_sistema SET logo_url = $1 WHERE empresa_id = NULLIF(current_setting(\'app.empresa_id\', true), \'\')::INTEGER',
+        [logoFinal]
       );
     }
     await registrarAuditoria(db, {

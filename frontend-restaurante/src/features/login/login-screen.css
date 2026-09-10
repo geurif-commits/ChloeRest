@@ -185,64 +185,111 @@
 .modern-login__brand-panel {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  max-width: 480px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  max-width: 520px;
+  min-height: 0;
 }
 
+/* Tamaños de marca configurables (grande por defecto) */
 .brand-crest {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
+  width: 170px;
+  height: 170px;
+  border-radius: 36px;
   background: linear-gradient(135deg, rgba(245, 184, 61, 0.2), rgba(15, 23, 42, 0.6));
   border: 1px solid rgba(245, 184, 61, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(245, 184, 61, 0.15);
-  margin-bottom: 12px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45), 0 0 36px rgba(245, 184, 61, 0.22);
+  margin: 0 auto 22px auto;
   overflow: hidden;
-  padding: 6px;
+  padding: 18px;
+  flex-shrink: 0;
+}
+
+.brand-size-mediano .brand-crest {
+  width: 110px;
+  height: 110px;
+  border-radius: 26px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.brand-size-gigante .brand-crest {
+  width: 230px;
+  height: 230px;
+  border-radius: 44px;
+  padding: 24px;
+  margin-bottom: 26px;
 }
 
 .brand-crest__img {
+  display: block;
   width: 100%;
   height: 100%;
+  margin: 0 auto;
   object-fit: contain;
+  object-position: center center;
 }
 
 .brand-crest__fallback {
-  font-size: 1.3rem;
+  font-size: 3.4rem;
   font-weight: 900;
   color: var(--ml-gold);
   letter-spacing: -0.05em;
 }
 
+.brand-size-mediano .brand-crest__fallback {
+  font-size: 2.2rem;
+}
+
+.brand-size-gigante .brand-crest__fallback {
+  font-size: 4.6rem;
+}
+
 .brand-title {
   font-family: var(--font-display, 'Fraunces', 'Inter', serif);
-  font-size: 2rem;
+  font-size: 3.6rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: #fff;
-  margin: 0 0 4px 0;
-  line-height: 1.12;
+  margin: 0 auto 10px auto;
+  line-height: 1.06;
+  text-align: center;
+  width: 100%;
   background: linear-gradient(135deg, #ffffff 30%, var(--gold-champagne, #E8C87A) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
+.brand-size-mediano .brand-title {
+  font-size: 2.6rem;
+}
+
+.brand-size-gigante .brand-title {
+  font-size: 4.4rem;
+}
+
 .brand-slogan {
-  font-size: 0.82rem;
+  font-size: 1.05rem;
   color: #94a3b8;
-  margin: 0 0 12px 0;
+  margin: 0 auto 12px auto;
   line-height: 1.4;
+  text-align: center;
+  width: 100%;
 }
 
 .brand-rule {
-  width: 40px;
-  height: 2px;
+  width: 140px;
+  height: 3px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--gold-champagne, #E8C87A), transparent);
-  margin-bottom: 14px;
+  background: linear-gradient(90deg, transparent, var(--gold-champagne, #E8C87A) 30%, var(--gold-champagne, #E8C87A) 70%, transparent);
+  margin: 0 auto 14px auto;
+  box-shadow: 0 0 14px rgba(232, 200, 122, 0.45);
+  flex-shrink: 0;
 }
 
 /* Modern Clock */
@@ -366,6 +413,21 @@
 .modern-login__card--loading {
   opacity: 0.75;
   pointer-events: none;
+}
+
+/* ─── Contenedor principal: 2 cuadros paralelos en desktop ─── */
+.modern-login__container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  justify-items: center;
+  gap: 48px;
+  width: 100%;
+  max-width: 1120px;
+  margin: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 12px;
 }
 
 /* Mobile Brand Header */
@@ -805,146 +867,7 @@
    SKINS DE LOGIN PIN — CHLOE RESTAURANT POS
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* 1. Gold Noir Luxury (chef_noir) */
-.modern-login[data-login-skin="chef_noir"] {
-  --ml-gold: #f5b83d;
-  --ml-gold-glow: rgba(245, 184, 61, 0.4);
-  --ml-gold-dark: #b88220;
-  --ml-card-bg: rgba(14, 20, 36, 0.90);
-  --ml-border: rgba(245, 184, 61, 0.25);
-}
-
-/* 2. Cyberpunk Neón */
-.modern-login[data-login-skin="cyberpunk_neon"] {
-  --ml-gold: #00f0ff;
-  --ml-gold-glow: rgba(0, 240, 255, 0.55);
-  --ml-gold-dark: #00a8b3;
-  --ml-bg: #050814;
-  --ml-card-bg: rgba(9, 14, 28, 0.92);
-  --ml-border: rgba(0, 240, 255, 0.35);
-  --ml-green: #ff007f;
-}
-.modern-login[data-login-skin="cyberpunk_neon"] .modern-login__glow--left {
-  background: radial-gradient(circle, #00f0ff, transparent 70%);
-}
-.modern-login[data-login-skin="cyberpunk_neon"] .modern-login__glow--right {
-  background: radial-gradient(circle, #ff007f, transparent 70%);
-}
-.modern-login[data-login-skin="cyberpunk_neon"] .keypad-btn:active {
-  background: rgba(0, 240, 255, 0.25);
-  border-color: #00f0ff;
-  color: #00f0ff;
-  box-shadow: 0 0 24px rgba(0, 240, 255, 0.6);
-}
-.modern-login[data-login-skin="cyberpunk_neon"] .pin-pill--filled {
-  border-color: #00f0ff;
-  background: rgba(0, 240, 255, 0.25);
-  box-shadow: 0 0 18px rgba(0, 240, 255, 0.8);
-}
-
-/* 3. Warm Café & Bistro */
-.modern-login[data-login-skin="warm_cafe"] {
-  --ml-gold: #d4a373;
-  --ml-gold-glow: rgba(212, 163, 115, 0.45);
-  --ml-gold-dark: #a26c39;
-  --ml-bg: #150d09;
-  --ml-card-bg: rgba(28, 18, 13, 0.93);
-  --ml-border: rgba(212, 163, 115, 0.28);
-}
-.modern-login[data-login-skin="warm_cafe"] .modern-login__glow--left {
-  background: radial-gradient(circle, #d4a373, transparent 70%);
-}
-.modern-login[data-login-skin="warm_cafe"] .modern-login__glow--right {
-  background: radial-gradient(circle, #8b5e34, transparent 70%);
-}
-.modern-login[data-login-skin="warm_cafe"] .pin-pill--filled {
-  border-color: #d4a373;
-  background: rgba(212, 163, 115, 0.25);
-  box-shadow: 0 0 16px rgba(212, 163, 115, 0.7);
-}
-
-/* 4. Nordic Minimalist */
-.modern-login[data-login-skin="nordic_clean"] {
-  --ml-gold: #10b981;
-  --ml-gold-glow: rgba(16, 185, 129, 0.45);
-  --ml-gold-dark: #059669;
-  --ml-bg: #090e15;
-  --ml-card-bg: rgba(14, 21, 32, 0.93);
-  --ml-border: rgba(16, 185, 129, 0.25);
-}
-.modern-login[data-login-skin="nordic_clean"] .modern-login__glow--left {
-  background: radial-gradient(circle, #10b981, transparent 70%);
-}
-.modern-login[data-login-skin="nordic_clean"] .pin-pill--filled {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.25);
-  box-shadow: 0 0 16px rgba(16, 185, 129, 0.75);
-}
-
-/* 5. Deep Ocean & Aqua */
-.modern-login[data-login-skin="ocean_chef"] {
-  --ml-gold: #00c49f;
-  --ml-gold-glow: rgba(0, 196, 159, 0.5);
-  --ml-gold-dark: #008f7a;
-  --ml-bg: #030f14;
-  --ml-card-bg: rgba(6, 22, 30, 0.93);
-  --ml-border: rgba(0, 196, 159, 0.3);
-}
-.modern-login[data-login-skin="ocean_chef"] .modern-login__glow--left {
-  background: radial-gradient(circle, #00c49f, transparent 70%);
-}
-.modern-login[data-login-skin="ocean_chef"] .modern-login__glow--right {
-  background: radial-gradient(circle, #0284c7, transparent 70%);
-}
-.modern-login[data-login-skin="ocean_chef"] .pin-pill--filled {
-  border-color: #00c49f;
-  background: rgba(0, 196, 159, 0.25);
-  box-shadow: 0 0 16px rgba(0, 196, 159, 0.75);
-}
-
-/* 6. Crimson Steakhouse & Flame */
-.modern-login[data-login-skin="crimson_grill"] {
-  --ml-gold: #ef4444;
-  --ml-gold-glow: rgba(239, 68, 68, 0.55);
-  --ml-gold-dark: #b91c1c;
-  --ml-bg: #120707;
-  --ml-card-bg: rgba(25, 11, 11, 0.94);
-  --ml-border: rgba(239, 68, 68, 0.32);
-}
-.modern-login[data-login-skin="crimson_grill"] .modern-login__glow--left {
-  background: radial-gradient(circle, #ef4444, transparent 70%);
-}
-.modern-login[data-login-skin="crimson_grill"] .modern-login__glow--right {
-  background: radial-gradient(circle, #f97316, transparent 70%);
-}
-.modern-login[data-login-skin="crimson_grill"] .pin-pill--filled {
-  border-color: #ef4444;
-  background: rgba(239, 68, 68, 0.25);
-  box-shadow: 0 0 18px rgba(239, 68, 68, 0.8);
-}
-
-/* 7. Velvet Night Lounge */
-.modern-login[data-login-skin="night_lounge"] {
-  --ml-gold: #a855f7;
-  --ml-gold-glow: rgba(168, 85, 247, 0.5);
-  --ml-gold-dark: #7e22ce;
-  --ml-bg: #090514;
-  --ml-card-bg: rgba(21, 12, 36, 0.94);
-  --ml-border: rgba(168, 85, 247, 0.32);
-}
-.modern-login[data-login-skin="night_lounge"] .modern-login__glow--left {
-  background: radial-gradient(circle, #a855f7, transparent 70%);
-}
-.modern-login[data-login-skin="night_lounge"] .modern-login__glow--right {
-  background: radial-gradient(circle, #ec4899, transparent 70%);
-}
-.modern-login[data-login-skin="night_lounge"] .pin-pill--filled {
-  border-color: #a855f7;
-  background: rgba(168, 85, 247, 0.25);
-  box-shadow: 0 0 18px rgba(168, 85, 247, 0.8);
-}
-
-/* 8. Olive & Sage Light */
+/* 1. Olive & Sage Light (único) */
 .modern-login[data-login-skin="olive_garden"] {
   --ml-gold: #4a7c59;
   --ml-gold-glow: rgba(74, 124, 89, 0.35);
@@ -1102,4 +1025,54 @@
 @keyframes screensaverBlink {
   0%, 100% { opacity: 0.5; }
   50% { opacity: 1; }
+}
+
+/* ================================================================
+   POS SERVICE EDITION — acceso rápido, moderno y orientado a operación
+   ================================================================ */
+.modern-login {
+  --pos-gold: #e5b866;
+  --pos-gold-bright: #ffe3a2;
+  --pos-ink: #080909;
+  background: #080909;
+  font-family: Inter, system-ui, sans-serif;
+}
+.modern-login::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, rgba(7,7,7,.78), transparent 52%, rgba(7,7,7,.72)); z-index: 0; }
+.modern-login__bg { filter: saturate(.72) brightness(.34); transform: scale(1.04); }
+.modern-login__overlay { background: radial-gradient(circle at 72% 45%, rgba(229,184,102,.15), transparent 32%), linear-gradient(110deg, rgba(5,5,5,.9), rgba(8,9,9,.6)); }
+.modern-login__glow--left { background: radial-gradient(circle, rgba(229,184,102,.18), transparent 68%); }
+.modern-login__glow--right { background: radial-gradient(circle, rgba(146,80,33,.12), transparent 68%); }
+.modern-login__topbar, .modern-login__container, .modern-login__footer { position: relative; z-index: 2; }
+.modern-login__topbar { border-bottom-color: rgba(255,227,162,.16); }
+.modern-login__status-badge, .location-pill, .topbar-btn { border-color: rgba(255,227,162,.18); background: rgba(12,12,11,.62); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.status-dot--online { background: #d7b267; box-shadow: 0 0 12px rgba(229,184,102,.8); }
+.status-text, .status-host, .location-pill { color: rgba(255,242,211,.72); }
+.modern-login__container { max-width: 1180px; gap: 76px; }
+.modern-login__brand-panel { align-items: flex-start; text-align: left; max-width: 510px; }
+.brand-crest { margin-left: 0; width: 112px; height: 112px; border-radius: 28px; background: linear-gradient(145deg, rgba(229,184,102,.2), rgba(8,8,8,.7)); border-color: rgba(255,227,162,.45); box-shadow: 0 20px 55px rgba(0,0,0,.52), 0 0 42px rgba(229,184,102,.2); }
+.brand-title { margin-left: 0; text-align: left; font-size: clamp(2.8rem, 5vw, 5rem); background: linear-gradient(105deg, #fff9ec, #ffe3a2 58%, #bd8131); -webkit-background-clip: text; background-clip: text; }
+.brand-slogan { margin-left: 0; text-align: left; color: rgba(255,242,211,.64); max-width: 430px; }
+.brand-rule { margin-left: 0; width: 190px; background: linear-gradient(90deg, var(--pos-gold-bright), rgba(229,184,102,0)); }
+.modern-clock { border-color: rgba(255,227,162,.16); background: rgba(255,248,227,.045); max-width: 330px; }
+.modern-clock__icon, .card-header__icon { background: rgba(229,184,102,.13); border-color: rgba(229,184,102,.3); color: var(--pos-gold-bright); }
+.telemetry-card { border-color: rgba(255,227,162,.1); background: rgba(255,248,227,.035); }
+.modern-login__card { border-radius: 28px; border-color: rgba(255,227,162,.23); background: linear-gradient(150deg, rgba(27,24,19,.92), rgba(9,10,10,.94)); box-shadow: 0 28px 80px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,243,210,.08), 0 0 42px rgba(229,184,102,.08); padding: 24px 26px 20px; }
+.card-header__title { color: #fff7e7; }
+.card-header__subtitle, .card-status-bar, .keypad-btn__sub, .kds-quick-access__label { color: rgba(255,242,211,.48); }
+.pin-visualizer { border-color: rgba(255,227,162,.16); background: rgba(0,0,0,.32); padding: 10px 14px; }
+.pin-pill--filled { border-color: var(--pos-gold-bright); background: rgba(229,184,102,.22); box-shadow: 0 0 14px rgba(229,184,102,.55); }
+.keypad-btn { height: 56px; border-radius: 15px; border-color: rgba(255,227,162,.13); background: rgba(255,248,227,.045); color: #fff8e8; }
+.keypad-btn:hover { border-color: rgba(255,227,162,.46); background: rgba(229,184,102,.12); color: #fff3cf; transform: translateY(-2px); }
+.keypad-btn:active { background: rgba(229,184,102,.28); border-color: var(--pos-gold-bright); color: #fff3cf; }
+.keypad-btn--delete:hover { background: rgba(174,61,49,.18); border-color: rgba(229,112,94,.45); }
+.kds-btn { border-color: rgba(255,227,162,.15); background: rgba(255,248,227,.04); }
+.kds-btn--kitchen:hover, .kds-btn--bar:hover { background: rgba(229,184,102,.14); border-color: var(--pos-gold); color: var(--pos-gold-bright); }
+.modern-login__footer { color: rgba(255,242,211,.38); }
+.footer-secured { color: var(--pos-gold-bright); }
+
+@media (max-width: 900px) {
+  .modern-login__brand-panel { align-items: center; text-align: center; }
+  .brand-crest, .brand-title, .brand-slogan, .brand-rule { margin-left: auto; margin-right: auto; text-align: center; }
+  .brand-title { font-size: 2.6rem; }
+  .modern-login__container { gap: 20px; }
 }

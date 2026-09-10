@@ -15,6 +15,7 @@ import { runMigrations, fixDatabaseConsistency } from './db/migrations.js';
 import { iniciarTelegramBot } from './services/telegramBotService.js';
 import { obtenerOpcionesTelegramBot } from './services/telegramBotOptions.js';
 import { execSync } from 'node:child_process';
+import pg from 'pg';
 import type { Express } from 'express';
 
 const logger = createLogger('server');
@@ -35,16 +36,64 @@ createDatabase({
 });
 
 /**
+ * Crea la base de datos si no existe (instalaciones Electron frescas donde
+ * PostgreSQL existe pero aún no se creó `sistema_restaurante`). Nunca tumba
+ * el arranque: si no hay permisos, solo avisa y sigue en modo degradado.
+ */
+async function asegurarBaseDeDatosExiste(): Promise<void> {
+  const database = process.env.DB_NAME || 'postgres';
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(database) || database === 'postgres') {
+    return;
+  }
+  const admin = new pg.Pool({
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    database: 'postgres',
+    password: process.env.DB_PASSWORD || undefined,
+    port: Number(process.env.DB_PORT || 5432),
+    connectionTimeoutMillis: 5000,
+  });
+  try {
+    const existe = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [database]);
+    if (!existe.rowCount) {
+      await admin.query(`CREATE DATABASE "${database}"`);
+      logger.info({ action: 'DB_CREADA', details: { database } });
+    }
+  } catch (error) {
+    logger.warn({
+      action: 'DB_CREAR_OMITIDO',
+      error: { message: error instanceof Error ? error.message : String(error) },
+    });
+  } finally {
+    await admin.end().catch(() => undefined);
+  }
+}
+
+/**
  * Arranque de base de datos (misma secuencia que server.js legacy):
  * verificación de rol en producción, fix de consistencia y migraciones pendientes.
  */
 async function prepararBaseDeDatos(): Promise<void> {
   const db = getDatabase();
-  if (config.isProduction) {
+  if (process.env.NODE_ENV !== 'production') {
+    await asegurarBaseDeDatosExiste();
+  }
+  if (process.env.NODE_ENV === 'production') {
     await db.verifyDatabaseRole();
   }
-  await fixDatabaseConsistency(db);
+  // En producción las migraciones se ejecutan como paso explícito de
+  // despliegue con un rol DDL separado. El usuario de la aplicación nunca
+  // necesita CREATE/ALTER y por eso puede permanecer sin privilegios elevados.
+  if (process.env.NODE_ENV === 'production' && !config.runMigrations) {
+    logger.info({ action: 'DB_MIGRACIONES_OMITIDAS', details: 'RUN_MIGRATIONS no está habilitado; arranque con rol operativo' });
+    return;
+  }
+  // Primero materializamos el esquema y sus migraciones. La corrección de
+  // consistencia depende de tablas creadas por migraciones posteriores (por
+  // ejemplo `empresas`), por lo que ejecutarla antes provoca falsos avisos en
+  // instalaciones nuevas y deja el arranque menos determinista.
   await runMigrations(db);
+  await fixDatabaseConsistency(db);
 }
 
 /**
@@ -157,6 +206,13 @@ function arrancarServidor(app: Express, intento = 1): void {
  * del módulo para que el bundle CJS de pkg no dependa de top-level await.
  */
 async function inicializarAplicacion(): Promise<void> {
+  if (process.env.NODE_ENV === 'production' && !config.hasPersistentSessionSecret) {
+    logger.error({
+      action: 'CONFIG_PRODUCCION_INVALIDA',
+      details: 'APP_SESSION_SECRET es obligatorio en producción.',
+    });
+    process.exit(1);
+  }
   try {
     await prepararBaseDeDatos();
   } catch (err) {
@@ -164,7 +220,7 @@ async function inicializarAplicacion(): Promise<void> {
       action: 'DB_BOOT_FALLIDO',
       error: { message: err instanceof Error ? err.message : String(err) },
     });
-    if (config.isProduction) {
+    if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     }
     logger.warn({

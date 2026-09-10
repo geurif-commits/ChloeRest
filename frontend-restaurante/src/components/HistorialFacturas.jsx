@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import TicketTermico from './TicketTermico';
 import { toastError, toastAviso } from './Toast.jsx';
 import { obtenerSesion } from '../api.js';
+import { obtenerDeviceId } from '../utils/dispositivo.js';
 import { FileText, Search, Printer, Clock, Filter, LayoutList, LayoutGrid, Receipt, TrendingUp, Hash } from 'lucide-react';
 
 const formatearRD = (val) => {
@@ -34,7 +35,12 @@ function HistorialFacturas({ alVolver, apiUrl }) {
 
   const cargarFacturas = async () => {
     try {
-      const res = await fetch(`${urlBase}/api/reportes/facturas`);
+      const res = await fetch(`${urlBase}/api/reportes/facturas`, {
+        headers: {
+          'Authorization': `Bearer ${obtenerSesion()}`,
+          'X-Device-ID': obtenerDeviceId(),
+        }
+      });
       if (!res.ok) throw new Error("No se pudo cargar el historial.");
       const data = await res.json();
       setFacturas(data);

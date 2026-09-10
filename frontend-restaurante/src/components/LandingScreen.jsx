@@ -101,6 +101,9 @@ const LINES = [
 function LandingScreen({ onAcceder, onRegistrarse, onAccesoPropietario, config, logoUrl, apiUrl }) {
   const nombre = config?.nombre_negocio || config?.nombre || 'ChloeRestaurant';
   const logo = config?.logo || config?.logo_url || config?.logoUrl || logoUrl || null;
+  const landingTheme = ['obsidiana-gold', 'marfil-editorial', 'noir-executive'].includes(config?.landing_theme)
+    ? config.landing_theme
+    : (localStorage.getItem('POS_LANDING_THEME') || 'obsidiana-gold');
   // Ícono de marca del sistema (Chloe) cuando no hay logo comercial asignado.
   const ICONO_SISTEMA = '/icons.svg';
 
@@ -133,7 +136,7 @@ function LandingScreen({ onAcceder, onRegistrarse, onAccesoPropietario, config, 
   }, []);
 
   return (
-    <div className="landing-root">
+    <div className={`landing-root landing-root--${landingTheme}`}>
 
 
       {/* ── Fondo ── */}
@@ -190,6 +193,7 @@ function LandingScreen({ onAcceder, onRegistrarse, onAccesoPropietario, config, 
             <p className="landing-hero__subtitle">Sistema POS Integral para Restaurantes</p>
             <p className="landing-hero__tagline">Facturación DGII · Mapa de mesas · Cocina KDS · Reportes · Pagos mixtos</p>
             <div className="landing-hero__modules">{MODULES.slice(0,4).map((m,i)=><span key={i}><Zap size={10}/>{m}</span>)}</div>
+            <div className="landing-hero__proof"><span><ShieldCheck size={13}/> Operación segura</span><span><TrendingUp size={13}/> Más control</span><span><Clock size={13}/> Más rapidez</span></div>
             <div className="landing-hero__actions">
               <button type="button" className="landing-btn landing-btn--primary" onClick={()=>onRegistrarse(null)}><Sparkles size={16}/> Registrarse <ArrowRight size={14}/></button>
               <button type="button" className="landing-btn landing-btn--secondary" onClick={onAcceder}><KeyRound size={14}/> Acceder</button>

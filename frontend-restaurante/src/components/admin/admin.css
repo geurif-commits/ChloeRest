@@ -1843,6 +1843,20 @@
   }
 }
 
+/* En pantallas pequeñas se ocultan las píldoras informativas para que el
+   botón Volver a Caja (salir del admin) siempre quede visible y tocable. */
+@media (max-width: 640px) {
+  .admin-topbar__pill {
+    display: none !important;
+  }
+
+  .admin-topbar__volver {
+    flex-shrink: 0 !important;
+    min-height: 40px !important;
+    min-width: 40px !important;
+  }
+}
+
 
 @media (prefers-reduced-motion: reduce) {
   .admin-content {
@@ -1858,11 +1872,19 @@
     #080b12 !important;
   padding: 16px !important;
   overflow-y: auto;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  box-sizing: border-box !important;
 }
 .owner-pin-card {
   position: relative;
   max-width: 370px !important;
-  padding: 26px 24px 20px !important;
+  padding: 20px 18px 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: calc(100dvh - 32px) !important;
+  overflow-y: auto !important;
+  box-sizing: border-box !important;
   border: 1px solid rgba(214, 164, 77, .42) !important;
   border-radius: 22px !important;
   background: rgba(20, 24, 34, .9) !important;
@@ -1916,14 +1938,14 @@
 .owner-pin-enter:disabled { color: #707789 !important; background: #2a2f3a !important; border-color: transparent !important; box-shadow: none; cursor: not-allowed !important; }
 .owner-pin-card form > p { font-size: .68rem !important; line-height: 1.35 !important; }
 .owner-pin-card form > p[style*="color: '#ff5252'"] { padding: 7px 9px; border: 1px solid rgba(255,82,82,.3); border-radius: 8px; background: rgba(255,82,82,.08); }
-.owner-pin-card > button { margin-top: 0 !important; font-size: .76rem !important; color: #9ca9bd !important; }
+.owner-pin-card > button { margin-top: auto !important; padding-top: 10px !important; font-size: .8rem !important; font-weight: 600 !important; color: #d6a44d !important; flex-shrink: 0 !important; }
 @media (max-width: 420px), (max-height: 700px) {
-  .owner-pin-card { padding: 18px 16px 14px !important; }
+  .owner-pin-card { padding: 16px 14px 12px !important; }
   .owner-pin-badge { width: 38px; height: 38px; margin-bottom: 8px; }
-  .owner-pin_display { gap: 5px !important; margin-bottom: 10px !important; }
-  .owner-pin_display span { width: 31px !important; height: 31px !important; }
+  .owner-pin-display { gap: 5px !important; margin-bottom: 10px !important; }
+  .owner-pin-display span { width: 31px !important; height: 31px !important; }
   .owner-pin-keypad { gap: 6px !important; }
-  .owner-pin_key, .owner-pin_enter { min-height: 44px; font-size: 1rem !important; }
+  .owner-pin-key, .owner-pin-enter { min-height: 44px !important; font-size: 1rem !important; }
 }
 
 /* ================================================================

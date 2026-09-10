@@ -11,4 +11,5 @@ contextBridge.exposeInMainWorld('electronPOS', {
   maximizarVentana: () => ipcRenderer.send('ventana-maximizar'),
   cerrarVentana: () => ipcRenderer.send('ventana-cerrar'),
   estaMaximizada: () => ipcRenderer.invoke('ventana-esta-maximizada'),
+  mostrarVentana: () => ipcRenderer.invoke('mostrar-ventana'),
 });

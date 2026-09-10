@@ -93,8 +93,10 @@ export async function createSession(user: IUsuarioSesion): Promise<ISesionCreada
     );
     db.queryUnscoped('DELETE FROM app_sessions WHERE expira_en <= CURRENT_TIMESTAMP').catch(() => undefined);
   } catch (err) {
+    const sessionError = httpError(503, 'No se pudo iniciar la sesión. Intenta nuevamente.', 'SESSION_PERSISTENCE_ERROR');
      
     console.error('Error al guardar sesión en BD:', (err as Error).message);
+    throw sessionError;
   }
   return { token, usuario, expiraEn: expiresAt.toISOString() };
 }

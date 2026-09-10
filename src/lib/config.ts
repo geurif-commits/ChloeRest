@@ -34,19 +34,21 @@ export const config = {
   corsOrigins: [
     ...new Set([
       ...(process.env.CORS_ORIGINS ||
-        'https://chloerestaurant.lat,https://www.chloerestaurant.lat,http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
+        'https://chloerestaurant.lat,https://www.chloerestaurant.lat'
       )
         .split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'null',
+      ...(process.env.NODE_ENV !== 'production'
+        ? ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173']
+        : []),
+      ...(!['production'].includes(process.env.NODE_ENV || '') || process.env.ALLOW_NULL_ORIGIN === '1'
+        ? ['null']
+        : []),
     ]),
   ],
   autoFreePort: process.env.AUTO_FREE_PORT === '1',
+  runMigrations: process.env.RUN_MIGRATIONS === '1',
   login: {
     maxAttempts: Number(process.env.LOGIN_MAX_ATTEMPTS || 5),
     windowMinutes: Number(process.env.LOGIN_WINDOW_MINUTES || 15),

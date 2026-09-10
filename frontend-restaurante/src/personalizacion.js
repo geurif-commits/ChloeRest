@@ -26,8 +26,13 @@ function aColorRgba(hex, alpha) {
  */
 export function aplicarPersonalizacion(config, negocioConfig) {
   if (!config) return;
-  const tema = config.tema_activo || 'noche';
+  // Tema universal claro: el oscuro se retiró del sistema; siempre 'claro'
+  // sin importar valores guardados antiguos.
+  const permitidos = ['claro-luxury-gold', 'negro-brillante'];
+  const solicitado = String(config.tema_activo || localStorage.getItem('POS_THEME') || 'claro-luxury-gold');
+  const tema = permitidos.includes(solicitado) ? solicitado : 'claro-luxury-gold';
   document.documentElement.setAttribute('data-theme', tema);
+  localStorage.setItem('POS_THEME', tema);
 
   const primario = config.color_primario ? String(config.color_primario).trim() : '';
   const secundario = config.color_secundario ? String(config.color_secundario).trim() : '';
@@ -56,7 +61,7 @@ export function aplicarPersonalizacion(config, negocioConfig) {
   if (cssVars.length) {
     const style = document.createElement('style');
     style.id = VAR_STYLE_ID;
-    style.textContent = `:root, [data-theme="${tema}"] { ${cssVars.join('\n')} }`;
+    style.textContent = `:root[data-theme="${tema}"] { ${cssVars.join('\n')} }`;
     document.head.appendChild(style);
   }
 

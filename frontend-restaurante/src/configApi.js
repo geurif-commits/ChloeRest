@@ -166,6 +166,15 @@ export const getApiUrl = () => {
     return origen;
   }
 
+  // La edición Windows/Electron es autónoma: nunca debe heredar una URL
+  // guardada por la edición web o por una instalación LAN anterior.
+  if (esElectron()) {
+    const local = `http://127.0.0.1:${PUERTO_API_LOCAL}`;
+    localStorage.setItem(URL_KEY, local);
+    localStorage.removeItem(LEGACY_KEYS[0]);
+    return local;
+  }
+
   /*
    * URL guardada para Electron/LAN.
    */
@@ -193,13 +202,6 @@ export const getApiUrl = () => {
 
       return normalizada;
     }
-  }
-
-  /*
-   * Electron.
-   */
-  if (esElectron()) {
-    return `http://localhost:${PUERTO_API_LOCAL}`;
   }
 
   /*
@@ -273,4 +275,3 @@ export const esProduccion =
 
 export const esElectronApp =
   esElectron;
-

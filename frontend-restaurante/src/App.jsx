@@ -364,13 +364,17 @@ function AppContent() {
     }
   };
 
-  const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   useEffect(() => {
     const alConectar = () => setRedOnline(true);
     const alDesconectar = () => setRedOnline(false);
     window.addEventListener('online', alConectar);
     window.addEventListener('offline', alDesconectar);
+    // Mostrar ventana en Electron al montar la app (arranque silencioso -> visible bajo demanda)
+    if (esElectronApp && window.electronPOS?.mostrarVentana) {
+      window.electronPOS.mostrarVentana();
+    }
     return () => {
       window.removeEventListener('online', alConectar);
       window.removeEventListener('offline', alDesconectar);
@@ -658,7 +662,7 @@ function AppContent() {
   const limpiarServidor = () => {
     if (esElectronApp()) {
       clearApiUrl();
-      setApiUrl('');
+      setApiUrl('http://127.0.0.1:3000');
     } else {
       setApiUrl(window.location.origin);
     }

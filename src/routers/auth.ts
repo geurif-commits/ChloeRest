@@ -109,8 +109,12 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
   const deviceId = String(req.get('x-device-id') || req.body.deviceId || '').trim();
   const pin = String(req.body.pin || '').trim();
 
-  // 1. Verificación universal del Dueño / Propietario: sin rate-limit y sin
-  // alterar el estado del dispositivo.
+  // El PIN del propietario también debe pasar por el mismo límite. De lo
+  // contrario, el acceso universal permitiría probar PINs indefinidamente.
+  verificarRateLimit(ip);
+
+  // 1. Verificación universal del Dueño / Propietario, sin alterar el estado
+  // del dispositivo.
   const cfg = await db.queryUnscoped<{ owner_pin_hash: string | null }>(
     'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
   );
@@ -127,17 +131,27 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
       empresa_id: 1,
       device_id: deviceId || 'temp-owner-session',
     };
-    const session = await createSession(duenoUser);
+    // El dueño no es un registro de `usuarios` (su id virtual es 0), por lo
+    // que no debe intentar insertarse en `app_sessions`. El frontend usa
+    // `token` como credencial principal, así que ambos campos deben contener
+    // el token firmado del dueño.
+    const expiraEn = new Date(Date.now() + 12 * 3600 * 1000);
+    const tokenDueno = firmarDuenoTok({ rol: 'Dueno', exp: expiraEn.getTime() });
     res.json({
-      ...session,
+      token: tokenDueno,
+      usuario: {
+        id: duenoUser.id,
+        nombre: duenoUser.nombre,
+        rol: duenoUser.rol,
+      },
+      expiraEn: expiraEn.toISOString(),
       esDueno: true,
       requiereCambioPin: false,
-      tokenDueno: firmarDuenoTok({ rol: 'Dueno', exp: Date.now() + 12 * 3600 * 1000 }),
+      tokenDueno,
     });
     return;
   }
 
-  verificarRateLimit(ip);
   assertValidPin(pin);
   if (!deviceId) {throw httpError(400, 'Identificador de dispositivo requerido.');}
 

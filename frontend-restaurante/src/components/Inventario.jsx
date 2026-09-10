@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sanitizarDecimal } from '../utils/input.js';
 import { toastAviso } from './Toast.jsx';
 import {
   Warehouse, Plus, History, ArrowLeft, ArrowUpRight, ArrowDownRight,
-  SlidersHorizontal, Package, AlertTriangle, CheckCircle, Search, Save, X
+  SlidersHorizontal, Package, Search, Save, X
 } from 'lucide-react';
 
 function Inventario({ alVolver, apiUrl }) {
@@ -38,23 +38,23 @@ function Inventario({ alVolver, apiUrl }) {
     'General'
   ];
 
-  useEffect(() => {
-    cargarInventario();
-  }, []);
-
-  const cargarInventario = async () => {
+  const cargarInventario = useCallback(async () => {
     try {
       const res = await fetch(`${urlBase}/api/inventario`);
       if (!res.ok) throw new Error("Error al conectar con el servidor de inventario.");
       const data = await res.json();
       setIngredientes(Array.isArray(data) ? data : []);
-    } catch (error) {
+    } catch {
       console.error("Error:", error);
       toastAviso("Error de red al cargar el inventario.");
     } finally {
       setCargando(false);
     }
-  };
+  }, [urlBase]);
+
+  useEffect(() => {
+    cargarInventario();
+  }, [cargarInventario]);
 
   const cargarMovimientos = async () => {
     try {
@@ -64,7 +64,7 @@ function Inventario({ alVolver, apiUrl }) {
         setMovimientos(Array.isArray(data) ? data : []);
         setViendoMovimientos(true);
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar movimientos:", error);
     }
   };
@@ -97,7 +97,7 @@ function Inventario({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al registrar insumo.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error de red al registrar el insumo.");
     }
   };
@@ -126,7 +126,7 @@ function Inventario({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al ajustar stock.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error de red al realizar ajuste.");
     }
   };

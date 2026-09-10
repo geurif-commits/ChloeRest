@@ -137,6 +137,10 @@ router.put('/api/mesas/:id', requireAuth, requireRoles(...ROLES_ADMIN), route(as
 router.delete('/api/mesas/:id', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const id = positiveInteger(req.params.id, 'Mesa');
+  const historical = await db.query<{ id: number }>('SELECT id FROM cuentas WHERE mesa_id = $1 LIMIT 1', [id]);
+  if (historical.rowCount) {
+    throw httpError(409, 'La mesa tiene historial de cuentas y no puede eliminarse. Puedes renombrarla o dejarla disponible.');
+  }
   const result = await db.query("DELETE FROM mesas WHERE id = $1 AND estado <> 'Ocupada'", [id]);
   if (!result.rowCount) {throw httpError(409, 'La mesa no existe o está ocupada.');}
   await registrarAuditoria(db, { usuarioId: req.auth!.userId, accion: 'ELIMINAR_MESA', entidad: 'mesas', entidadId: id, ip: clientIp(req) });

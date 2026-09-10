@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { toastAviso, toastError } from './Toast.jsx';
 import {
-  Store, Key, Building2, Receipt, Palette, Printer, FileText, Save,
+  Store, Key, Building2, Receipt, Printer, FileText, Save,
   CreditCard, Pencil, Trash2, Plus, CheckCircle2, ShieldCheck, Sparkles,
-  Layers, Sliders, Smartphone, QrCode, DollarSign, RefreshCw, ChevronRight
+  RefreshCw
 } from 'lucide-react';
 import './admin/admin.css';
 
@@ -164,9 +164,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ 
-      ...formData, 
-      [name]: type === 'checkbox' ? checked : value 
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value
     });
   };
 
@@ -320,7 +320,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               </div>
             </div>
 
-            {/* Selector de Logo */}
+            {/* Logotipo (solo lectura: se gestiona en Logotipo y Fondo) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
               <div style={{ width: '70px', height: '70px', borderRadius: '12px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
                 {logoVista ? (
@@ -332,7 +332,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>Logotipo del Establecimiento</strong>
                 <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
-                  Aparece en tickets de impresión, facturas DGII y pantallas del sistema.
+                  Aparece en tickets de impresión, facturas DGII y pantallas del sistema. Se sincroniza con Logotipo y Fondo.
                 </span>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                   <button

@@ -276,7 +276,7 @@ router.get('/api/reportes/cierre', requireAuth, requireRoles(...ROLES_CAJA), rou
       "SELECT COALESCE(monto_inicial, 0) AS monto_inicial FROM aperturas_caja WHERE fecha::date = CURRENT_DATE AND estado = 'Abierta' ORDER BY id DESC LIMIT 1"
     ),
   ]);
-  const montoInicial = Number(apertura.rows[0].monto_inicial || 0);
+  const montoInicial = Number(apertura.rows[0]?.monto_inicial || 0);
   res.json({
     totalesGenerales: totals.rows[0],
     desgloseMetodos: methods.rows,
