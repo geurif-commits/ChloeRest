@@ -24,7 +24,7 @@ function MesaSvg({ estado }) {
       <rect x="35" y="82" width="30" height="10" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
       <rect x="8" y="35" width="10" height="30" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
       <rect x="82" y="35" width="10" height="30" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
-      <rect x="25" y="25" width="50" height="50" rx="8" stroke={color} strokeWidth="3" fill="rgba(255,255,255,0.03)" />
+      <rect x="25" y="25" width="50" height="50" rx="8" stroke={color} strokeWidth="3" fill="var(--bg-card-hover, rgba(255,255,255,0.03))" />
       <circle cx="50" cy="50" r="3.5" fill={color} opacity="0.7" />
     </svg>
   );
@@ -214,26 +214,26 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
 
   if (mesaPin) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-        <div style={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(245,184,61,0.3)', borderRadius: '20px', padding: '28px', width: 'min(380px, 92vw)', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(245,184,61,0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+      <div className="mesa-pin-overlay" style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+        <div className="mesa-pin-modal">
+          <div className="mesa-pin-icon">
             <Lock size={22} />
           </div>
-          <h3 style={{ color: '#fff', margin: '0 0 4px', fontSize: '1.2rem', fontWeight: 800 }}>Mesa {mesaPin.nombre_numero}</h3>
-          <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.8rem', margin: '0 0 16px' }}>Mesa atendida por otro camarero. Ingresa PIN de autorización:</p>
+          <h3 className="mesa-pin-title">Mesa {mesaPin.nombre_numero}</h3>
+          <p className="mesa-pin-subtitle">Mesa atendida por otro camarero. Ingresa PIN de autorización:</p>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '16px' }}>
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)', background: pinIngresado.length > i ? 'var(--gold, #f5b842)' : 'transparent', transition: 'all 0.15s ease' }} />
+              <div key={i} className={`mesa-pin-dot ${pinIngresado.length > i ? 'mesa-pin-dot--active' : ''}`} />
             ))}
           </div>
-          {pinError && <p style={{ color: '#ef4444', fontSize: '0.78rem', margin: '0 0 10px' }}>{pinError}</p>}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', maxWidth: '240px', margin: '0 auto' }}>
+          {pinError && <p className="mesa-pin-error">{pinError}</p>}
+          <div className="mesa-pin-grid">
             {[1,2,3,4,5,6,7,8,9].map(n => (
-              <button key={n} type="button" onClick={() => agregarDigitoPin(String(n))} style={{ height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: '1.15rem', fontWeight: 700, cursor: 'pointer' }}>{n}</button>
+              <button key={n} type="button" className="mesa-pin-btn" onClick={() => agregarDigitoPin(String(n))}>{n}</button>
             ))}
-            <button type="button" onClick={cerrarModalPin} style={{ height: '46px', borderRadius: '10px', border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
-            <button type="button" onClick={() => agregarDigitoPin('0')} style={{ height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: '1.15rem', fontWeight: 700, cursor: 'pointer' }}>0</button>
-            <button type="button" onClick={() => setPinIngresado(p => p.slice(0, -1))} style={{ height: '46px', borderRadius: '10px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>⌫</button>
+            <button type="button" className="mesa-pin-btn mesa-pin-btn--cancel" onClick={cerrarModalPin}>✕</button>
+            <button type="button" className="mesa-pin-btn" onClick={() => agregarDigitoPin('0')}>0</button>
+            <button type="button" className="mesa-pin-btn mesa-pin-btn--del" onClick={() => setPinIngresado(p => p.slice(0, -1))}>⌫</button>
           </div>
         </div>
       </div>
@@ -246,31 +246,31 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
 
   return (
     <div className="mesa-workspace" style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '12px 18px', background: 'rgba(12,17,29,0.95)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <header className="mesa-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {logoComercio ? (
-            <img src={logoComercio} alt={nombreComercio} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'contain', background: '#fff', padding: '2px' }} />
+            <img src={logoComercio} alt={nombreComercio} className="mesa-header__logo" />
           ) : (
-            <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(245,184,61,0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="mesa-header__icon">
               <TableProperties size={20} />
             </div>
           )}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>{nombreComercio}</h1>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'rgba(245,184,61,0.15)', color: 'var(--gold, #f5b842)', border: '1px solid rgba(245,184,61,0.3)' }}>
+              <h1 className="mesa-header__name">{nombreComercio}</h1>
+              <span className="mesa-header__badge">
                 {kpis.porcentaje}% Ocupado ({kpis.ocupadas}/{kpis.total})
               </span>
             </div>
-            <small style={{ color: 'var(--admin-text-muted)', fontSize: '0.75rem' }}>
+            <small className="mesa-header__sub">
               Salón • Camarero: <strong>{usuario?.nombre || 'Personal'}</strong> • {kpis.disponibles} libres
             </small>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', width: '160px' }}>
-            <input type="search" placeholder="Buscar mesa..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ width: '100%', padding: '7px 10px 7px 28px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.78rem' }} />
-            <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+          <div className="mesa-search">
+            <input type="search" placeholder="Buscar mesa..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} className="mesa-search__input" />
+            <Search size={13} className="mesa-search__icon" />
           </div>
           <button type="button" className={`admin-btn ${modoTraslado ? 'admin-btn-primary' : 'admin-btn-secondary'}`} onClick={() => { setModoTraslado(!modoTraslado); setMesaOrigen(null); }} style={{ fontSize: '0.78rem', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ArrowRightLeft size={14} /> <span>{modoTraslado ? '✓ Cancelar Traslado' : '⇄ Trasladar'}</span>
@@ -281,14 +281,14 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
         </div>
       </header>
 
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+      <div className="mesa-filtros">
         {['Todas', 'Disponible', 'Ocupada', 'Reservada'].map((estado) => {
           const esActivo = filtroEstado === estado;
           const conteo = estado === 'Todas' ? mesasVisibles.length : mesasVisibles.filter((m) => m.estado === estado).length;
           return (
-            <button key={estado} type="button" onClick={() => setFiltroEstado(estado)} style={{ padding: '6px 14px', borderRadius: '8px', border: esActivo ? '1px solid var(--gold, #f5b842)' : '1px solid rgba(255,255,255,0.08)', background: esActivo ? 'rgba(245,184,61,0.15)' : 'rgba(255,255,255,0.03)', color: esActivo ? 'var(--gold, #f5b842)' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+            <button key={estado} type="button" onClick={() => setFiltroEstado(estado)} className={`mesa-filtro-btn ${esActivo ? 'mesa-filtro-btn--active' : ''}`}>
               <span>{estado}</span>
-              <span style={{ fontSize: '0.7rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(0,0,0,0.3)' }}>{conteo}</span>
+              <span className="mesa-filtro-btn__count">{conteo}</span>
             </button>
           );
         })}
@@ -314,11 +314,11 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
               const esOrigen = mesaOrigen?.id === mesa.id;
               const color = colorEstadoMesa(mesa.estado);
               return (
-                <button key={mesa.id} type="button" onClick={() => hacerClicMesa(mesa)} style={{ padding: '14px 10px', borderRadius: '14px', background: esOrigen ? 'rgba(245,184,61,0.2)' : 'rgba(255,255,255,0.03)', border: `1.5px solid ${esOrigen ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.18s ease', boxShadow: mesa.estado === 'Ocupada' ? '0 4px 14px rgba(239,68,68,0.15)' : 'none' }}>
+              <button key={mesa.id} type="button" onClick={() => hacerClicMesa(mesa)} className={`mesa-table-btn ${esOrigen ? 'mesa-table-btn--origin' : ''}`}>
                   <MesaSvg estado={mesa.estado} />
-                  <strong style={{ fontSize: '0.98rem', color: '#fff' }}>{mesa.nombre_numero}</strong>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: color }}>{mesa.estado}</span>
-                  {mesa.camarero && <small style={{ fontSize: '0.66rem', color: 'var(--admin-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{mesa.camarero}</small>}
+                  <strong className="mesa-table-btn__name">{mesa.nombre_numero}</strong>
+                  <span className="mesa-table-btn__status" style={{ color }}>{mesa.estado}</span>
+                  {mesa.camarero && <small className="mesa-table-btn__camarero">{mesa.camarero}</small>}
                 </button>
               );
             })}

@@ -4089,3 +4089,271 @@ body {
   background: var(--border-medium) !important;
   border-color: var(--bg-base) !important;
 }
+
+/* ============================================================
+   MAPA DE MESAS — estilos de componente (tokens adaptativos)
+   ============================================================ */
+
+.mesa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--bg-panel);
+  border-radius: 14px;
+  border: 1px solid var(--border-light);
+}
+
+.mesa-header__logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
+}
+
+.mesa-header__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mesa-header__name {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.mesa-header__badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  border: 1px solid var(--gold-glow);
+}
+
+.mesa-header__sub {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.mesa-search {
+  position: relative;
+  width: 160px;
+}
+
+.mesa-search__input {
+  width: 100%;
+  padding: 7px 10px 7px 28px;
+  border-radius: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+}
+
+.mesa-search__icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+}
+
+.mesa-filtros {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.mesa-filtro-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.mesa-filtro-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.mesa-filtro-btn--active {
+  border: 1px solid var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.mesa-filtro-btn--active:hover {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.mesa-filtro-btn__count {
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-overlay);
+}
+
+.mesa-table-btn {
+  padding: 14px 10px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.mesa-table-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+  transform: translateY(-2px);
+}
+
+.mesa-table-btn--origin {
+  background: var(--gold-soft);
+  border: 1.5px solid var(--gold);
+}
+
+.mesa-table-btn__name {
+  font-size: 0.98rem;
+  color: var(--text-primary);
+}
+
+.mesa-table-btn__status {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mesa-table-btn__camarero {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.mesa-pin-overlay {
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+}
+
+.mesa-pin-modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--gold-glow);
+  border-radius: 20px;
+  padding: 28px;
+  width: min(380px, 92vw);
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+}
+
+.mesa-pin-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.mesa-pin-title {
+  color: var(--text-primary);
+  margin: 0 0 4px;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.mesa-pin-subtitle {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0 0 16px;
+}
+
+.mesa-pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border-medium);
+  background: transparent;
+  transition: all 0.15s ease;
+}
+
+.mesa-pin-dot--active {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.mesa-pin-error {
+  color: var(--red);
+  font-size: 0.78rem;
+  margin: 0 0 10px;
+}
+
+.mesa-pin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.mesa-pin-btn {
+  height: 46px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mesa-pin-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+}
+
+.mesa-pin-btn--cancel {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.mesa-pin-btn--del {
+  border: none;
+  background: transparent;
+  color: var(--red);
+}

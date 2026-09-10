@@ -114,9 +114,10 @@ async function jsonConfiguracion(
 
 // GET /api/sistema/info (público; pantalla de login). El legacy NO usaba route()
 // y respondía 200 aunque fallara: mismo comportamiento con try/catch interno.
-router.get('/api/sistema/info', route(async (_req: Request, res: Response) => {
+router.get('/api/sistema/info', route(async (req: Request, res: Response) => {
   try {
-    await runWithRequestContext({ empresaId: 1 }, async () => {
+    const empresaId = (await empresaPorDeviceId(req)) ?? 1;
+    await runWithRequestContext({ empresaId }, async () => {
       const db = getDatabase();
       // Caja estado
       const cajaRes = await db.query<{ estado: string | null; monto_inicial: string | null }>(
@@ -235,8 +236,9 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
 }));
 
 // GET /api/negocio/config (público; pantalla inicial pre-login)
-router.get('/api/negocio/config', route(async (_req: Request, res: Response) => {
-  await runWithRequestContext({ empresaId: 1 }, async () => {
+router.get('/api/negocio/config', route(async (req: Request, res: Response) => {
+  const empresaId = (await empresaPorDeviceId(req)) ?? 1;
+  await runWithRequestContext({ empresaId }, async () => {
     const db = getDatabase();
     const result = await db.query<FilaConfiguracion>(
       `SELECT nombre_comercial AS nombre, nombre_comercial, razon_social, rnc, telefono, direccion,
