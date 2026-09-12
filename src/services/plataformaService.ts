@@ -20,51 +20,7 @@ function sha256Hex(value: string): string {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-// ──── Limitador de intentos de PIN del Dueño (anti fuerza bruta) ────
-
-interface IIntentoRecord {
-  count: number;
-  primerIntento: number;
-  bloqueadoHasta: number | null;
-}
-
-const loginLimiter = {
-  intentos: new Map<string | null, IIntentoRecord>(),
-  maxAttempts: config.login.maxAttempts,
-  windowMs: config.login.windowMinutes * 60 * 1000,
-  lockoutMs: config.login.lockoutMinutes * 60 * 1000,
-  limpiarVencidos(): void {
-    const now = Date.now();
-    for (const [key, record] of this.intentos) {
-      if (record.bloqueadoHasta && record.bloqueadoHasta <= now) {this.intentos.delete(key);}
-      else if (!record.bloqueadoHasta && now - record.primerIntento > this.windowMs) {this.intentos.delete(key);}
-    }
-  },
-};
-
-export function verificarRateLimit(ip: string | null): void {
-  loginLimiter.limpiarVencidos();
-  const record = loginLimiter.intentos.get(ip);
-  if (!record || !record.bloqueadoHasta) {return;}
-  const restanteMin = Math.ceil((record.bloqueadoHasta - Date.now()) / 60000);
-  throw httpError(429, `Demasiados intentos fallidos. Reintenta en ${restanteMin} min.`);
-}
-
-export function registrarIntentoFallido(ip: string | null): void {
-  const now = Date.now();
-  const record = loginLimiter.intentos.get(ip) || { count: 0, primerIntento: now, bloqueadoHasta: null };
-  record.count += 1;
-  if (record.count >= loginLimiter.maxAttempts) {
-    record.bloqueadoHasta = now + loginLimiter.lockoutMs;
-    record.count = 0;
-    console.warn(`IP ${ip} bloqueada temporalmente tras ${loginLimiter.maxAttempts} intentos fallidos.`);
-  }
-  loginLimiter.intentos.set(ip, record);
-}
-
-export function registrarIntentoExitoso(ip: string | null): void {
-  loginLimiter.intentos.delete(ip);
-}
+// ──── Limitador de intentos movido a seguridadService (persistente, item 8) ────
 
 // ──── Licencia pública (GET /api/licencia/verificar) ────
 
@@ -197,8 +153,6 @@ export interface ICuerpoActivacion {
   pinInicial?: string;
 }
 
-const FORMATO_CHLOE = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){1,15})$/i;
-
 export async function activarDispositivo(params: {
   deviceId: string;
   clave: string;
@@ -237,38 +191,10 @@ export async function activarDispositivo(params: {
     logger.warn({ action: 'LICENCIA_BUSQUEDA_FALLIDA', error: (err as Error).message });
   }
 
-  // Clave generada por el Bot de Telegram / Propietario aún no registrada:
-  // se valida por formato y se registra dinámicamente con empresa nueva.
-  let pinInicialGenerado: string | undefined;
-  if (!stored && clave !== config.licenseActivationKey) {
-    const match = FORMATO_CHLOE.exec(clave);
-    if (match) {
-      const parsed = parsearDuracion(match[1]);
-      if (parsed) {
-        const pinInicial = String(crypto.randomInt(100000, 1000000));
-        pinInicialGenerado = pinInicial;
-        const pinHash = hashPin(pinInicial);
-        const nuevaEmpresaId = await db.transaction(async (client) => {
-          const emp = await client.query<{ id: number }>(
-            `INSERT INTO empresas (nombre, slug) VALUES ($1, $2) RETURNING id`,
-            [`Empresa ${clave.slice(-8)}`, `empresa-${crypto.randomUUID()}`]
-          );
-          await client.query(
-            `INSERT INTO licencias (empresa_id, clave_hash, duracion_codigo, admin_pin_hash, activa)
-             VALUES ($1, $2, $3, $4, TRUE)`,
-            [emp.rows[0].id, claveHash, match[1].toUpperCase(), pinHash]
-          );
-          return emp.rows[0].id;
-        });
-        stored = {
-          empresa_id: nuevaEmpresaId,
-          duracion_codigo: match[1].toUpperCase(),
-          activa: true,
-          admin_pin_hash: pinHash,
-        };
-      }
-    }
-  }
+  // Seguridad (C4): eliminado el auto-registro dinámico por solo formato.
+  // Toda clave legítima es pre-registrada en `licencias` por el panel del
+  // dueño o el bot de Telegram (crearLicenciaConAdministrador) antes de
+  // entregarse al cliente. Una clave no registrada → 401 más abajo.
 
   const empresaId = stored ? stored.empresa_id : 1;
 
@@ -397,7 +323,6 @@ export async function activarDispositivo(params: {
     licenciaVencimiento: vencimiento ? vencimiento.toISOString() : null,
     diasRestantes: vencimiento ? Math.max(0, Math.ceil((vencimiento.getTime() - Date.now()) / 86400000)) : null,
     pinAdministradorGenerado: Boolean(stored && stored.admin_pin_hash),
-    ...(pinInicialGenerado ? { pinInicial: pinInicialGenerado } : {}),
   };
 }
 
@@ -478,17 +403,17 @@ export async function activarLicenciaDesdeSesion(params: {
 
   let duracionDesdeClave: { vitalicia: boolean; meses: number } | null = null;
   if (clave !== config.licenseActivationKey) {
-    const match = /^CHLOE-([0-9]+[DM]|L)-([A-F0-9]{5}(?:-[A-F0-9]{5}){3})$/i.exec(clave);
-    if (match) {
-      const firmaRecibida = String(match[2]).replace(/-/g, '').toUpperCase();
-      // Bug-for-bug con el legacy: firma calculada sin secret (la clave maestra
-      // CHLOE se valida realmente por lado del dispositivo, no aquí).
-      const firmaEsperada = firmarDuracionSinSecret(match[1]);
-      const a = Buffer.from(firmaRecibida);
-      const b = Buffer.from(firmaEsperada);
-      const firmaValida = a.length === b.length && crypto.timingSafeEqual(a, b);
-      const parsed = parsearDuracion(match[1]);
-      if (firmaValida && parsed) {duracionDesdeClave = parsed;}
+    // Seguridad (C4): la clave debe estar pre-registrada en `licencias`
+    // (emitida por el panel del dueño o el bot). Se eliminó la firma HMAC con
+    // secret vacío que permitía forjar claves offline.
+    const reg = await db.queryUnscoped<{ duracion_codigo: string; activa: boolean }>(
+      'SELECT duracion_codigo, activa FROM licencias WHERE clave_hash = $1',
+      [crypto.createHash('sha256').update(clave).digest('hex')]
+    );
+    const fila = reg.rows[0];
+    if (fila && fila.activa) {
+      const parsed = parsearDuracion(fila.duracion_codigo);
+      if (parsed) {duracionDesdeClave = parsed;}
     }
   }
   if (duracionDesdeClave) {
@@ -510,10 +435,6 @@ export async function activarLicenciaDesdeSesion(params: {
     ip: params.ip,
   });
   return { ok: true };
-}
-
-function firmarDuracionSinSecret(dur: string): string {
-  return crypto.createHmac('sha256', '').update(`CHLOE:${dur.toUpperCase()}`).digest('hex').toUpperCase().slice(0, 20);
 }
 
 // ──── CRUD Cuentas Bancarias (por empresa, RLS) ────

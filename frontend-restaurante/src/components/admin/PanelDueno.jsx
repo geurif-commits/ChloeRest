@@ -185,6 +185,12 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const headers = () => ({ 'Authorization': `Bearer ${token}` });
 
   const cerrarSesion = () => {
+    // Revoca el token Dueño en el servidor (item 7) sin bloquear el cierre local.
+    try {
+      fetch(`${apiUrl}/api/dueno/logout`, { method: 'POST', headers: headers() }).catch(() => {});
+    } catch {
+      /* ignorar */
+    }
     localStorage.removeItem(TOKEN_KEY);
     setToken('');
     setPin('');

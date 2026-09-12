@@ -13,9 +13,6 @@ import { requireDueno } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { assertValidPin, firmarDuenoTok, hashPin, verifyPin } from '../services/authService.js';
 import {
-  verificarRateLimit,
-  registrarIntentoFallido,
-  registrarIntentoExitoso,
   resetearDatosPruebas,
   revocarLicencia,
   reactivarLicencia,
@@ -33,6 +30,7 @@ import {
   actualizarMetodoPagoDueno,
   eliminarMetodoPagoDueno,
 } from '../services/plataformaService.js';
+import { getDuenoEpoch, bumpDuenoEpoch, verificarBloqueo, registrarFallo, registrarExito } from '../services/seguridadService.js';
 import {
   obtenerSolicitudPorId,
   cambiarEstadoSolicitud,
@@ -157,7 +155,8 @@ router.post('/api/dueno/licencias/:id/reset-pin', requireDueno, route(async (req
 router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const ip = clientIp(req);
-  verificarRateLimit(ip);
+  const claves = ['ip:' + (ip || 'unknown')];
+  await verificarBloqueo(claves);
   const pin = String(req.body.pin || '').trim();
   assertValidPin(pin);
 
@@ -170,22 +169,13 @@ router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
   let esValido = false;
   if (config.ownerPin && pin === String(config.ownerPin).trim()) {esValido = true;}
   else if (storedHash && verifyPin(pin, storedHash)) {esValido = true;}
-  else if (!storedHash) {
-    const admins = await db.queryUnscoped<{ pin_hash: string | null }>(
-      "SELECT pin_hash FROM usuarios WHERE rol = 'Administrador' AND estado = 'Activo' AND pin_hash IS NOT NULL"
-    );
-    if (admins.rows.some((admin) => verifyPin(pin, admin.pin_hash))) {
-      esValido = true;
-      const nuevoHash = hashPin(pin);
-      await db.queryUnscoped(
-        'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2, actualizado_en = CURRENT_TIMESTAMP WHERE owner_pin_hash IS NULL',
-        [nuevoHash, pin.length]
-      );
-    }
-  }
+  // Seguridad: eliminado el auto-claim que convertía el PIN de cualquier
+  // Administrador (de cualquier empresa) en el PIN del dueño de la plataforma
+  // cuando owner_pin_hash estaba vacío. El PIN del dueño solo se establece vía
+  // OWNER_PIN (env) o POST /api/dueno/establecer-pin en instalación fresca.
 
   if (!esValido) {
-    registrarIntentoFallido(ip);
+    await registrarFallo(claves);
     // Sin PIN configurado en ningún lado → el frontend ofrece crearlo (modo setup).
     const sinConfigurar = !config.ownerPin && !storedHash;
     res.status(401).json({ error: 'PIN de propietario incorrecto.', pinNoConfigurado: sinConfigurar });
@@ -193,10 +183,10 @@ router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
   }
 
   // Al autenticarse el dueño con éxito, liberamos cualquier bloqueo previo en esta IP
-  registrarIntentoExitoso(ip);
+  await registrarExito(claves);
   logger.info({ action: 'DUENO_LOGIN_OK' });
   const exp = Date.now() + 12 * 3600 * 1000;
-  res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp }), expiraEn: new Date(exp).toISOString() });
+  res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
 }));
 
 // POST /api/dueno/establecer-pin (solo si aún no hay PIN de propietario).
@@ -205,7 +195,8 @@ router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
 router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const ip = clientIp(req);
-  verificarRateLimit(ip);
+  const claves = ['ip:' + (ip || 'unknown')];
+  await verificarBloqueo(claves);
   const pin = String(req.body.pin || '').trim();
   assertValidPin(pin);
   if (pin.length < 4) {throw httpError(400, 'El PIN debe tener al menos 4 dígitos.');}
@@ -214,19 +205,33 @@ router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Respons
     'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
   );
   if (config.ownerPin || cfg.rows[0]?.owner_pin_hash) {
-    registrarIntentoFallido(ip);
+    await registrarFallo(claves);
     throw httpError(400, 'El PIN de propietario ya está configurado. Usa el acceso normal.');
   }
 
   const nuevoHash = hashPin(pin);
-  await db.queryUnscoped(
-    'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2, actualizado_en = CURRENT_TIMESTAMP WHERE id = 1',
+  // UPDATE condicional: cierra la carrera TOCTOU entre la verificación anterior
+  // y la escritura (solo gana el primer establecedor).
+  const upd = await db.queryUnscoped(
+    'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2, actualizado_en = CURRENT_TIMESTAMP WHERE id = 1 AND owner_pin_hash IS NULL',
     [nuevoHash, pin.length]
   );
-  registrarIntentoExitoso(ip);
+  if (!upd.rowCount) {
+    await registrarFallo(claves);
+    throw httpError(400, 'El PIN de propietario ya está configurado. Usa el acceso normal.');
+  }
+  await registrarExito(claves);
+  // Al crear/rotar el PIN del dueño, invalida cualquier token Dueño anterior.
+  await bumpDuenoEpoch();
   logger.info({ action: 'DUENO_PIN_CREADO' });
   const exp = Date.now() + 12 * 3600 * 1000;
-  res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp }), expiraEn: new Date(exp).toISOString() });
+  res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
+}));
+
+// POST /api/dueno/logout — revoca todos los tokens Dueño (item 7).
+router.post('/api/dueno/logout', requireDueno, route(async (_req: Request, res: Response) => {
+  await bumpDuenoEpoch();
+  res.json({ ok: true });
 }));
 
 // POST /api/dueno/reset-pruebas

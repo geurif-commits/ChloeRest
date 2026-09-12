@@ -46,6 +46,14 @@ router.post('/api/setup/registro', route(async (req: Request, res: Response) => 
   // el contexto por defecto del middleware global de dispositivo del legacy.
   await runWithRequestContext({ empresaId: 1 }, async () => {
     const db = getDatabase();
+    // Seguridad: el registro del wizard solo aplica mientras el setup no esté
+    // completado; después, los datos del negocio se editan desde el panel.
+    const setupPrevio = await db.query<{ setup_completado: boolean | null }>(
+      'SELECT setup_completado FROM configuracion_sistema WHERE empresa_id = 1 LIMIT 1'
+    );
+    if (setupPrevio.rowCount && setupPrevio.rows[0].setup_completado) {
+      throw httpError(403, 'El setup ya fue completado. Usa el panel de administración con tu sesión.');
+    }
     const current = await db.query<IFilaId>('SELECT id FROM negocio_config ORDER BY id LIMIT 1');
     if (current.rowCount) {
       await db.query(
@@ -88,6 +96,17 @@ router.post(
       throw httpError(403, 'El setup solo está disponible después de activar este dispositivo.');
     }
     const empresaId = device.rows[0]?.empresa_id || 1;
+
+    // Seguridad: el wizard solo puede ejecutarse mientras el setup esté
+    // incompleto. Una vez completado, cualquier cambio de administrador
+    // (incluido el PIN) requiere sesión autenticada con su rol.
+    const setupPrevio = await db.queryUnscoped<{ setup_completado: boolean | null }>(
+      'SELECT setup_completado FROM configuracion_sistema WHERE empresa_id = $1 LIMIT 1',
+      [empresaId]
+    );
+    if (setupPrevio.rowCount && setupPrevio.rows[0].setup_completado) {
+      throw httpError(403, 'El setup ya fue completado. Usa el panel de administración con tu sesión.');
+    }
 
     const fondoArchivo = archivoDeCampo(req, 'fondo_archivo');
     const logoArchivo = archivoDeCampo(req, 'logo_archivo');

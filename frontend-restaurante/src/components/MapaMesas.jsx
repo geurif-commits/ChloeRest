@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import MenuPedido from '../components/MenuPedido';
 import { toastAviso } from '../components/Toast.jsx';
-import { obtenerSesion } from '../api.js';
+import { obtenerSesion, obtenerTicketSse } from '../api.js';
 import {
   TableProperties, Search, ArrowRightLeft, LogOut,
   Users, Layers, Sparkles, RefreshCw, Lock
@@ -53,21 +53,23 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
   useEffect(() => {
     let sseMesas, sseKDS, intervaloFallback, reconectarTimeout, activo = true;
 
-    const conectarSSE = () => {
+    const conectarSSE = async () => {
       try {
-        const token = encodeURIComponent(obtenerSesion() || '');
-        sseMesas = new EventSource(`${urlBase}/api/mesas/stream?token=${token}`);
-        sseKDS = new EventSource(`${urlBase}/api/kds/stream?token=${token}`);
+        const ticket = await obtenerTicketSse(urlBase);
+        if (!ticket || !activo) return;
+        const q = `ticket=${encodeURIComponent(ticket)}`;
+        sseMesas = new EventSource(`${urlBase}/api/mesas/stream?${q}`);
+        sseKDS = new EventSource(`${urlBase}/api/kds/stream?${q}`);
         const manejarEvento = () => { if (activo) cargarMesas(); };
         sseMesas.onmessage = manejarEvento;
         sseKDS.onmessage = manejarEvento;
-        const manejarError = (nombre) => () => {
+        const manejarError = () => {
           if (sseMesas) sseMesas.close();
           if (sseKDS) sseKDS.close();
           if (activo) reconectarTimeout = setTimeout(() => { if (activo) conectarSSE(); }, 10000);
         };
-        sseMesas.onerror = manejarError('mesas');
-        sseKDS.onerror = manejarError('kds');
+        sseMesas.onerror = manejarError;
+        sseKDS.onerror = manejarError;
       } catch (e) { console.warn('SSE no disponible, usando polling.'); }
     };
 

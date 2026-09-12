@@ -1,8 +1,7 @@
 /**
  * @file Router KDS: streams SSE (Cocina y Mesas) con autenticación por token de
- * sesión (?token=) o deviceId activo, pedidos pendientes por categoría
- * (Cocina/Bar) y despacho de detalles de cuenta. Puerto directo de server.js
- * (legacy, líneas ~2100-2211). Rutas con prefijo /api completo; listas para
+ * sesión (?token=), pedidos pendientes por categoría (Cocina/Bar) y despacho de
+ * detalles de cuenta. Rutas con prefijo /api completo; listas para
  * app.use(kdsRouter).
  */
 
@@ -12,14 +11,10 @@ import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { sseClients, sseMesaClients, notificarKDS } from '../lib/sse.js';
+import { consumirTicketSse } from '../lib/sseTickets.js';
+import { UserRole } from '../types/index.js';
 
 const router = Router();
-
-/** Fila de dispositivos consultada al autenticar por deviceId (query sin RLS, como el legacy). */
-interface IDispositivoSseFila {
-  empresa_id: number;
-  estado: string;
-}
 
 /** Fila de pedido pendiente para la pantalla KDS (GET /api/kds/:categoria/pedidos). */
 interface IPedidoKDSFila {
@@ -35,67 +30,39 @@ interface IPedidoKDSFila {
 }
 
 /**
- * Busca un dispositivo por deviceId y devuelve su fila solo si está Activo.
- * Devuelve null si no existe, está inactivo o falla la consulta (el legacy
- * degradaba a 401 con .catch(() => ({ rowCount: 0 }))).
- */
-async function buscarDispositivoActivo(deviceId: string): Promise<IDispositivoSseFila | null> {
-  const db = getDatabase();
-  try {
-    const result = await db.queryUnscoped<IDispositivoSseFila>(
-      'SELECT empresa_id, estado FROM dispositivos WHERE device_id = $1',
-      [deviceId]
-    );
-    if (result.rowCount && result.rows[0].estado === 'Activo') {return result.rows[0];}
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fija req.auth como estación KDS ficticia del deviceId (usuario 0, rol
- * 'Cocina') y corre el resto de la cadena dentro del tenant de la empresa.
- */
-function continuarComoEstacionKDS(req: Request, next: NextFunction, empresaId: number): void {
-  req.auth = {
-    userId: 0,
-    nombre: 'Estación KDS',
-    userRole: 'Cocina',
-    empresaId,
-    isDueno: false,
-    ip: clientIp(req) || 'unknown',
-    userAgent: req.headers['user-agent'] || 'unknown',
-  };
-  runWithRequestContext({ empresaId }, () => next());
-}
-
-/**
- * Middleware de los streams SSE (réplica de autenticarSse legacy): token de
- * sesión en ?token= delegado en requireAuth, o dispositivo Activo por
- * ?deviceId=/x-device-id; si no hay ninguno, 401.
+ * Middleware de los streams SSE: exige token de sesión en ?token= delegado en
+ * requireAuth. Seguridad (H2): se eliminó el fallback por solo deviceId, que
+ * permitía leer pedidos sin autenticación conociendo un device_id activo.
  */
 async function autenticarSse(req: Request, res: Response, next: NextFunction): Promise<void> {
+  // Preferido: ticket efímero de un solo uso (no expone el token en la URL).
+  const ticket = consumirTicketSse(String(req.query.ticket || '').trim());
+  if (ticket) {
+    req.auth = {
+      userId: ticket.userId,
+      nombre: ticket.nombre,
+      userRole: ticket.userRole as UserRole,
+      empresaId: ticket.empresaId,
+      isDueno: ticket.isDueno,
+      ip: clientIp(req) || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+    };
+    const ctx = ticket.isDueno ? { platform: true, empresaId: 1 } : { empresaId: ticket.empresaId };
+    return runWithRequestContext(ctx, () => next());
+  }
+  // Compatibilidad: token de sesión en ?token=.
   const token = String(req.query.token || '').trim();
   if (token) {
     req.headers.authorization = `Bearer ${token}`;
     await requireAuth(req, res, next);
     return;
   }
-  const deviceId = String(req.query.deviceId || req.get('x-device-id') || '').trim();
-  if (deviceId) {
-    const dev = await buscarDispositivoActivo(deviceId);
-    if (dev) {
-      continuarComoEstacionKDS(req, next, dev.empresa_id);
-      return;
-    }
-  }
   res.status(401).json({ error: 'Sesión no válida o vencida.' });
 }
 
 /**
- * Middleware de los endpoints KDS (réplica de autorizarKDS legacy): Authorization
- * o ?token= delegado en requireAuth, o dispositivo Activo; si no hay ninguno, 401.
+ * Middleware de los endpoints KDS: exige Authorization o ?token= delegado en
+ * requireAuth. Seguridad (H2): sin fallback por deviceId.
  */
 async function autorizarKDS(req: Request, res: Response, next: NextFunction): Promise<void> {
   const value = req.get('authorization') || (req.query.token ? `Bearer ${req.query.token}` : '');
@@ -103,14 +70,6 @@ async function autorizarKDS(req: Request, res: Response, next: NextFunction): Pr
     req.headers.authorization = value;
     await requireAuth(req, res, next);
     return;
-  }
-  const deviceId = String(req.get('x-device-id') || req.query.deviceId || '').trim();
-  if (deviceId) {
-    const dev = await buscarDispositivoActivo(deviceId);
-    if (dev) {
-      continuarComoEstacionKDS(req, next, dev.empresa_id);
-      return;
-    }
   }
   res.status(401).json({ error: 'Sesión no válida o vencida.' });
 }

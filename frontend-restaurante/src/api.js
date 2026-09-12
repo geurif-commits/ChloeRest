@@ -219,6 +219,30 @@ export function borrarSesion() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+/**
+ * Ticket efímero de un solo uso para conectar EventSource sin exponer el
+ * token de sesión en la URL (item 9). Usa el fetch autenticado global.
+ */
+export async function obtenerTicketSse(apiUrl = '') {
+  try {
+    const res = await fetch(`${apiUrl}/api/sse/ticket`, { method: 'POST' });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data.ticket || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Logout server-side (item 7): revoca la sesión en el backend. */
+export async function cerrarSesionServidor(apiUrl = '') {
+  try {
+    await fetch(`${apiUrl}/api/logout`, { method: 'POST' });
+  } catch {
+    /* el logout local continúa aunque falle la red */
+  }
+}
+
 export function instalarFetchAutenticado() {
   if (window.__posFetchInstalado) {
     return;

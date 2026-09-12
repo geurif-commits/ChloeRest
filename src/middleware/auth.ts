@@ -11,6 +11,7 @@ import { createLogger } from '../lib/logger.js';
 import { UserRole, IRequestContext } from '../types/index.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { verificarDuenoTok } from '../services/authService.js';
+import { verificarDuenoEpoch } from '../services/seguridadService.js';
 
 const logger = createLogger('auth');
 
@@ -70,6 +71,9 @@ export const requireAuth = async (req: Request, _res: Response, next: NextFuncti
 
   const dueno = verificarDuenoTok(token);
   if (dueno) {
+    if (!(await verificarDuenoEpoch(dueno.ep))) {
+      return next(httpError(401, 'Token de propietario revocado o vencido.', 'DUENO_REVOKED'));
+    }
     const identidad = await identidadOperativaDueno();
     req.auth = {
       userId: identidad.userId,
@@ -141,9 +145,10 @@ export const requireRoles =
 /**
  * Middleware: Solo el Dueño (panel de plataforma/licencias)
  */
-export const requireDueno = (req: Request, _res: Response, next: NextFunction): void => {
+export const requireDueno = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   const token = extractToken(req);
-  if (!verificarDuenoTok(token)) {
+  const dueno = verificarDuenoTok(token);
+  if (!dueno || !(await verificarDuenoEpoch(dueno.ep))) {
     return next(httpError(401, 'Acceso de propietario no válido o vencido.', 'DUENO_ONLY'));
   }
   req.auth = {
@@ -161,22 +166,22 @@ export const requireDueno = (req: Request, _res: Response, next: NextFunction): 
 /**
  * Middleware: Administrador o Dueño
  */
-export const requireAdminODueno = (req: Request, res: Response, next: NextFunction): Promise<void> | void => {
+export const requireAdminODueno = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = extractToken(req);
   const dueno = verificarDuenoTok(token);
-  if (token && dueno) {
-    return identidadOperativaDueno().then((identidad) => {
-      req.auth = {
-        userId: identidad.userId,
-        nombre: identidad.nombre,
-        userRole: 'Dueno',
-        empresaId: identidad.empresaId,
-        isDueno: true,
-        ip: getClientIp(req),
-        userAgent: req.headers['user-agent'] || 'unknown',
-      };
-      runWithRequestContext({ platform: true, empresaId: identidad.empresaId }, () => next());
-    });
+  if (token && dueno && (await verificarDuenoEpoch(dueno.ep))) {
+    const identidad = await identidadOperativaDueno();
+    req.auth = {
+      userId: identidad.userId,
+      nombre: identidad.nombre,
+      userRole: 'Dueno',
+      empresaId: identidad.empresaId,
+      isDueno: true,
+      ip: getClientIp(req),
+      userAgent: req.headers['user-agent'] || 'unknown',
+    };
+    runWithRequestContext({ platform: true, empresaId: identidad.empresaId }, () => next());
+    return;
   }
   return requireAuth(req, res, () => {
     if (!req.auth || (req.auth.userRole !== 'Administrador' && !req.auth.isDueno)) {

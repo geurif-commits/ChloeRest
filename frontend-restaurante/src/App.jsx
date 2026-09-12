@@ -17,7 +17,7 @@ import PanelDueno from './components/admin/PanelDueno';
 import ToastContainer from './components/Toast.jsx';
 import { toastAviso } from './components/Toast.jsx';
 
-import { borrarSesion, guardarSesion, obtenerSesion } from './api.js';
+import { borrarSesion, cerrarSesionServidor, guardarSesion, obtenerSesion } from './api.js';
 import { obtenerInfoDispositivo, obtenerDeviceId } from './utils/dispositivo.js';
 
 import {
@@ -650,6 +650,8 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
   // ==========================================================
 
   const resetSesion = () => {
+    // Revoca la sesión en el servidor (item 7) antes de limpiar el cliente.
+    void cerrarSesionServidor(apiUrl);
     borrarSesion();
     setUsuario(null);
     setViendoKDS(null);

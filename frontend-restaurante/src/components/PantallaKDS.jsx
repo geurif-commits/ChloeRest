@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toastError, toastExito } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
-import { obtenerSesion } from '../api.js';
+import { obtenerSesion, obtenerTicketSse } from '../api.js';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 
 function reproducirAlertaComanda() {
@@ -39,7 +39,7 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
       const headers = { 'X-Device-ID': devId };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${apiUrl}/api/kds/${tipo}/pedidos?token=${encodeURIComponent(token || '')}&deviceId=${encodeURIComponent(devId || '')}`, {
+      const res = await fetch(`${apiUrl}/api/kds/${tipo}/pedidos`, {
         headers,
       });
       if (!res.ok) throw new Error('No se pudieron cargar los pedidos.');
@@ -69,13 +69,13 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
     let reconnectTimeout = null;
     let conectado = true;
 
-    const conectarSSE = () => {
+    const conectarSSE = async () => {
       if (!conectado) return;
       try {
         if (eventSource) eventSource.close();
-        const token = obtenerSesion();
-        const devId = obtenerDeviceId();
-        const sseUrl = `${apiUrl}/api/kds/stream?token=${encodeURIComponent(token || '')}&deviceId=${encodeURIComponent(devId || '')}`;
+        const ticket = await obtenerTicketSse(apiUrl);
+        if (!ticket || !conectado) return;
+        const sseUrl = `${apiUrl}/api/kds/stream?ticket=${encodeURIComponent(ticket)}`;
         eventSource = new EventSource(sseUrl);
 
         eventSource.onmessage = (e) => {

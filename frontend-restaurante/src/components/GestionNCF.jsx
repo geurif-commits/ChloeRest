@@ -67,15 +67,28 @@ function GestionNCF({ alVolver, apiUrl }) {
     }
   };
 
-  const descargarReporte607Txt = () => {
-    const token = localStorage.getItem('token') || '';
-    window.open(`${urlBase}/api/dgii/reporte-607?anio=${reporteAnio}&mes=${reporteMes}&formato=txt&token=${token}`, '_blank');
+  // Descarga autenticada por header (item 9): sin token en la URL.
+  const descargarReporte = async (tipo) => {
+    try {
+      const res = await fetch(`${urlBase}/api/dgii/reporte-${tipo}?anio=${reporteAnio}&mes=${reporteMes}&formato=txt`);
+      if (!res.ok) { toastError('No se pudo descargar el reporte.'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte-${tipo}-${reporteAnio}-${String(reporteMes).padStart(2, '0')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toastError('Error de red al descargar el reporte.');
+    }
   };
 
-  const descargarReporte606Txt = () => {
-    const token = localStorage.getItem('token') || '';
-    window.open(`${urlBase}/api/dgii/reporte-606?anio=${reporteAnio}&mes=${reporteMes}&formato=txt&token=${token}`, '_blank');
-  };
+  const descargarReporte607Txt = () => descargarReporte('607');
+
+  const descargarReporte606Txt = () => descargarReporte('606');
 
   const cargarHistorialEcf = useCallback(async () => {
     setCargandoHistorial(true);

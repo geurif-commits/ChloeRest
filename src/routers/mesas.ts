@@ -13,7 +13,7 @@ import { getDatabase } from '../db/index.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { assertSixDigitPin, verifyPin, verifySupervisorAuthorization } from '../services/authService.js';
-import { registrarIntentoFallido, registrarIntentoExitoso } from '../services/plataformaService.js';
+import { registrarFallo, registrarExito } from '../services/seguridadService.js';
 import { cuentaAbiertaParaMesa, cobrarCuenta, type ICuentaAbiertaFila } from '../services/cuentasService.js';
 import { notificarMesas, notificarKDS } from '../lib/sse.js';
 import { ROLES_ADMIN, ROLES_CAJA, ROLES_OPERACION } from '../lib/roles.js';
@@ -250,16 +250,18 @@ router.post('/api/mesas/:id/acceder', requireAuth, requireRoles('Camarero'), rou
   const propietario = await db.query<{ nombre: string }>('SELECT nombre FROM usuarios WHERE id = $1', [account.camarero_id]);
   const nombrePropietario = propietario.rowCount ? propietario.rows[0].nombre : 'otro camarero';
   if (account.camarero_id !== req.auth!.userId) {throw httpError(403, `Esta mesa pertenece a: ${nombrePropietario}.`);}
+  const ip = clientIp(req);
+  const claves = ['ip:' + (ip || 'unknown')];
   const user = await db.query<{ id: number; pin_hash: string | null }>(
     "SELECT id, pin_hash FROM usuarios WHERE id = $1 AND estado = 'Activo'",
     [req.auth!.userId]
   );
   if (!user.rowCount || !verifyPin(req.body.pin, user.rows[0].pin_hash)) {
-    registrarIntentoFallido(clientIp(req));
+    await registrarFallo(claves);
     res.status(403).json({ error: 'PIN incorrecto.' });
     return;
   }
-  registrarIntentoExitoso(clientIp(req));
+  await registrarExito(claves);
   await registrarAuditoria(db, {
     usuarioId: req.auth!.userId,
     accion: 'ACCEDER_MESA',

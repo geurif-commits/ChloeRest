@@ -742,6 +742,25 @@ const migrations: IMigracion[] = [{
       ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'claro-luxury-gold';
     `,
   },
+  {
+    id: '044_seguridad_login_y_revocacion',
+    sql: `
+      -- Item 8: lockout persistente por IP y por dispositivo (sobrevive reinicios
+      -- y funciona multi-worker). No contiene datos de negocio → sin RLS.
+      CREATE TABLE IF NOT EXISTS login_intentos (
+        clave TEXT PRIMARY KEY,
+        intentos INTEGER NOT NULL DEFAULT 0,
+        bloqueado_hasta TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Item 7: revocación server-side de los tokens HMAC del Dueño. Al hacer
+      -- logout o cambiar el PIN del dueño se incrementa el epoch y todos los
+      -- tokens emitidos con el epoch anterior quedan inválidos al instante.
+      ALTER TABLE configuracion_sistema
+        ADD COLUMN IF NOT EXISTS owner_token_epoch INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
 ];
 export async function runMigrations(pool: Database): Promise<void> {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());
@@ -831,7 +850,9 @@ export async function runMigrations(pool: Database): Promise<void> {
     const esInstalacionNueva = users.rows[0].total === 0;
     if (esInstalacionNueva) {
       // Primera ejecución: crear el administrador inicial con PIN seguro (si no se proporciona uno)
-      const pinInicial = config.bootstrapAdminPin || String(Math.floor(100000 + Math.random() * 900000));
+      // Seguridad (item 10): CSPRNG en vez de Math.random. El PIN NUNCA se
+      // registra en claro en los logs; se entrega por canal seguro/entorno.
+      const pinInicial = config.bootstrapAdminPin || String(crypto.randomInt(100000, 1000000));
       await client.query(
         // empresa_id=1 es LEGACY: la empresa raíz del sistema.
         // Las demás empresas crean su admin exclusivamente en el Wizard Setup.
@@ -839,7 +860,10 @@ export async function runMigrations(pool: Database): Promise<void> {
          VALUES (1, 'Administrador Sistema', 'Administrador', NULL, $1, 'Activo')`,
         [hashPin(pinInicial)]
       );
-      logger.info({ action: 'ADMIN_INICIAL_CREADO', details: { pinTemporal: pinInicial } });
+      logger.info({
+        action: 'ADMIN_INICIAL_CREADO',
+        usaPinDeEntorno: Boolean(config.bootstrapAdminPin),
+      });
     } else {
       logger.info({ action: 'USUARIOS_VERIFICADOS', details: { total: users.rows[0].total } });
     }

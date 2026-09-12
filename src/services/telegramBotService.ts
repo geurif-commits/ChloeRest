@@ -378,13 +378,14 @@ function fmtMonto(moneda: string | null | undefined, monto: unknown): string {
 }
 
 function esPropietario(chatId: string): boolean {
+  // Seguridad (H5): eliminada la auto-registración del primer chat que escribe
+  // al bot. El propietario solo se define vía TELEGRAM_OWNER_CHAT_ID (env).
   if (!ownerChatId) {
-    ownerChatId = chatId;
-    logger.info({
-      action: 'TELEGRAM_PROPIETARIO_AUTORREGISTRADO',
-      message: `Telegram: propietario auto-registrado (chat ${chatId}).`,
+    logger.warn({
+      action: 'TELEGRAM_MENSAJE_SIN_PROPIETARIO',
+      message: `Telegram: mensaje de chat ${chatId} ignorado; TELEGRAM_OWNER_CHAT_ID no configurado.`,
     });
-    return true;
+    return false;
   }
   return chatId === ownerChatId;
 }
