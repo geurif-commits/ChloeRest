@@ -15,6 +15,7 @@ import LoginScreen from './features/login/LoginScreen.jsx';
 import PanelDueno from './components/admin/PanelDueno';
 
 import ToastContainer from './components/Toast.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
 import { toastAviso } from './components/Toast.jsx';
 
 import { borrarSesion, cerrarSesionServidor, guardarSesion, obtenerSesion } from './api.js';
@@ -697,6 +698,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <ConfigurarIP
           alGuardar={(ip) => {
             const urlFinal = guardarApiUrl(ip);
@@ -736,6 +738,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
 
         <BloqueoLicencia
           motivo={estadoLicencia.motivo}
@@ -761,6 +764,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
 
         <PantallaKDS
           tipo={viendoKDS}
@@ -786,6 +790,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PantallaKDS
             tipo="Cocina"
@@ -801,6 +806,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PantallaKDS
             tipo="Bar"
@@ -816,6 +822,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PanelAdmin
             usuario={usuario}
@@ -836,6 +843,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PantallaCaja
             usuario={usuario}
@@ -849,6 +857,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <MapaMesas
           usuario={usuario}
           alCerrarSesion={resetSesion}
@@ -867,6 +876,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <PanelDueno
           apiUrl={apiUrl}
           config={configSistema}
@@ -889,6 +899,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <WizardSetup
           apiUrl={apiUrl}
           config={configSistema}
@@ -929,6 +940,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <WelcomeScreen
           apiUrl={apiUrl}
           config={configSistema}
@@ -953,6 +965,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <ActivacionDispositivo
           apiUrl={apiUrl}
           onVolver={() => navegarRuta('/landingscreen')}
@@ -1032,6 +1045,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <LoginScreen
           apiUrl={apiUrl}
           configSistema={configSistema}
@@ -1056,6 +1070,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
   return (
     <>
       <ToastContainer />
+      <UpdateBanner />
       <LandingScreen
         config={configSistema}
         logoUrl={configNegocio?.logo_url}

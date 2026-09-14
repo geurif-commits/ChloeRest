@@ -4357,3 +4357,236 @@ body {
   background: transparent;
   color: var(--red);
 }
+
+/* ============================================================
+   HEADERS SUPERIORES — legibilidad completa en smartphone
+   Garantiza que ningún título/texto de cabecera se corte, se
+   solape ni quede por debajo del tamaño legible en móvil.
+   Usa !important para vencer a los estilos inline de cada
+   componente (p. ej. caja-topbar) y al ellipsis del admin.
+   ============================================================ */
+
+@media (max-width: 640px) {
+  /* ---- Cabecera de Mapa de Mesas ---- */
+  .mesa-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+  .mesa-header > div {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
+  }
+  .mesa-header > div > div {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
+  }
+  .mesa-header__name {
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+  .mesa-header__badge {
+    font-size: 0.72rem !important;
+    white-space: normal !important;
+  }
+  .mesa-header__sub {
+    font-size: 0.74rem !important;
+    line-height: 1.35 !important;
+  }
+  .mesa-search {
+    width: 100% !important;
+  }
+  .mesa-header__sub strong {
+    overflow-wrap: anywhere;
+  }
+
+  /* ---- Cabecera del Panel Admin (título sin truncar) ---- */
+  .admin-topbar {
+    flex-wrap: wrap !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+  .admin-topbar__left {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .admin-topbar__title {
+    font-size: 0.98rem !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere !important;
+  }
+  .admin-topbar__breadcrumbs {
+    font-size: 0.7rem !important;
+    flex-wrap: wrap !important;
+  }
+  .admin-topbar__right {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* ---- Cabecera KDS ---- */
+  .kds-board__header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+  .kds-board__brand {
+    min-width: 0;
+  }
+  .kds-board__brand p,
+  .kds-board__brand h1 {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+  }
+  .kds-board__brand h1 {
+    font-size: 1.05rem !important;
+  }
+  .kds-board__brand p {
+    font-size: 0.72rem !important;
+  }
+  .kds-board__metrics {
+    width: 100% !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* ---- Cabecera de Pedido ---- */
+  .pedido-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+  .pedido-header h1,
+  .pedido-header h2 {
+    font-size: 1rem !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+  }
+  .pedido-mobile-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .pedido-mobile-header input {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* ---- Cabecera de Caja (estilos inline del componente) ---- */
+  .caja-topbar {
+    padding: 8px 10px !important;
+    gap: 6px !important;
+  }
+  .caja-topbar__brand,
+  .caja-topbar__user {
+    font-size: 0.82rem !important;
+  }
+  .caja-topbar__tab {
+    font-size: 0.85rem !important;
+    padding: 8px 10px !important;
+    line-height: 1.15 !important;
+  }
+  .caja-topbar__logout {
+    font-size: 0.82rem !important;
+    padding: 8px 12px !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .admin-topbar__title { font-size: 0.9rem !important; }
+  .mesa-header__name { font-size: 0.95rem !important; }
+  .kds-board__brand h1 { font-size: 0.98rem !important; }
+  .caja-topbar__tab { font-size: 0.8rem !important; }
+}
+
+/* ============================================================
+   BANNER DE ACTUALIZACIÓN REMOTA (Electron)
+   ============================================================ */
+
+.update-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(680px, 94vw);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--gold);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: 0.86rem;
+}
+
+.update-banner__text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.update-banner__text strong {
+  color: var(--gold-dark);
+}
+
+.update-banner__btn {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  color: #0a0c11;
+  font-weight: 800;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.update-banner__btn:hover {
+  filter: brightness(1.06);
+}
+
+.update-banner__close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.update-banner__close:hover {
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+@media (max-width: 480px) {
+  .update-banner {
+    flex-wrap: wrap;
+    bottom: 10px;
+    padding: 10px;
+  }
+  .update-banner__text { flex: 1 1 100%; }
+  .update-banner__btn { flex: 1 1 auto; }
+}

@@ -13,9 +13,22 @@ import { registrarAuditoria } from '../services/auditoriaService.js';
 import { upload, uploadImagenesSistema, validarImagenSubida, validarImagenesSubidas, uploadUrl } from '../lib/uploads.js';
 import { ROLES_ADMIN, ROLES_CAJA } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
+import { config } from '../lib/config.js';
 
 const router = Router();
 const logger = createLogger('sistemaRouter');
+
+// GET /api/app/version (público): metadatos de la última versión publicada.
+// El cliente Electron la consulta para detectar actualizaciones remotas y
+// solicitar al usuario que instale la nueva versión.
+router.get('/api/app/version', route(async (_req: Request, res: Response) => {
+  res.json({
+    version: config.appVersion,
+    downloadUrl: config.appDownloadUrl,
+    notes: config.appUpdateNotes,
+    publicadoEn: new Date().toISOString(),
+  });
+}));
 
 const LOGIN_THEMES_VALIDOS = [
   'olive_garden',

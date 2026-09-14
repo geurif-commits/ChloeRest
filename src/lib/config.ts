@@ -4,6 +4,17 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
+
+function leerVersionApp(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf8')) as { version?: string };
+    if (pkg.version) {return String(pkg.version);}
+  } catch {
+    /* sin package.json: usar env */
+  }
+  return process.env.APP_VERSION || '0.0.0';
+}
 
 export const config = {
   appRoot: process.cwd(),
@@ -24,6 +35,11 @@ export const config = {
   telegramOwnerChatId: process.env.TELEGRAM_OWNER_CHAT_ID || null,
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || null,
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'https://chloerestaurant.lat',
+  // Versión pública de la app y datos de la última actualización disponible.
+  // El cliente Electron consulta /api/app/version para detectar updates.
+  appVersion: leerVersionApp(),
+  appDownloadUrl: process.env.APP_DOWNLOAD_URL || null,
+  appUpdateNotes: process.env.APP_UPDATE_NOTES || null,
   /*
    * Orígenes CORS permitidos. La variable CORS_ORIGINS (si existe) se combina
    * SIEMPRE con los orígenes de escritorio/desarrollo: la app Electron carga

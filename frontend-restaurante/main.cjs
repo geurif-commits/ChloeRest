@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
@@ -122,6 +122,166 @@ async function ensureDatabase() {
 
 function getAppBaseDir() {
   return app.isPackaged ? process.resourcesPath : __dirname;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTUALIZACIÓN REMOTA: consulta el feed publicado en el servidor central y,
+// si hay una versión más nueva, solicita al usuario instalarla. No requiere
+// firma ni servidor de auto-update propio (electron-updater): usa el endpoint
+// /api/app/version y abre el instalador publicado.
+// ─────────────────────────────────────────────────────────────────────────────
+const UPDATE_FEED_URL = readLocalEnvValue('UPDATE_FEED_URL') || 'https://chloerestaurant.lat/api/app/version';
+let versionSaltada = null;
+let checkInterval = null;
+
+function rutaVersionSaltada() {
+  try {
+    return path.join(app.getPath('userData'), 'update-skip.json');
+  } catch {
+    return path.join(__dirname, 'update-skip.json');
+  }
+}
+
+function cargarVersionSaltada() {
+  try {
+    const json = JSON.parse(fs.readFileSync(rutaVersionSaltada(), 'utf8'));
+    return json && json.version ? String(json.version) : null;
+  } catch {
+    return null;
+  }
+}
+
+function guardarVersionSaltada(version) {
+  try {
+    fs.writeFileSync(rutaVersionSaltada(), JSON.stringify({ version }));
+  } catch {
+    /* opcional */
+  }
+}
+
+/** Compara versiones semánticas: >0 si a es mayor que b. */
+function compararVersiones(a, b) {
+  const pa = String(a || '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b || '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff) return diff;
+  }
+  return 0;
+}
+
+function consultarVersionRemota() {
+  return new Promise((resolve) => {
+    let url;
+    try {
+      url = new URL(UPDATE_FEED_URL);
+    } catch {
+      return resolve(null);
+    }
+    const mod = url.protocol === 'https:' ? require('https') : require('http');
+    const req = mod.get(url, { timeout: 8000 }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return resolve(null);
+      }
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+/**
+ * Consulta el feed y, si corresponde, avisa al usuario.
+ * @param {boolean} interactivo  true si el usuario pidió la verificación a mano.
+ */
+async function checkForUpdates(interactivo = false) {
+  const info = await consultarVersionRemota();
+  const actual = app.getVersion();
+  if (!info || !info.version) {
+    if (interactivo) {
+      return { disponible: false, actual, error: 'No se pudo consultar el servidor de actualizaciones.' };
+    }
+    return null;
+  }
+
+  const hayUpdate = compararVersiones(info.version, actual) > 0;
+  if (!hayUpdate) {
+    if (interactivo) {
+      return { disponible: false, actual, version: info.version };
+    }
+    return null;
+  }
+
+  const resumen = {
+    disponible: true,
+    actual,
+    version: info.version,
+    downloadUrl: info.downloadUrl || '',
+    notes: info.notes || '',
+  };
+
+  // Avisar a la interfaz (banner en la app).
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('actualizacion-disponible', resumen);
+  }
+
+  // No volver a molestar por una versión que el usuario decidió saltar.
+  if (!interactivo && versionSaltada === info.version) {
+    return resumen;
+  }
+
+  const puedeDescargar = Boolean(resumen.downloadUrl);
+  const botones = puedeDescargar
+    ? ['Actualizar ahora', 'Más tarde', 'Saltar esta versión']
+    : ['Más tarde'];
+
+  const mensaje =
+    `Hay una nueva versión de ChloeRestaurant disponible.\n\n` +
+    `Versión instalada: ${actual}\n` +
+    `Versión nueva: ${resumen.version}` +
+    (resumen.notes ? `\n\n${resumen.notes}` : '');
+
+  const opciones = {
+    type: 'info',
+    buttons: botones,
+    defaultId: 0,
+    cancelId: puedeDescargar ? 1 : 0,
+    title: 'Actualización disponible',
+    message: 'Nueva actualización de ChloeRestaurant',
+    detail: mensaje,
+    noLink: true,
+  };
+
+  const { response } = (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible())
+    ? await dialog.showMessageBox(mainWindow, opciones)
+    : await dialog.showMessageBox(opciones);
+
+  if (puedeDescargar && response === 0) {
+    await shell.openExternal(resumen.downloadUrl);
+  } else if (puedeDescargar && response === 2) {
+    versionSaltada = resumen.version;
+    guardarVersionSaltada(resumen.version);
+  }
+
+  return resumen;
+}
+
+function programarChequeoActualizaciones() {
+  versionSaltada = cargarVersionSaltada();
+  // Primer chequeo diferido (la ventana suele estar oculta al arrancar) y
+  // repetición cada 6 horas mientras la app esté abierta.
+  setTimeout(() => { void checkForUpdates(false); }, 20000);
+  if (checkInterval) clearInterval(checkInterval);
+  checkInterval = setInterval(() => { void checkForUpdates(false); }, 6 * 60 * 60 * 1000);
 }
 
 function findBackendLauncher() {
@@ -327,6 +487,27 @@ function createWindow() {
     }
   });
 
+  // Verificación de actualización solicitada desde la interfaz.
+  ipcMain.handle('verificar-actualizacion', async () => {
+    try {
+      const resumen = await checkForUpdates(true);
+      return resumen || { disponible: false, actual: app.getVersion() };
+    } catch (error) {
+      return { disponible: false, actual: app.getVersion(), error: error?.message || String(error) };
+    }
+  });
+
+  // Abrir la descarga del instalador publicado.
+  ipcMain.handle('abrir-descarga-actualizacion', async (_event, url) => {
+    try {
+      if (!url) return { exito: false, error: 'Sin URL' };
+      await shell.openExternal(url);
+      return { exito: true };
+    } catch (error) {
+      return { exito: false, error: error?.message || String(error) };
+    }
+  });
+
   // Exportar ticket/factura a PDF
   ipcMain.handle('exportar-pdf', async (_event, { nombre }) => {
     try {
@@ -469,6 +650,7 @@ app.whenReady().then(async () => {
     console.error('Error iniciando el backend POS:', error?.message || error);
   }
   createWindow();
+  programarChequeoActualizaciones();
 });
 
 app.on('window-all-closed', () => {

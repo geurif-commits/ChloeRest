@@ -12,4 +12,11 @@ contextBridge.exposeInMainWorld('electronPOS', {
   cerrarVentana: () => ipcRenderer.send('ventana-cerrar'),
   estaMaximizada: () => ipcRenderer.invoke('ventana-esta-maximizada'),
   mostrarVentana: () => ipcRenderer.invoke('mostrar-ventana'),
+  verificarActualizacion: () => ipcRenderer.invoke('verificar-actualizacion'),
+  abrirDescargaActualizacion: (url) => ipcRenderer.invoke('abrir-descarga-actualizacion', url),
+  onActualizacionDisponible: (callback) => {
+    const listener = (_event, info) => callback(info);
+    ipcRenderer.on('actualizacion-disponible', listener);
+    return () => ipcRenderer.removeListener('actualizacion-disponible', listener);
+  },
 });
