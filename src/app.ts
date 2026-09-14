@@ -18,6 +18,7 @@ import {
   healthCheck,
 } from './middleware/requestLogger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { loginLimiter, publicLimiter } from './middleware/rateLimiter.js';
 import pingRouter from './routers/ping.js';
 import inventarioRouter from './routers/inventario.js';
 import authRouter from './routers/auth.js';
@@ -65,6 +66,9 @@ export const createApp = (): Express => {
 
   // Security middleware
   app.use(helmet());
+
+  // Detrás de Passenger/cPanel el cliente real viene en el header X-Forwarded-For
+  app.set('trust proxy', 1);
 
   // CORS (misma lista de orígenes que el legacy)
   app.use(
@@ -137,6 +141,17 @@ export const createApp = (): Express => {
       fallthrough: true,
     })
   );
+
+  // ── Rate limiting de endpoints públicos (brute-force / abuso) ──
+  app.use('/api/login', loginLimiter);
+  app.use('/api/autorizar', loginLimiter);
+  app.use('/api/kds/autenticar', loginLimiter);
+  app.use('/api/dueno/login', loginLimiter);
+  app.use('/api/dueno/establecer-pin', loginLimiter);
+  app.use('/api/dispositivo/registrar', publicLimiter);
+  app.use('/api/dispositivo/activar', publicLimiter);
+  app.use('/api/solicitud-licencia', publicLimiter);
+  app.use('/setup', loginLimiter);
 
   // ── Routers de negocio (cada uno protege sus propias rutas) ──
   app.use('/ping', pingRouter);

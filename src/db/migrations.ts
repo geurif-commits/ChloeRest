@@ -761,6 +761,37 @@ const migrations: IMigracion[] = [{
         ADD COLUMN IF NOT EXISTS owner_token_epoch INTEGER NOT NULL DEFAULT 1;
     `,
   },
+  {
+    id: '045_aislamiento_metodos_pago',
+    sql: `
+      -- P0 Auditoría: metodos_pago no tenía empresa_id ni RLS.
+      -- Todos los tenants compartían los mismos métodos de pago (CRÍTICO).
+
+      -- 1. Agregar columna empresa_id con valor por defecto 1 (raíz).
+      ALTER TABLE metodos_pago
+        ADD COLUMN IF NOT EXISTS empresa_id INTEGER NOT NULL DEFAULT 1
+        REFERENCES empresas(id) ON DELETE CASCADE;
+
+      -- 2. Backfill: mover filas huérfanas (empresa_id default=1 ya aplicado).
+      --    Filas existentes sin empresa_id se asignan a empresa raíz.
+      UPDATE metodos_pago SET empresa_id = 1 WHERE empresa_id IS NULL;
+
+      -- 3. Índice para queries por tenant.
+      CREATE INDEX IF NOT EXISTS idx_metodos_pago_empresa ON metodos_pago(empresa_id);
+
+      -- 4. Habilitar RLS + FORCE RLS.
+      ALTER TABLE metodos_pago ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE metodos_pago FORCE ROW LEVEL SECURITY;
+
+      -- 5. Política de aislamiento: cada tenant solo ve sus métodos de pago.
+      --    Mismo patrón que la 024 (platform OR empresa_id) para que el panel
+      --    del dueño (plataforma) pueda leer/crear con app.platform=true.
+      DROP POLICY IF EXISTS aislamiento_empresa ON metodos_pago;
+      CREATE POLICY aislamiento_empresa ON metodos_pago
+        USING (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER)
+        WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
+    `,
+  },
 ];
 export async function runMigrations(pool: Database): Promise<void> {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());

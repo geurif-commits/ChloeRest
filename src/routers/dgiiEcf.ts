@@ -282,7 +282,8 @@ router.get('/api/dgii/ecf/historial', requireAuth, requireRoles(...ROLES_ADMIN),
     params.push(estado);
     sql += ` WHERE ec.estado = $${params.length}`;
   }
-  sql += ` ORDER BY ec.creado_en DESC LIMIT ${limit}`;
+  sql += ` ORDER BY ec.creado_en DESC LIMIT $${params.length + 1}`;
+  params.push(String(limit));
   const result = await db.query<IECFHistorialFila>(sql, params);
   res.json(result.rows);
 }));

@@ -9,7 +9,7 @@ Resumen de acciones realizadas en el repo:
 
 Observación sobre recompilación:
 - Intenté recompilar backend y frontend en este entorno para regenerar `bundle.cjs` y `frontend/dist`, pero la política de ejecución de PowerShell impidió ejecutar `npm`/`npx`.
-- Por tanto, los artefactos compilados actuales pueden contener cadenas antiguas (p.ej. "Bratt1120!" o "0420"). Es necesario reconstruir localmente en tu máquina para que los cambios en `config.js` y `migrations.js` se reflejen en los binarios.
+- Por tanto, los artefactos compilados actuales pueden contener cadenas antiguas (credenciales obsoletas ya rotadas). Es necesario reconstruir localmente en tu máquina para que los cambios en `config.js` y `migrations.js` se reflejen en los binarios.
 
 Comandos recomendados para ejecutar localmente (en el directorio raíz del proyecto):
 

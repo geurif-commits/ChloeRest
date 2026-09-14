@@ -251,7 +251,7 @@ router.post('/api/dueno/reset-pruebas', requireDueno, route(async (req: Request,
     res.json({ ok: true, mensaje: 'Datos de prueba eliminados exitosamente. El Setup Wizard está listo para iniciar.' });
   } catch (err) {
     logger.error({ action: 'RESET_PRUEBAS_ERROR', error: (err as Error).message });
-    res.status(500).json({ ok: false, error: 'Error interno del servidor: ' + (err as Error).message });
+    throw httpError(500, 'Error interno del servidor al resetear datos.');
   }
 }));
 

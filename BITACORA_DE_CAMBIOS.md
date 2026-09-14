@@ -52,7 +52,7 @@ Bitácora de la campaña de auditoría, limpieza y puesta a punto ejecutada el 2
 - Eliminada la **ruta duplicada** `GET /api/negocio/config` (se conservó la versión pública canónica con su comentario; se quitó la variante redundante `SELECT *`).
 - **Corregido bug `estiloLogin`**: en el guardado de configuración se usaba la variable `estiloLogin` como parámetro SQL `$9` (columna `estilo_login`) sin estar definida → escribía `NULL` en cada guardado. Ahora se define validando contra `['moderno','clasico']` y conservando el valor actual de BD (o `'moderno'`) cuando no se envía.
 - **KiPIN admin**: el fallback hardcodeado `'041120'` ahora usa `config.bootstrapAdminPin` (viene de `BOOTSTRAP_ADMIN_PIN` en `.env`).
-- `smoke.js`: removido el PIN real de propietario hardcodeado (`012011`); ahora lee `process.env.OWNER_PIN`. (`smoke.js` y `.env` no están trackeados en git.)
+- `smoke.js`: removido el PIN real de propietario hardcodeado (ya no se documenta); ahora lee `process.env.OWNER_PIN`. (`smoke.js` y `.env` no están trackeados en git.)
 
 ## FASE 2 — Unificación y hardening completados (2026-09-01 continuación)
 

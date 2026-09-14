@@ -489,7 +489,7 @@ npm run dev 2>&1 | grep "cuentasService"
 | `src/routers/*` | Business endpoints | Feature Owners |
 | `src/services/*` | Business logic | Feature Owners |
 | `vitest.config.ts` | Test configuration | QA Lead |
-| `.eslintrc.json` | Code style | Frontend/Backend Leads |
+| `.eslintrc.json` | Code style (obsoleto → usar `eslint.config.mjs`) | Frontend/Backend Leads |
 
 ---
 
