@@ -65,7 +65,8 @@ function ProductoGrid({
         className={activa ? 'is-active' : ''}
         onClick={() => onCategoriaChange(cat)}
       >
-        {getEmoji(cat)} {cat}
+        <span className="pedido-categorias__emoji" aria-hidden="true">{getEmoji(cat)}</span>
+        <span className="pedido-categorias__nombre">{cat}</span>
       </button>
     );
   };

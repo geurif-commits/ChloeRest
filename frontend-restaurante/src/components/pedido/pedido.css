@@ -95,28 +95,39 @@
 
 /* ── CATEGORÍAS ── */
 
-/* Barra de categorías: scroll horizontal para muchas categorías */
+/* Cuadrícula de categorías: 4 por fila en celdas cuadradas que se ajustan */
 .pedido-categorias {
-  padding: var(--space-sm, 8px) var(--space-lg, 24px);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px) var(--space-sm, 12px);
   background: var(--bg-secondary, #0D1220);
-  display: flex;
-  gap: var(--space-sm, 8px);              /* Espacio entre botones de categoría */
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.045));
-  overflow-x: auto;       /* Permite scroll horizontal si hay muchas categorías */
-  flex-shrink: 0;         /* No se encoge, mantiene su tamaño fijo */
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.045));
+  border-radius: var(--radius-md, 12px);
+  overflow: hidden;   /* celdas cuadradas: no hay scroll horizontal */
 }
 
-/* Botón de categoría individual: estilo pill rectangular */
+/* Celda de categoría: contenedor cuadrado que se ajusta a la columna */
 .pedido-categorias button {
-  padding: 8px 18px;
-  border-radius: var(--radius-sm, 8px);   /* Bordes redondeados tipo rectangle */
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px;
+  border-radius: var(--radius-sm, 10px);
   font-weight: var(--weight-bold, 700);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
+  line-height: 1.15;
   cursor: pointer;
   border: 1px solid var(--border-light, rgba(255,255,255,0.07));
   background: var(--bg-elevated, #192238);
   color: var(--text-secondary, #D5D9E3);
-  white-space: nowrap;    /* Evita que el texto se salte de línea */
+  white-space: normal;              /* el texto envuelve dentro de la celda */
+  text-align: center;
+  overflow-wrap: anywhere;
   transition:
     background var(--anim-fast, 150ms ease),
     color var(--anim-fast, 150ms ease),
@@ -132,6 +143,21 @@
   background: var(--gold-soft, rgba(212,175,55,0.08));
   color: var(--gold-light, #EBCB72);
   border-color: var(--gold-glow, rgba(212,175,55,0.25));
+}
+
+/* Emoji y nombre apilados dentro de la celda cuadrada */
+.pedido-categorias__emoji {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.pedido-categorias__nombre {
+  font-size: 0.78rem;
+}
+
+@media (max-width: 560px) {
+  .pedido-categorias__emoji { font-size: 1.2rem; }
+  .pedido-categorias__nombre { font-size: 0.72rem; }
 }
 
 /* ── PEDIDO TICKET (COMANDERO) ── */
