@@ -42,9 +42,10 @@
 
 .pedido-workspace .pedido-grid { gap: 15px; }
 .pedido-workspace .pedido-producto {
-  min-height: 0; aspect-ratio: auto; border-color: rgba(255,255,255,.09); border-radius: 16px;
+  min-height: 92px; aspect-ratio: auto; border-color: rgba(255,255,255,.09); border-radius: 12px;
+  padding: 4px; box-sizing: border-box;
   background: linear-gradient(145deg, #172238, #111a2a);
-  box-shadow: 0 8px 20px rgba(0,0,0,.18);
+  box-shadow: 0 5px 14px rgba(0,0,0,.16);
 }
 .pedido-workspace .pedido-producto:hover { border-color: #d6a44d; }
 .pedido-workspace .pedido-producto h4 { color: #f5f6fb; }
@@ -66,9 +67,11 @@
 .pedido-workspace .pedido-ticket__footer > div button { border-color: rgba(214,164,77,.35); color: #ead097; background: #172238; }
 
 /* — Compact catalogue sin !important — duplicado consolidado arriba (5 por fila) */
-.pedido-workspace .pedido-producto__img { height: 32px; }
-.pedido-workspace .pedido-producto__name { font-size: 0.66rem; }
-.pedido-workspace .pedido-producto__price { font-size: 0.68rem; }
+.pedido-workspace .pedido-producto__img { flex: 1 1 auto; min-height: 0; height: auto; border-radius: 9px; overflow: hidden; background: rgba(255,255,255,.03); }
+.pedido-workspace .pedido-producto__image { width: 100%; height: 100%; object-fit: cover; }
+.pedido-workspace .pedido-producto__image--fallback { object-fit: contain; padding: 6px; }
+.pedido-workspace .pedido-producto__name { font-size: 0.64rem; }
+.pedido-workspace .pedido-producto__price { font-size: 0.66rem; }
 
 @media (max-width: 1200px) { .pedido-workspace .pedido-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 900px)  { .pedido-workspace .pedido-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
