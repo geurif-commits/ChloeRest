@@ -78,10 +78,10 @@ function ProductoGrid({
     if (isActive) {
       return (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div>
-              <p style={{ color: 'var(--gold-light, #EBCB72)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>{titulo}</p>
-              <h3 style={{ color: 'var(--text-primary, #F9FAFB)', fontSize: '1.3rem', fontWeight: 800, margin: '4px 0 0 0', textTransform: 'capitalize' }}>{categoriaActiva}</h3>
+              <p style={{ color: 'var(--gold-light, #EBCB72)', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>{titulo}</p>
+              <h3 style={{ color: 'var(--text-primary, #F9FAFB)', fontSize: '1.15rem', fontWeight: 800, margin: '2px 0 0 0', textTransform: 'capitalize' }}>{categoriaActiva}</h3>
             </div>
             <button
               onClick={() => onCategoriaChange('')}
@@ -107,7 +107,7 @@ function ProductoGrid({
 
     return (
       <div>
-        <p style={{ color: 'var(--text-muted, #9EA6B7)', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>{titulo}</p>
+        <p style={{ color: 'var(--text-muted, #9EA6B7)', fontSize: '0.76rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 6px 0' }}>{titulo}</p>
         <div className="pedido-categorias">
           {items.map(renderCategoriaBtn)}
         </div>
@@ -132,7 +132,7 @@ function ProductoGrid({
         </header>
       )}
 
-      <div style={{ flex: 1, padding: 'var(--space-lg, 25px)', overflowY: 'auto', boxSizing: 'border-box' }}>
+      <div style={{ flex: 1, padding: 'var(--space-md, 14px)', overflowY: 'auto', boxSizing: 'border-box' }}>
         {cargando ? (
           <p style={{ textAlign: 'center', color: 'var(--gold-light, #EBCB72)', fontSize: '1.2rem', padding: '40px' }}>
             Cargando catálogo completo...
@@ -141,7 +141,7 @@ function ProductoGrid({
           <>
             {renderSeccion('Categorías de alimentos', alimentos)}
             {alimentos.length > 0 && bebidas.length > 0 && (
-              <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '20px 0' }} />
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
             )}
             {renderSeccion('Categorías de bebidas', bebidas)}
           </>

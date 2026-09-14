@@ -95,32 +95,31 @@
 
 /* ── CATEGORÍAS ── */
 
-/* Cuadrícula de categorías: 4 por fila en celdas cuadradas que se ajustan */
+/* Cuadrícula compacta de categorías: 4 por fila, recuadros al tamaño mínimo
+   para que alimentos y bebidas quepan juntos sin gran scroll */
 .pedido-categorias {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-sm, 8px);
-  padding: var(--space-sm, 8px) var(--space-sm, 12px);
+  gap: 6px;
+  padding: 8px;
   background: var(--bg-secondary, #0D1220);
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.045));
   border-radius: var(--radius-md, 12px);
-  overflow: hidden;   /* celdas cuadradas: no hay scroll horizontal */
+  overflow: hidden;
 }
 
-/* Celda de categoría: contenedor cuadrado que se ajusta a la columna */
+/* Celda compacta: altura mínima fija, se ajusta al ancho de la columna */
 .pedido-categorias button {
-  aspect-ratio: 1 / 1;
+  height: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 100%;
-  padding: 6px;
-  border-radius: var(--radius-sm, 10px);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm, 8px);
   font-weight: var(--weight-bold, 700);
-  font-size: 0.82rem;
-  line-height: 1.15;
+  font-size: 0.76rem;
+  line-height: 1.12;
   cursor: pointer;
   border: 1px solid var(--border-light, rgba(255,255,255,0.07));
   background: var(--bg-elevated, #192238);
@@ -145,19 +144,20 @@
   border-color: var(--gold-glow, rgba(212,175,55,0.25));
 }
 
-/* Emoji y nombre apilados dentro de la celda cuadrada */
+/* Emoji y nombre apilados dentro de la celda compacta */
 .pedido-categorias__emoji {
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   line-height: 1;
 }
 
 .pedido-categorias__nombre {
-  font-size: 0.78rem;
+  font-size: 0.68rem;
 }
 
 @media (max-width: 560px) {
-  .pedido-categorias__emoji { font-size: 1.2rem; }
-  .pedido-categorias__nombre { font-size: 0.72rem; }
+  .pedido-categorias button { height: 52px; }
+  .pedido-categorias__emoji { font-size: 1rem; }
+  .pedido-categorias__nombre { font-size: 0.66rem; }
 }
 
 /* ── PEDIDO TICKET (COMANDERO) ── */
