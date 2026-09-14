@@ -13,90 +13,101 @@
   display: flex;          /* Activa flexbox para que flex:1 funcione correctamente */
 }
 
-/* Grid de productos: 6 columnas fijas para que siempre se vean 6 por fila */
+/* Grid de productos: auto-fill compacto, las tarjetas se adaptan y caben más por fila */
 .pedido-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-xs, 7px);             /* 5 tarjetas por fila */
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--space-xs, 6px);
 }
 
-/* Tarjeta individual de producto: recuadro compacto reducido */
+/* Tarjeta individual de producto: recuadro mínimo horizontal (imagen + info) */
 .pedido-producto {
-  aspect-ratio: auto;
-  min-height: 92px;                     /* recuadro reducido */
+  min-height: 48px;                     /* mitad del tamaño anterior */
   background: linear-gradient(145deg, var(--bg-card, #151D31), var(--bg-panel, #101625));
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.045));
   border-radius: var(--radius-sm, 9px);
-  padding: 4px;
+  padding: 3px;
   display: flex;
-  flex-direction: column;       /* Apila imagen + nombre + precio verticalmente */
+  flex-direction: row;        /* miniatura a la izquierda, texto a la derecha */
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   cursor: pointer;
-  text-align: center;
+  text-align: left;
   box-sizing: border-box;
-  box-shadow: 0 3px 12px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.035);
+  box-shadow: 0 2px 8px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.03);
   transition:
-    transform var(--anim-fast, 150ms ease),      /* Efecto hover: elevate la tarjeta */
-    border-color var(--anim-fast, 150ms ease),   /* Borde dorado al pasar mouse */
-    box-shadow var(--anim-fast, 150ms ease);     /* Sombra más pronunciada en hover */
+    transform var(--anim-fast, 150ms ease),
+    border-color var(--anim-fast, 150ms ease),
+    box-shadow var(--anim-fast, 150ms ease);
 }
 
 .pedido-producto:hover {
   border-color: var(--gold, #D4AF37);
-  transform: translateY(-2px);                     /* Sube 2px al hacer hover */
+  transform: translateY(-1px);
   box-shadow: var(--shadow-md, 0 8px 24px rgba(0,0,0,0.40));
 }
 
 .pedido-producto:focus-visible { outline: 2px solid var(--gold-light, #EBCB72); outline-offset: 2px; }
 
-/* Contenedor de imagen: ocupa el espacio disponible; la imagen (cover) se
-   ajusta al tamaño del recuadro */
+/* Miniatura cuadrada: la imagen se adapta al tamaño del cuadro (cover) */
 .pedido-producto__img {
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.03);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 2px;
-  border-radius: var(--radius-sm, 7px);
-  overflow: hidden;
-  background: rgba(255,255,255,0.03);
 }
 
 .pedido-producto__img img {
   width: 100%;
   height: 100%;
-  object-fit: cover;      /* la imagen se adapta al tamaño del cuadro */
-  border-radius: var(--radius-sm, 7px);
+  object-fit: cover;      /* la imagen se ajusta al tamaño del cuadro */
+  border-radius: 6px;
 }
 
 .pedido-producto__image--fallback {
   object-fit: contain;    /* sin foto: el icono se centra sin deformarse */
-  padding: 6px;
+  padding: 4px;
   opacity: .85;
 }
 
 /* Icono placeholder cuando no hay imagen: cubiertos y plato */
 .pedido-producto__placeholder {
-  font-size: 1.3rem;        /* Tamaño del emoji placeholder */
+  font-size: 1rem;
   line-height: 1;
 }
 
-/* Nombre del producto: texto pequeño para que quepa en el recuadro reducido */
+/* Bloque de texto: nombre + precio apilados */
+.pedido-producto__info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Nombre del producto: una línea, se corta con "…" si no cabe */
 .pedido-producto__name {
-  font-size: 0.64rem;
+  font-size: 0.6rem;
   font-weight: var(--weight-bold, 800);
-  margin: 0 0 0.5px 0;
+  margin: 0;
   color: var(--text-primary, #F9FAFB);
-  line-height: 1.1;         /* Interlineado compacto */
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Precio del producto: dorado para destacar */
 .pedido-producto__price {
   color: var(--gold-light, #EBCB72);
   font-weight: var(--weight-extrabold, 800);
-  font-size: 0.68rem;
+  font-size: 0.64rem;
 }
 
 /* ── CATEGORÍAS ── */
@@ -572,14 +583,14 @@
   height: 100dvh !important;
 }
 
-/* Móvil (≤767px): 2 columnas de productos, ticket ocupa todo el ancho */
+/* Móvil (≤767px): mini-tarjetas que se ajustan, ticket ocupa todo el ancho */
 @media (max-width: 767px) {
   .pedido-workspace { height: 100dvh !important; }
   .pedido-mobile-header { padding: 10px 12px; position: sticky; top: 0; z-index: 5; }
   .pedido-mobile-header button, .pedido-mobile-header input { min-height: 44px; }
   .pedido-catalogo > div { padding: 14px !important; }
   .pedido-grid {
-    grid-template-columns: repeat(2, 1fr);  /* 2 tarjetas por fila en móvil */
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
     gap: 6px;
   }
   .pedido-ticket {
@@ -587,10 +598,10 @@
   }
 }
 
-/* Tablet (768px - 1100px): 4 columnas, ticket más estrecho */
+/* Tablet (768px - 1100px): mini-tarjetas, ticket más estrecho */
 @media (min-width: 768px) and (max-width: 1100px) {
   .pedido-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
   }
   .pedido-ticket {
     width: 300px;             /* Ticket más estrecho en tablet */
@@ -598,7 +609,6 @@
 }
 
 @media (max-width: 420px) {
-  .pedido-producto { min-height: 96px; }
-  .pedido-producto__img { height: 42px; }
-  .pedido-producto__name { font-size: .68rem; }
+  .pedido-producto__img { flex-basis: 30px; width: 30px; height: 30px; }
+  .pedido-producto__name { font-size: .56rem; }
 }

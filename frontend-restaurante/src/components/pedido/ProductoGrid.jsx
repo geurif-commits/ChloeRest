@@ -96,8 +96,10 @@ function ProductoGrid({
                 <div className="pedido-producto__img">
                   {prod.imagen_url ? <SafeImage src={prod.imagen_url} alt={prod.nombre} className="pedido-producto__image" /> : <SafeImage src="/favicon.svg" alt="" className="pedido-producto__image pedido-producto__image--fallback" />}
                 </div>
-                <h4 className="pedido-producto__name">{prod.nombre}</h4>
-                <span className="pedido-producto__price">RD$ {formatearRD(prod.precio)}</span>
+                <div className="pedido-producto__info">
+                  <h4 className="pedido-producto__name">{prod.nombre}</h4>
+                  <span className="pedido-producto__price">RD$ {formatearRD(prod.precio)}</span>
+                </div>
               </div>
             ))}
           </div>
