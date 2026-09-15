@@ -717,24 +717,25 @@
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto {
-  min-height: 60px;
-  padding: 4px 6px;
-  gap: 8px;
+  min-height: 78px;
+  padding: 6px 8px;
+  gap: 10px;
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto__img {
-  flex: 0 0 42px;
-  width: 42px;
-  height: 42px;
-  border-radius: 7px;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto__name {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto__price {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
 }
 
 @media (min-width: 768px) and (max-width: 1200px) {
