@@ -113,10 +113,10 @@ textarea:focus-visible {
   background: rgba(0, 245, 118, 0.045);
 }
 
-/* Catálogo compacto: 5 por fila, recuadro ceñido al contenido (sin altura forzada). — migrado sin !important (ver overrides-pedido.css) */
+/* Catálogo: auto-fill adaptivo para nombres largos — migrado sin !important (ver overrides-pedido.css) */
 .pedido-workspace .pedido-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 9px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
 }
 
 .pedido-workspace .pedido-producto {
@@ -131,28 +131,28 @@ textarea:focus-visible {
 }
 
 .pedido-workspace .pedido-producto__name {
-  font-size: 0.66rem;
+  font-size: 0.72rem;
 }
 
 .pedido-workspace .pedido-producto__price {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
 }
 
 @media (max-width: 1200px) {
-  .pedido-workspace .pedido-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pedido-workspace .pedido-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
 
 @media (max-width: 900px) {
-  .pedido-workspace .pedido-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pedido-workspace .pedido-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }
 
 @media (max-width: 560px) {
-  .pedido-workspace .pedido-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .pedido-workspace .pedido-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
   .pedido-workspace .pedido-producto__img { height: 30px; }
 }
 
 @media (max-width: 380px) {
-  .pedido-workspace .pedido-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pedido-workspace .pedido-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 }
 
 /* Mobile safety layer for every module. */
@@ -241,7 +241,7 @@ textarea:focus-visible {
   }
 
   .pedido-producto { padding: 5px !important; }
-  .pedido-producto__name { line-height: 1.15 !important; }
+  .pedido-producto__name { line-height: 1.2 !important; -webkit-line-clamp: 2 !important; }
 }
 
 .required-pin-screen {
