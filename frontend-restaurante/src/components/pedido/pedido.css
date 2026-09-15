@@ -612,3 +612,144 @@
   .pedido-producto__img { flex-basis: 30px; width: 30px; height: 30px; }
   .pedido-producto__name { font-size: .56rem; }
 }
+
+/* ── SPLIT ALIMENTOS / BEBIDAS ──
+   El catálogo se divide en dos columnas verticales (Alimentos | Bebidas).
+   Cada columna muestra sus categorías en 2 columnas internas con filas
+   automáticas; el detalle de categoría muestra sus productos en 2 columnas
+   con filas automáticas (drill-down). */
+
+.pedido-split {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.pedido-split__col {
+  flex: 1 1 1%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 14px;
+  background: linear-gradient(145deg, rgba(23, 34, 56, .55), rgba(17, 26, 42, .55));
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: var(--radius-md, 14px);
+}
+
+/* Acentos de color para distinguir las 2 columnas verticales */
+.pedido-split__col--alimentos { border-left: 3px solid var(--gold, #D4AF37); }
+.pedido-split__col--bebidas   { border-left: 3px solid #4FC3F7; }
+
+.pedido-split__col-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.pedido-split__col--alimentos .pedido-split__col-title { color: var(--gold-light, #EBCB72); }
+.pedido-split__col--bebidas   .pedido-split__col-title { color: #7ec8f0; }
+
+/* Las categorías dentro de cada columna: 2 columnas internas, filas automáticas.
+   Specificity (0,4,0) para vencer los overrides de tema [data-theme=...] de App.css */
+.pedido-workspace.pedido-workspace .pedido-categorias--split.pedido-categorias--split {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Detalle de categoría (drill-down) */
+.pedido-detalle-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pedido-detalle-head__label {
+  margin: 0;
+  color: var(--gold-light, #EBCB72);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.pedido-detalle-head__title {
+  margin: 2px 0 0 0;
+  color: var(--text-primary, #F9FAFB);
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.pedido-detalle-head__back {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--gold-glow, rgba(212, 175, 55, 0.25));
+  background: var(--gold-soft, rgba(212, 175, 55, 0.08));
+  color: var(--gold-light, #EBCB72);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition:
+    background var(--anim-fast, 150ms ease),
+    border-color var(--anim-fast, 150ms ease);
+}
+
+.pedido-detalle-head__back:hover {
+  border-color: var(--gold, #D4AF37);
+  background: rgba(212, 175, 55, 0.16);
+}
+
+/* Productos del detalle: 7 por fila, tarjetas más amplias, filas automáticas
+   que crecen conforme se agregan productos */
+.pedido-workspace .pedido-grid--categoria {
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+
+.pedido-workspace .pedido-grid--categoria .pedido-producto {
+  min-height: 60px;
+  padding: 4px 6px;
+  gap: 8px;
+}
+
+.pedido-workspace .pedido-grid--categoria .pedido-producto__img {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 7px;
+}
+
+.pedido-workspace .pedido-grid--categoria .pedido-producto__name {
+  font-size: 0.68rem;
+}
+
+.pedido-workspace .pedido-grid--categoria .pedido-producto__price {
+  font-size: 0.72rem;
+}
+
+@media (min-width: 768px) and (max-width: 1200px) {
+  .pedido-workspace .pedido-grid--categoria {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .pedido-workspace .pedido-grid--categoria {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Móvil: las dos columnas verticales se apilan para no aplastar el contenido */
+@media (max-width: 767px) {
+  .pedido-split { flex-direction: column; }
+}

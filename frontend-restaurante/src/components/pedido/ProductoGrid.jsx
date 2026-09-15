@@ -49,10 +49,20 @@ function ProductoGrid({
   const alimentos = todasCategorias.filter((cat) => !esBebida(cat));
   const bebidas = todasCategorias.filter(esBebida);
 
+  const buscando = busqueda.trim().length > 0;
+
   const productosFiltrados = productos.filter((p) => {
     const coincideCat = !categoriaActiva || p.categoria === categoriaActiva;
     const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase());
     return coincideCat && coincideBusqueda;
+  });
+
+  const resultadosBusqueda = productos.filter((p) => {
+    const termino = busqueda.trim().toLowerCase();
+    return (
+      p.nombre.toLowerCase().includes(termino) ||
+      (p.categoria || '').toLowerCase().includes(termino)
+    );
   });
 
   const getEmoji = (cat) => EMOJIS[cat.toLowerCase()] || '🍽️';
@@ -71,47 +81,75 @@ function ProductoGrid({
     );
   };
 
+  const renderProductoCarta = (prod) => (
+    <div key={prod.id} onClick={() => onAgregarProducto(prod)} className="pedido-producto">
+      <div className="pedido-producto__img">
+        {prod.imagen_url ? <SafeImage src={prod.imagen_url} alt={prod.nombre} className="pedido-producto__image" /> : <SafeImage src="/favicon.svg" alt="" className="pedido-producto__image pedido-producto__image--fallback" />}
+      </div>
+      <div className="pedido-producto__info">
+        <h4 className="pedido-producto__name">{prod.nombre}</h4>
+        <span className="pedido-producto__price">RD$ {formatearRD(prod.precio)}</span>
+      </div>
+    </div>
+  );
+
   const renderSeccion = (titulo, items) => {
     if (!items.length) return null;
-    const isActive = categoriaActiva && items.includes(categoriaActiva);
-
-    if (isActive) {
-      return (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <div>
-              <p style={{ color: 'var(--gold-light, #EBCB72)', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>{titulo}</p>
-              <h3 style={{ color: 'var(--text-primary, #F9FAFB)', fontSize: '1.15rem', fontWeight: 800, margin: '2px 0 0 0', textTransform: 'capitalize' }}>{categoriaActiva}</h3>
-            </div>
-            <button
-              onClick={() => onCategoriaChange('')}
-              style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--gold-glow, rgba(212,175,55,0.25))', background: 'var(--gold-soft, rgba(212,175,55,0.08))', color: 'var(--gold-light, #EBCB72)', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}
-            >
-              ← Volver a categorías
-            </button>
-          </div>
-          <div className="pedido-grid">
-            {productosFiltrados.map((prod) => (
-              <div key={prod.id} onClick={() => onAgregarProducto(prod)} className="pedido-producto">
-                <div className="pedido-producto__img">
-                  {prod.imagen_url ? <SafeImage src={prod.imagen_url} alt={prod.nombre} className="pedido-producto__image" /> : <SafeImage src="/favicon.svg" alt="" className="pedido-producto__image pedido-producto__image--fallback" />}
-                </div>
-                <div className="pedido-producto__info">
-                  <h4 className="pedido-producto__name">{prod.nombre}</h4>
-                  <span className="pedido-producto__price">RD$ {formatearRD(prod.precio)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+    const esAlimentos = titulo === 'Alimentos';
+    return (
+      <section className={`pedido-split__col ${esAlimentos ? 'pedido-split__col--alimentos' : 'pedido-split__col--bebidas'}`}>
+        <p className="pedido-split__col-title">{titulo}</p>
+        <div className="pedido-categorias pedido-categorias--split">
+          {items.map(renderCategoriaBtn)}
         </div>
-      );
-    }
+      </section>
+    );
+  };
 
+  const renderBusqueda = () => {
+    const termino = busqueda.trim();
     return (
       <div>
-        <p style={{ color: 'var(--text-muted, #9EA6B7)', fontSize: '0.76rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 6px 0' }}>{titulo}</p>
-        <div className="pedido-categorias">
-          {items.map(renderCategoriaBtn)}
+        <div className="pedido-detalle-head">
+          <div>
+            <p className="pedido-detalle-head__label">Búsqueda global</p>
+            <h3 className="pedido-detalle-head__title">
+              {resultadosBusqueda.length} resultado{resultadosBusqueda.length === 1 ? '' : 's'} para "{termino}"
+            </h3>
+          </div>
+          <button className="pedido-detalle-head__back" onClick={() => onBuscarChange('')}>
+            ✕ Limpiar búsqueda
+          </button>
+        </div>
+        {resultadosBusqueda.length === 0 ? (
+          <p style={{ textAlign: 'center', color: 'var(--text-muted, #9EA6B7)', padding: '30px 0', fontSize: '0.95rem' }}>
+            No se encontraron productos para "{termino}".
+          </p>
+        ) : (
+          <div className="pedido-grid pedido-grid--categoria">
+            {resultadosBusqueda.map(renderProductoCarta)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDetalle = () => {
+    const enAlimentos = alimentos.includes(categoriaActiva);
+    const titulo = enAlimentos ? 'Alimentos' : 'Bebidas';
+    return (
+      <div>
+        <div className="pedido-detalle-head">
+          <div>
+            <p className="pedido-detalle-head__label">{titulo}</p>
+            <h3 className="pedido-detalle-head__title">{categoriaActiva}</h3>
+          </div>
+          <button className="pedido-detalle-head__back" onClick={() => onCategoriaChange('')}>
+            ← Volver a categorías
+          </button>
+        </div>
+        <div className="pedido-grid pedido-grid--categoria">
+          {productosFiltrados.map(renderProductoCarta)}
         </div>
       </div>
     );
@@ -139,14 +177,15 @@ function ProductoGrid({
           <p style={{ textAlign: 'center', color: 'var(--gold-light, #EBCB72)', fontSize: '1.2rem', padding: '40px' }}>
             Cargando catálogo completo...
           </p>
+        ) : buscando ? (
+          renderBusqueda()
+        ) : categoriaActiva ? (
+          renderDetalle()
         ) : (
-          <>
-            {renderSeccion('Categorías de alimentos', alimentos)}
-            {alimentos.length > 0 && bebidas.length > 0 && (
-              <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '12px 0' }} />
-            )}
-            {renderSeccion('Categorías de bebidas', bebidas)}
-          </>
+          <div className="pedido-split">
+            {renderSeccion('Alimentos', alimentos)}
+            {renderSeccion('Bebidas', bebidas)}
+          </div>
         )}
       </div>
     </div>
