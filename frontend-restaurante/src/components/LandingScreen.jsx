@@ -254,8 +254,8 @@ function LandingScreen({ onAcceder, onRegistrarse, onAccesoPropietario, config, 
           </section>
         </div>
         <footer className="landing-footer">
-          <p className="landing-footer__main">© 2026 {nombre} — Sistema POS para Restaurantes</p>
-          <p className="landing-footer__sub">Desarrollado con dedicación por bmtechrd</p>
+          <p className="landing-footer__main">ChloeRestaurant POS Multiempresa By BMTECHRD &copy; {new Date().getFullYear()}</p>
+          <p className="landing-footer__sub">Desarrollado con dedicación por BMTECHRD</p>
         </footer>
       </div>
     </div>

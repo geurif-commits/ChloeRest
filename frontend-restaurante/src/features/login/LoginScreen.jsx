@@ -756,7 +756,7 @@ function LoginScreen({
 
       {/* Footer Minimalista */}
       <footer className="modern-login__footer">
-        <span>ChloeRestaurant POS Multiempresa &copy; {new Date().getFullYear()}</span>
+        <span>ChloeRestaurant POS Multiempresa By BMTECHRD &copy; {new Date().getFullYear()}</span>
         <span className="footer-sep">•</span>
         <span className="footer-secured">
           <CheckCircle2 size={12} />
