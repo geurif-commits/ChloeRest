@@ -90,18 +90,15 @@
   justify-content: center;
 }
 
-/* Nombre del producto: hasta 2 líneas, se adapta al ancho del cuadro */
+/* Nombre del producto: texto completo, se envuelve y la tarjeta crece */
 .pedido-producto__name {
   font-size: 0.72rem;
   font-weight: var(--weight-bold, 800);
   margin: 0;
   color: var(--text-primary, #F9FAFB);
-  line-height: 1.2;
+  line-height: 1.25;
   white-space: normal;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  overflow: visible;
   word-break: break-word;
 }
 
@@ -758,11 +755,8 @@
   font-size: 0.82rem;
   line-height: 1.3;
   white-space: normal;
-  overflow: hidden;
+  overflow: visible;
   text-overflow: unset;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
   word-break: break-word;
 }
 

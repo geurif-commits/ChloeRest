@@ -241,7 +241,7 @@ textarea:focus-visible {
   }
 
   .pedido-producto { padding: 5px !important; }
-  .pedido-producto__name { line-height: 1.2 !important; -webkit-line-clamp: 2 !important; }
+  .pedido-producto__name { line-height: 1.2 !important; }
 }
 
 .required-pin-screen {

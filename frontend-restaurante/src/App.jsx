@@ -790,7 +790,23 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
   // USUARIO AUTENTICADO
   // ==========================================================
 
-  if (usuario) {
+if (usuario) {
+
+    if (usuario.rol === 'Dueno' || usuario.esDueno) {
+      return (
+        <>
+          <ToastContainer />
+      <UpdateBanner />
+          <PanelDueno
+            apiUrl={apiUrl}
+            config={configSistema}
+            alVolver={() => {
+              navegarRuta('/landingscreen');
+            }}
+          />
+        </>
+      );
+    }
 
     if (usuario.requiereCambioPin) {
       return <CambioPinObligatorio onGuardar={cambiarPinObligatorio} />;

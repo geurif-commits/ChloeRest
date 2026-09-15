@@ -3,7 +3,7 @@ import { obtenerSesion } from '../../api.js';
 import { sanitizarDecimal } from '../../utils/input.js';
 import { toastAviso, toastError } from '../Toast.jsx';
 import ConfirmModal from '../ConfirmModal';
-import { Package, Plus, Tag, Upload, Pencil, Trash2, X, Check, Search, Download, Sparkles } from 'lucide-react';
+import { Package, Plus, Tag, Upload, Pencil, Trash2, X, Check, Search, Download } from 'lucide-react';
 import './admin.css';
 
 const TABS = [
@@ -648,10 +648,9 @@ function GestionProductos({ apiUrl }) {
                   type="button"
                   onClick={() => {
                     if (!nuevoProducto.nombre?.trim()) return toastAviso('Escribe primero el nombre del producto para buscar su foto.');
-                    const foto = generarFotoGastronomica(nuevoProducto.nombre);
-                    setNuevoProducto({ ...nuevoProducto, imagen_url: foto });
-                    setArchivoImagen(null);
-                    toastAviso('✨ Foto gastronómica asignada con éxito.');
+                    const query = encodeURIComponent(`${nuevoProducto.nombre} comida restaurante`);
+                    window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank', 'noopener,noreferrer');
+                    toastAviso('Se abrió Google Imágenes con la búsqueda. Elige una imagen, copia su enlace (clic derecho → Copiar dirección del enlace) y pégalo abajo.');
                   }}
                   style={{
                     background: 'rgba(245, 184, 61, 0.15)',
@@ -667,7 +666,7 @@ function GestionProductos({ apiUrl }) {
                     gap: '4px'
                   }}
                 >
-                  <Sparkles size={13} /> Auto-Buscar Foto en Línea
+                  <Search size={13} /> Buscar Foto en Google
                 </button>
               </div>
               <input type="url" name="imagen_url" className={inputClass} value={nuevoProducto.imagen_url} onChange={manejarCambioInput} disabled={!!archivoImagen} placeholder="https://..." />
@@ -1232,10 +1231,9 @@ function GestionProductos({ apiUrl }) {
                     type="button"
                     onClick={() => {
                       if (!editForm.nombre?.trim()) return toastAviso('Escribe primero el nombre del producto.');
-                      const foto = generarFotoGastronomica(editForm.nombre);
-                      setEditForm({ ...editForm, imagen_url: foto });
-                      setEditArchivo(null);
-                      toastAviso('✨ Foto gastronómica asignada.');
+                      const query = encodeURIComponent(`${editForm.nombre} comida restaurante`);
+                      window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank', 'noopener,noreferrer');
+                      toastAviso('Se abrió Google Imágenes con la búsqueda. Copia el enlace de la imagen elegida y pégalo abajo.');
                     }}
                     style={{
                       background: 'rgba(245, 184, 61, 0.15)',
@@ -1251,7 +1249,7 @@ function GestionProductos({ apiUrl }) {
                       gap: '4px'
                     }}
                   >
-                    <Sparkles size={13} /> Auto-Buscar Foto
+                    <Search size={13} /> Buscar Foto en Google
                   </button>
                 </div>
                 <input type="url" className={inputClass} value={editForm.imagen_url} onChange={(e) => setEditForm({ ...editForm, imagen_url: e.target.value })} disabled={!!editArchivo} />
