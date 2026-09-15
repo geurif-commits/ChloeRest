@@ -260,10 +260,13 @@ function AppContent() {
 
   const [usuario, setUsuario] = useState(null);
 
-  const establecerUsuario = (data) => {
+const establecerUsuario = (data) => {
     guardarSesion(data.token);
     if (data.tokenDueno) {
       localStorage.setItem('pos_owner_token', data.tokenDueno);
+      // Login unificado: el token del dueño también queda disponible para el
+      // PanelDueno (que lee POS_DUENO_TOKEN), evitando un segundo login.
+      localStorage.setItem('POS_DUENO_TOKEN', data.tokenDueno);
     }
     // Solo marcamos dispositivo como activado si es un usuario operativo del restaurante
     if (data.usuario?.rol !== 'Dueno' && !data.esDueno) {
@@ -339,8 +342,16 @@ function AppContent() {
   const [vistaDueno, setVistaDueno] =
     useState(() => normalizarRuta(window.location.pathname) === '/paneldueno');
 
-  const navegarRuta = (ruta) => {
-    const destino = normalizarRuta(ruta);
+const navegarRuta = (ruta) => {
+    let destino = normalizarRuta(ruta);
+    // El dueño nunca entra al sistema operativo directo; todo lo redirige al panel.
+    const esDueno = usuario && (usuario.rol === 'Dueno' || usuario.esDueno);
+    if (
+      esDueno &&
+      (destino === '/app' || destino === '/admin' || destino === '/caja' || destino.startsWith('/kds'))
+    ) {
+      destino = '/paneldueno';
+    }
     if (window.location.pathname !== destino) window.history.pushState({}, '', destino);
     setVistaDueno(destino === '/paneldueno' || destino === '/planeldueno');
     if (destino === '/formulario' || destino === '/solicitar' || destino === '/solicitar-licencia') {
@@ -388,7 +399,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     };
     window.addEventListener('popstate', alNavegar);
     return () => window.removeEventListener('popstate', alNavegar);
-  }, []);
+  }, [navegarRuta]);
 
   // ==========================================================
   // CARGAR CONFIGURACIÓN DEL SISTEMA

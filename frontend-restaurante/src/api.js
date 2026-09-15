@@ -217,6 +217,8 @@ export function guardarSesion(token) {
 
 export function borrarSesion() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('POS_DUENO_TOKEN');
+  localStorage.removeItem('pos_owner_token');
 }
 
 /**
