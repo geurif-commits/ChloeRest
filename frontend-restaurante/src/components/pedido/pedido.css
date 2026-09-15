@@ -663,6 +663,21 @@
   border-radius: 0 !important;
 }
 
+/* Botones de categoría más grandes dentro del split */
+.pedido-workspace .pedido-categorias--split button {
+  height: 64px !important;
+  min-height: 64px !important;
+  gap: 4px !important;
+}
+
+.pedido-workspace .pedido-categorias--split .pedido-categorias__emoji {
+  font-size: 1.4rem;
+}
+
+.pedido-workspace .pedido-categorias--split .pedido-categorias__nombre {
+  font-size: 0.82rem;
+}
+
 /* Detalle de categoría (drill-down) */
 .pedido-detalle-head {
   display: flex;
@@ -709,33 +724,47 @@
   background: rgba(212, 175, 55, 0.16);
 }
 
-/* Productos del detalle: 7 por fila, tarjetas más amplias, filas automáticas
-   que crecen conforme se agregan productos */
+/* Productos del detalle: tarjetas grandes y verticales (imagen arriba, texto
+   abajo) en todas las filas y columnas, filas automáticas que crecen */
 .pedido-workspace .pedido-grid--categoria {
   grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
-  gap: 8px !important;
+  gap: 10px !important;
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto {
-  min-height: 78px;
-  padding: 6px 8px;
-  gap: 10px;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto__img {
-  flex: 0 0 56px;
-  width: 56px;
-  height: 56px;
+  flex: none;
+  width: 100%;
+  height: 78px;
   border-radius: 8px;
 }
 
+.pedido-workspace .pedido-grid--categoria .pedido-producto__info {
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+}
+
 .pedido-workspace .pedido-grid--categoria .pedido-producto__name {
-  font-size: 0.72rem;
-  line-height: 1.2;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .pedido-workspace .pedido-grid--categoria .pedido-producto__price {
-  font-size: 0.78rem;
+  font-size: 0.86rem;
 }
 
 @media (min-width: 768px) and (max-width: 1200px) {
