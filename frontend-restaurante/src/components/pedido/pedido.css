@@ -665,17 +665,17 @@
 
 /* Botones de categoría más grandes dentro del split */
 .pedido-workspace .pedido-categorias--split button {
-  height: 64px !important;
-  min-height: 64px !important;
-  gap: 4px !important;
+  height: 78px !important;
+  min-height: 78px !important;
+  gap: 5px !important;
 }
 
 .pedido-workspace .pedido-categorias--split .pedido-categorias__emoji {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
 }
 
 .pedido-workspace .pedido-categorias--split .pedido-categorias__nombre {
-  font-size: 0.82rem;
+  font-size: 0.85rem;
 }
 
 /* Detalle de categoría (drill-down) */

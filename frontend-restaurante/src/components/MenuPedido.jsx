@@ -27,8 +27,8 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   const [terminoSeleccionado, setTerminoSeleccionado] = useState('');
   const [notaEspecial, setNotaEspecial] = useState('');
   
-  // Filtros de categoría y búsqueda
-  const [categoriaActiva, setCategoriaActiva] = useState('Todos');
+// Filtros de categoría y búsqueda
+  const [categoriaActiva, setCategoriaActiva] = useState('');
   const [busqueda, setBusqueda] = useState('');
   
   // Configuración del negocio (Nombre, RNC, ITBIS / Propina)
@@ -51,8 +51,16 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   // Estado para impresión de Pre-cheque por Camareros
   const [prechequeData, setPrechequeData] = useState(null);
   
-  const [mobileTab, setMobileTab] = useState('menu');
+const [mobileTab, setMobileTab] = useState('menu');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  
+  // Al entrar en una mesa (o cambiar de mesa) siempre se muestran las
+  // categorías: sin filtros activos ni categoría heredada de otra mesa.
+  useEffect(() => {
+    setCategoriaActiva('');
+    setBusqueda('');
+    setMobileTab('menu');
+  }, [mesa?.id]);
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
