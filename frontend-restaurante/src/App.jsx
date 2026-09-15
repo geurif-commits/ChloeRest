@@ -667,6 +667,8 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     borrarSesion();
     setUsuario(null);
     setViendoKDS(null);
+    // Todo cierre de sesión vuelve al LoginScreen operativo, nunca a LandingScreen.
+    navegarRuta('/login');
   };
 
   // ==========================================================
@@ -800,9 +802,7 @@ if (usuario) {
           <PanelDueno
             apiUrl={apiUrl}
             config={configSistema}
-            alVolver={() => {
-              navegarRuta('/landingscreen');
-            }}
+            alVolver={resetSesion}
           />
         </>
       );
@@ -904,12 +904,10 @@ if (usuario) {
       <>
         <ToastContainer />
       <UpdateBanner />
-        <PanelDueno
+<PanelDueno
           apiUrl={apiUrl}
           config={configSistema}
-          alVolver={() => {
-            navegarRuta('/landingscreen');
-          }}
+          alVolver={resetSesion}
         />
       </>
     );
@@ -1073,7 +1071,7 @@ if (usuario) {
       <>
         <ToastContainer />
       <UpdateBanner />
-        <LoginScreen
+<LoginScreen
           apiUrl={apiUrl}
           configSistema={configSistema}
           onLogin={iniciarSesion}
@@ -1082,9 +1080,13 @@ if (usuario) {
           }}
           servidorOnline={servidorOnline}
           onChangeServer={limpiarServidor}
-          onVolver={() => {
-            navegarRuta('/landingscreen');
-          }}
+          onVolver={
+            dispositivoActivado === true
+              ? undefined
+              : () => {
+                  navegarRuta('/landingscreen');
+                }
+          }
         />
       </>
     );
