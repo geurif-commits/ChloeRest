@@ -91,9 +91,9 @@ function FacturaActivacion({ factura, nombreNegocio, alCerrar }) {
         </div>
 
         <div className="ticket-acciones-modal">
-          <button className="btn-imprimir" onClick={imprimir} style={{ background: '#00f576', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>🖨️ Imprimir</button>
-          <button className="btn-exportar-pdf" onClick={exportarPDF} style={{ background: '#1a73e8', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>📄 Exportar PDF</button>
-          <button className="btn-cerrar-ticket" onClick={alCerrar} style={{ background: '#2a2a38', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>❌ Cerrar</button>
+          <button className="btn-imprimir" onClick={imprimir} style={{ background: '#00f576', color: '#000', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>Imprimir</button>
+          <button className="btn-exportar-pdf" onClick={exportarPDF} style={{ background: '#1a73e8', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>Exportar PDF</button>
+          <button className="btn-cerrar-ticket" onClick={alCerrar} style={{ background: '#2a2a38', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>Cerrar</button>
         </div>
 
       </div>

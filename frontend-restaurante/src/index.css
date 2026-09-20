@@ -4,14 +4,14 @@
 
 /* Tailwind v4 @theme — mapea tokens del design-system para utilidades */
 @theme {
-  --color-gold: #F5B83D;
-  --color-gold-light: #F8CC6A;
-  --color-gold-dark: #D9A030;
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-bright);
+  --color-gold-dark: var(--gold-dark);
   --color-blue: #5B8CFF;
   --color-green: #00E676;
   --color-purple: #8B5CF6;
   --color-red: #EF4444;
-  --color-orange: #F59E0B;
+  --color-orange: var(--gold);
 
   --color-bg-base: #070B14;
   --color-bg-panel: #151B2B;

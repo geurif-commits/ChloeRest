@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Plus, Minus, Trash2, Send, Printer, ArrowRightLeft, CreditCard, StickyNote, ShoppingBag, LoaderCircle, Users, Ellipsis } from 'lucide-react';
+import './pedido.css';
 
 function PedidoTicket({
   mesa,
@@ -6,123 +8,107 @@ function PedidoTicket({
   cuentaActual,
   comandaNueva,
   granTotal,
+  subtotalFactura,
+  itbis,
+  propinaLey,
+  totalAPagar,
   esCajero,
-  onAgregar,
+  onIncrementar,
   onRestar,
   onAnular,
   onEnviar,
+  enviandoComanda = false,
   onPreCheque,
   onTrasladar,
   onCobrar,
-  onVolver,
   formatearRD,
   isMobile,
   mobileTab,
   comandaModo = 'kds',
 }) {
-  return (
-    <div
-      className="pedido-ticket"
-      style={{
-        display: !isMobile || mobileTab === 'cuenta' ? 'flex' : 'none',
-        height: isMobile ? 'auto' : '100vh',
-        flex: isMobile ? 1 : 'none',
-        borderLeft: isMobile ? 'none' : undefined,
-      }}
-    >
-      <div className="pedido-ticket__head">
-        <h3>{mesa.nombre_numero}</h3>
-        <p>Camarero/a: <strong>{usuario.nombre}</strong></p>
-      </div>
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const unidades = comandaNueva.reduce((s, i) => s + i.cantidad, 0);
+  const cerrarYEjecutar = (fn) => () => { setMenuAbierto(false); fn?.(); };
 
-      <div className="pedido-ticket__body">
+  return (
+    <aside className="po-ticket" style={{ display: !isMobile || mobileTab === 'cuenta' ? 'flex' : 'none' }}>
+      <header className="po-ticket__head">
+        <div>
+          <h2>{mesa.nombre_numero}</h2>
+          <p>{mesa.capacidad ? `${mesa.capacidad} personas · ` : ''}{usuario.nombre}</p>
+        </div>
+        <span className="po-ticket__cap" title="Capacidad de la mesa"><Users size={19} /></span>
+      </header>
+
+      <div className="po-ticket__body">
         {cuentaActual.length > 0 && (
-          <div>
-            <p className="pedido-ticket__section-label">Consumo Registrado</p>
+          <section>
+            <p className="po-label"><span>Enviado a cocina y bar</span></p>
             {cuentaActual.map((item) => (
-              <div key={`old-${item.id}`} className="pedido-ticket__item pedido-ticket__item--registered">
-                <div style={{ flex: 1 }}>
-                  <div>
-                    <span className="pedido-ticket__item-qty">{item.cantidad}x</span>
-                    <span className="pedido-ticket__item-name">{item.nombre}</span>
-                  </div>
-                  {item.notas && (
-                    <div style={{ fontSize: '0.74rem', color: 'var(--gold, #f5b842)', marginTop: '2px', paddingLeft: '22px', fontWeight: 500 }}>
-                      🍽️ {item.notas}
-                    </div>
-                  )}
+              <div key={`old-${item.id}`} className="po-sent">
+                <div className="po-sent__main">
+                  <span className="po-sent__name">{Number(item.cantidad)} × {item.nombre}</span>
+                  {(item.guarnicion || item.termino) && <span className="po-line__note">{[item.guarnicion, item.termino].filter(Boolean).join(' · ')}</span>}
+                  {item.notas && <span className="po-line__note"><StickyNote size={13} />{item.notas}</span>}
                 </div>
-                <div className="pedido-ticket__item-actions">
-                  <span className="pedido-ticket__item-price">RD$ {formatearRD(item.precio * item.cantidad)}</span>
-                  <button
-                    onClick={() => onAnular(item)}
-                    className="pedido-ticket__btn-anular"
-                    title="Anular"
-                  >
-                    ❌
-                  </button>
-                </div>
+                <span className="po-sent__price">RD$ {formatearRD(item.precio * item.cantidad)}</span>
+                <button type="button" onClick={() => onAnular(item)} className="po-sent__void" title="Anular" aria-label={`Anular ${item.nombre}`}><Trash2 size={15} /></button>
               </div>
             ))}
-          </div>
+          </section>
         )}
 
-        <div>
-          <p className="pedido-ticket__section-label pedido-ticket__section-label--new">Nueva Comanda (Pendiente)</p>
+        <section>
+          <p className="po-label po-label--new"><span>Nueva comanda</span><span>{unidades} {unidades === 1 ? 'plato' : 'platos'}</span></p>
           {comandaNueva.length === 0 ? (
-            <p className="pedido-ticket__empty">Selecciona platos del menú para agregar</p>
+            <div className="po-blank"><ShoppingBag size={22} /><span>Toca un plato del menú para añadirlo.</span></div>
           ) : (
             comandaNueva.map((item, idx) => (
-              <div key={item.itemKey || `new-${item.id}-${idx}`} className="pedido-ticket__item pedido-ticket__item--new">
-                <div style={{ flex: 1 }}>
-                  <span className="pedido-ticket__item-name" style={{ display: 'block' }}>{item.nombre}</span>
-                  {item.notas && (
-                    <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--gold, #f5b842)', marginTop: '2px', fontWeight: 500 }}>
-                      🍽️ {item.notas}
-                    </span>
-                  )}
-                  <span className="pedido-ticket__item-price--new">RD$ {formatearRD(item.precio * item.cantidad)}</span>
-                </div>
-                <div className="pedido-ticket__item-actions">
-                  <button onClick={() => onRestar(item.itemKey || item.id)} className="pedido-ticket__qty-btn">-</button>
-                  <span className="pedido-ticket__qty-value">{item.cantidad}</span>
-                  <button onClick={() => onAgregar(item)} className="pedido-ticket__qty-btn">+</button>
+              <div key={item.itemKey || `new-${item.id}-${idx}`} className="po-line">
+                <div className="po-line__row"><span>{item.nombre}</span><span>RD$ {formatearRD(item.precio * item.cantidad)}</span></div>
+                {(item.guarnicion || item.termino) && <span className="po-line__note">{[item.guarnicion, item.termino].filter(Boolean).join(' · ')}</span>}
+                {item.notas && <span className="po-line__note"><StickyNote size={13} />{item.notas}</span>}
+                <div className="po-step">
+                  <button type="button" onClick={() => onRestar(item.itemKey || item.id)} aria-label={`Quitar uno de ${item.nombre}`}><Minus size={16} /></button>
+                  <output>{item.cantidad}</output>
+                  <button type="button" onClick={() => onIncrementar(item)} aria-label={`Aumentar ${item.nombre}`}><Plus size={16} /></button>
                 </div>
               </div>
             ))
           )}
-        </div>
+        </section>
       </div>
 
-      <div className="pedido-ticket__footer">
-        <div className="pedido-ticket__total">
-          <span>Total Mesa:</span>
-          <span className="pedido-ticket__total-value">RD$ {formatearRD(granTotal)}</span>
+      <footer className="po-ticket__foot">
+        <div className="po-totals">
+          <div><span>Subtotal</span><span>RD$ {formatearRD(subtotalFactura ?? granTotal)}</span></div>
+          {itbis > 0 && <div><span>ITBIS 18 %</span><span>RD$ {formatearRD(itbis)}</span></div>}
+          {propinaLey > 0 && <div><span>Propina legal 10 %</span><span>RD$ {formatearRD(propinaLey)}</span></div>}
+          <div className="po-totals__grand"><span>Total mesa</span><strong>RD$ {formatearRD(totalAPagar ?? granTotal)}</strong></div>
         </div>
 
-        <button
-          onClick={onEnviar}
-          disabled={comandaNueva.length === 0}
-          className="pedido-ticket__btn-send"
-        >
-          {comandaModo === 'impresora' ? '🖨️ Enviar e Imprimir Comanda' : '🛎️ Enviar Comanda a Cocina/Bar'}
+        <button type="button" onClick={onEnviar} disabled={comandaNueva.length === 0 || enviandoComanda} className="po-send">
+          {enviandoComanda ? <LoaderCircle size={19} className="px-spin" /> : <Send size={19} />}
+          {enviandoComanda ? 'Enviando…' : comandaNueva.length === 0 ? 'Sin platos nuevos' : `${comandaModo === 'impresora' ? 'Enviar e imprimir' : 'Enviar comanda'} (${unidades})`}
         </button>
 
-        <div className="pedido-ticket__btn-actions">
-          <button onClick={onPreCheque} className="pedido-ticket__btn-secondary">
-            🖨️ Pre-Cheque
-          </button>
-          <button onClick={onTrasladar} className="pedido-ticket__btn-secondary" style={{ flex: 0.9 }}>
-            🔄 Trasladar
-          </button>
-          {esCajero && (
-            <button onClick={onCobrar} className="pedido-ticket__btn-cobrar">
-              💳 Cobrar
-            </button>
-          )}
+        <div className={`po-actions ${esCajero ? 'po-actions--pay' : ''}`}>
+          <button type="button" onClick={onPreCheque} className="po-btn"><Printer size={18} />Pre-cuenta</button>
+          {esCajero && <button type="button" onClick={onCobrar} className="po-btn"><CreditCard size={18} />Cobrar</button>}
+          <div className="po-more">
+            <button type="button" className="po-btn po-btn--icon" onClick={() => setMenuAbierto((v) => !v)} aria-label="Más acciones" aria-expanded={menuAbierto}><Ellipsis size={19} /></button>
+            {menuAbierto && (
+              <>
+                <div className="po-more__scrim" onClick={() => setMenuAbierto(false)} />
+                <div className="po-more__menu" role="menu">
+                  <button type="button" role="menuitem" onClick={cerrarYEjecutar(onTrasladar)}><ArrowRightLeft size={17} />Trasladar mesa</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      </footer>
+    </aside>
   );
 }
 

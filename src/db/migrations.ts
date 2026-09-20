@@ -791,6 +791,37 @@ const migrations: IMigracion[] = [{
         USING (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER)
         WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
     `,
+  }, {
+    id: '047_turnos_empleados',
+    sql: `
+      -- Turnos y asistencia del personal (Turno 1: 10-17, Turno 2: 17-24).
+      CREATE TABLE IF NOT EXISTS turnos_empleados (
+        id SERIAL PRIMARY KEY,
+        empresa_id INTEGER NOT NULL DEFAULT 1 REFERENCES empresas(id) ON DELETE CASCADE,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        turno VARCHAR(20) NOT NULL DEFAULT 'Fuera de turno',
+        entrada TIMESTAMP NOT NULL,
+        salida TIMESTAMP,
+        entrada_ip VARCHAR(64),
+        salida_ip VARCHAR(64),
+        cerrado_auto BOOLEAN NOT NULL DEFAULT FALSE,
+        editado BOOLEAN NOT NULL DEFAULT FALSE,
+        notas VARCHAR(300),
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CHECK (salida IS NULL OR salida > entrada)
+      );
+      CREATE INDEX IF NOT EXISTS idx_turnos_empleados_empresa_entrada ON turnos_empleados(empresa_id, entrada DESC);
+      CREATE INDEX IF NOT EXISTS idx_turnos_empleados_usuario_abierto ON turnos_empleados(usuario_id) WHERE salida IS NULL;
+      -- Un empleado no puede tener dos turnos abiertos a la vez.
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_turnos_empleados_un_abierto ON turnos_empleados(usuario_id) WHERE salida IS NULL;
+
+      ALTER TABLE turnos_empleados ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE turnos_empleados FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS aislamiento_empresa ON turnos_empleados;
+      CREATE POLICY aislamiento_empresa ON turnos_empleados
+        USING (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER)
+        WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
+    `,
   },
 ];
 export async function runMigrations(pool: Database): Promise<void> {

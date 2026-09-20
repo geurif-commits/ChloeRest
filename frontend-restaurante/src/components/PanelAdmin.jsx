@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard, TableProperties, Package, ChefHat, Warehouse,
   BarChart3, FileText, CreditCard, Users, Building2, Receipt,
-  Palette, Image, Monitor, LogOut, ChevronRight, Store,
-  Sparkles, ArrowLeft, Menu, X, Clock, Shield, CircleDollarSign,
-  Grid, Compass, Home, Layers
+  Palette, Image, Monitor, ChevronRight, Store,
+  ArrowLeft, Menu, X, Clock, CalendarClock, ChevronDown
 } from 'lucide-react';
 import './admin/admin.css';
+import './admin/admin-shell.css';
 import ConfiguracionNegocio from './ConfiguracionNegocio';
 import DashboardGerencial from './DashboardGerencial';
 import GestionMesas from './GestionMesas';
@@ -21,6 +21,7 @@ import ReporteResumen from './admin/ReporteResumen';
 import TemaSettings from './admin/TemaSettings';
 import LogoFondoSettings from './admin/LogoFondoSettings';
 import GestionDispositivos from './admin/GestionDispositivos';
+import GestionAsistencia from './admin/GestionAsistencia';
 
 const GRUPOS_NAVEGACION = [
   {
@@ -50,6 +51,7 @@ const GRUPOS_NAVEGACION = [
     titulo: 'EQUIPO & FISCAL',
     items: [
       { id: 'usuarios', etiqueta: 'Personal y Accesos', icono: Users, desc: 'Camareros, cajeros y roles' },
+      { id: 'asistencia', etiqueta: 'Turnos y Asistencia', icono: CalendarClock, desc: 'Entradas, salidas y horas trabajadas' },
       { id: 'negocio', etiqueta: 'Datos de la Empresa', icono: Building2, desc: 'RNC, estaciones y tickets' },
       { id: 'secuencias_ncf', etiqueta: 'Comprobantes DGII', icono: Receipt, desc: 'Secuencias NCF oficiales' },
     ]
@@ -74,6 +76,7 @@ const METADATA_MODULOS = {
   historial: { titulo: 'Historial de Facturación', grupo: 'FINANZAS', icono: FileText },
   tipo_pago: { titulo: 'Ventas por Método de Pago', grupo: 'FINANZAS', icono: CreditCard },
   usuarios: { titulo: 'Gestión de Personal y Accesos', grupo: 'ADMINISTRACIÓN', icono: Users },
+  asistencia: { titulo: 'Turnos y Asistencia del Personal', grupo: 'ADMINISTRACIÓN', icono: CalendarClock },
   negocio: { titulo: 'Configuración de la Empresa', grupo: 'ADMINISTRACIÓN', icono: Building2 },
   secuencias_ncf: { titulo: 'Comprobantes Fiscales DGII (NCF)', grupo: 'ADMINISTRACIÓN', icono: Receipt },
   tema: { titulo: 'Tema y Colores del Sistema', grupo: 'SISTEMA', icono: Palette },
@@ -142,6 +145,11 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
     setMenuMovilAbierto(false);
   };
 
+  // Acordeón: un solo grupo abierto; al elegir una categoría se recogen las demás.
+  const grupoDeModulo = (id) => GRUPOS_NAVEGACION.find((g) => g.items.some((i) => i.id === id))?.titulo || GRUPOS_NAVEGACION[0].titulo;
+  const [grupoAbierto, setGrupoAbierto] = useState(() => grupoDeModulo(pestana));
+  useEffect(() => { setGrupoAbierto(grupoDeModulo(pestana)); }, [pestana]);
+
   const listaTodosModulos = useMemo(() => {
     const arr = [];
     GRUPOS_NAVEGACION.forEach(g => {
@@ -153,325 +161,114 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
   }, []);
 
   return (
-    <div className="admin-layout" style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', background: 'var(--bg-base)' }}>
-      
-      {/* ── Overlay Fondo Móvil / Drawer ── */}
-      {menuMovilAbierto && (
-        <div
-          onClick={() => setMenuMovilAbierto(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(6px)',
-            zIndex: 1050,
-          }}
-        />
-      )}
+    <div className="adm admin-layout">
 
-      {/* ── Sidebar de Navegación Lateral (Desktop y Drawer Móvil) ── */}
-      <aside
-        className={`admin-sidebar ${menuMovilAbierto ? 'admin-sidebar--mobile-open' : ''}`}
-        style={{
-          width: '270px',
-          flexShrink: 0,
-          background: 'var(--bg-panel)',
-          borderRight: '1px solid var(--border-light)',
-          display: 'flex',
-          flexDirection: 'column',
-          zIndex: 1100,
-          transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-      >
-        {/* Encabezado del Sidebar */}
-        <div style={{ padding: '18px 16px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-            <div style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: logoComercio ? '#fff' : 'linear-gradient(135deg, #f5b842 0%, #b8862a 100%)',
-              color: '#080c14',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 15px rgba(245, 184, 61, 0.3)',
-              fontWeight: 900,
-              overflow: 'hidden',
-              flexShrink: 0
-            }}>
-              {logoComercio ? (
-                <img src={logoComercio} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              ) : (
-                <Store size={20} />
-              )}
-            </div>
-            <div style={{ minWidth: 0, overflow: 'hidden' }}>
-              <span style={{
-                fontSize: '0.92rem',
-                fontWeight: 800,
-                color: 'var(--text-primary)',
-                display: 'block',
-                letterSpacing: '-0.02em',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {nombreComercio}
-              </span>
-              <span style={{ fontSize: '0.68rem', color: 'var(--gold, #f5b842)', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                Panel Administrativo
-              </span>
-            </div>
+      {/* ── Overlay del drawer móvil ── */}
+      {menuMovilAbierto && <div className="adm-scrim" onClick={() => setMenuMovilAbierto(false)} />}
+
+      {/* ── Navegación lateral ── */}
+      <aside className={`adm-side ${menuMovilAbierto ? 'is-open' : ''}`} aria-label="Navegación del panel">
+        <div className="adm-brand">
+          <span className={`adm-brand__mark ${logoComercio ? 'has-logo' : ''}`}>
+            {logoComercio ? <img src={logoComercio} alt="Logo" /> : <Store size={20} />}
+          </span>
+          <div className="adm-brand__text">
+            <strong>{nombreComercio}</strong>
+            <span>Panel administrativo</span>
           </div>
-
-          <button
-            type="button"
-            className="admin-close-mobile-btn"
-            onClick={() => setMenuMovilAbierto(false)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '6px',
-              borderRadius: '8px'
-            }}
-          >
-            <X size={20} />
+          <button type="button" className="adm-close" onClick={() => setMenuMovilAbierto(false)} aria-label="Cerrar menú">
+            <X size={19} />
           </button>
         </div>
 
-        {/* Lista de Módulos Agrupados */}
-        <nav style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {GRUPOS_NAVEGACION.map((grupo) => (
-            <div key={grupo.titulo} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.08em', padding: '0 10px 4px', textTransform: 'uppercase' }}>
-                {grupo.titulo}
-              </span>
-              {grupo.items.map((item) => {
-                const ItemIcono = item.icono;
-                const esActivo = pestana === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => seleccionarModulo(item.id)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '9px 12px',
-                      borderRadius: '10px',
-                      border: esActivo ? '1px solid rgba(245, 184, 61, 0.35)' : '1px solid transparent',
-                      background: esActivo ? 'var(--gold-soft)' : 'transparent',
-                      color: esActivo ? 'var(--gold, #b98016)' : 'var(--text-secondary)',
-                      fontWeight: esActivo ? 700 : 500,
-                      fontSize: '0.84rem',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.18s ease',
-                      width: '100%'
-                    }}
-                  >
-                    <ItemIcono size={17} style={{ color: esActivo ? 'var(--gold, #b98016)' : 'var(--text-muted)', flexShrink: 0 }} />
-                    <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.etiqueta}
-                    </span>
-                    {esActivo && <ChevronRight size={14} style={{ color: 'var(--gold, #f5b842)' }} />}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+        <nav className="adm-nav">
+          {GRUPOS_NAVEGACION.map((grupo) => {
+            const abierto = grupoAbierto === grupo.titulo;
+            const tieneActivo = grupo.items.some((i) => i.id === pestana);
+            const idPanel = 'adm-grp-' + grupo.titulo.replace(/[^A-Za-z]/g, '').toLowerCase();
+            return (
+              <div key={grupo.titulo} className={`adm-nav__group ${abierto ? 'is-open' : ''}`}>
+                <button
+                  type="button"
+                  className={`adm-nav__head ${tieneActivo ? 'has-active' : ''}`}
+                  aria-expanded={abierto}
+                  aria-controls={idPanel}
+                  onClick={() => setGrupoAbierto(abierto ? null : grupo.titulo)}
+                >
+                  <span className="adm-nav__title">{grupo.titulo}</span>
+                  <span className="adm-nav__count">{grupo.items.length}</span>
+                  <ChevronDown size={15} className="adm-nav__caret" />
+                </button>
+                <div className="adm-nav__panel" id={idPanel} role="region" inert={!abierto}>
+                  <div className="adm-nav__panel-inner">
+                    {grupo.items.map((item) => {
+                      const ItemIcono = item.icono;
+                      const esActivo = pestana === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`adm-nav__item ${esActivo ? 'is-active' : ''}`}
+                          aria-current={esActivo ? 'page' : undefined}
+                          onClick={() => seleccionarModulo(item.id)}
+                        >
+                          <span className="adm-nav__icon"><ItemIcono size={17} strokeWidth={1.9} /></span>
+                          <span className="adm-nav__label">{item.etiqueta}</span>
+                          {esActivo && <ChevronRight size={15} className="adm-nav__chev" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
-        {/* Footer del Sidebar: Usuario y Salida */}
-        <div style={{ padding: '14px 16px', borderTop: '1px solid var(--border-light)', background: 'var(--bg-panel)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: 'rgba(245, 184, 61, 0.2)',
-              color: 'var(--gold, #f5b842)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '0.82rem'
-            }}>
-              {usuario.nombre?.charAt(0)?.toUpperCase() || 'A'}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: '0.8rem', color: 'var(--text-primary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {usuario.nombre || 'Administrador'}
-              </strong>
-              <small style={{ fontSize: '0.68rem', color: 'var(--gold, #f5b842)' }}>
-                {usuario.rol || 'Administrador'}
-              </small>
+        <div className="adm-user">
+          <div className="adm-user__row">
+            <span className="adm-user__avatar">{usuario.nombre?.charAt(0)?.toUpperCase() || 'A'}</span>
+            <div>
+              <strong>{usuario.nombre || 'Administrador'}</strong>
+              <small>{usuario.rol || 'Administrador'}</small>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={alVolver}
-            className="admin-btn admin-btn-secondary"
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              fontSize: '0.8rem'
-            }}
-          >
-            <ArrowLeft size={14} />
-            <span>Volver a Caja / POS</span>
+          <button type="button" className="px-btn adm-user__back" onClick={alVolver}>
+            <ArrowLeft size={15} /> Volver a caja / POS
           </button>
         </div>
       </aside>
 
-      {/* ── Contenido Principal & Header Unificado con Barra Rápida de Opciones ── */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        
-        {/* Topbar Superior Limpia y Minimalista */}
-        <header
-          style={{
-            height: '60px',
-            flexShrink: 0,
-            background: 'var(--bg-panel)',
-            backdropFilter: 'blur(10px)',
-            borderBottom: '1px solid var(--border-light)',
-            padding: '0 20px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px'
-          }}
-        >
-          {/* Izquierda: Botón Menú Móvil + Título del Módulo Activo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button
-              type="button"
-              className="admin-menu-toggle-btn"
-              onClick={() => setMenuMovilAbierto(true)}
-              style={{
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-medium)',
-                borderRadius: '8px',
-                color: 'var(--text-primary)',
-                padding: '7px 10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.78rem',
-                fontWeight: 600
-              }}
-              title="Abrir Menú"
-            >
-              <Menu size={16} />
-              <span>Menú</span>
+      {/* ── Contenido ── */}
+      <main className="adm-main">
+        <header className="adm-top">
+          <div className="adm-top__left">
+            <button type="button" className="adm-menu-btn" onClick={() => setMenuMovilAbierto(true)} aria-label="Abrir menú">
+              <Menu size={18} />
             </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '8px',
-                background: 'rgba(245, 184, 61, 0.15)',
-                color: 'var(--gold, #f5b842)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <IconoActual size={17} />
-              </div>
-              <div>
-                <h1 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                  {moduloActual.titulo}
-                </h1>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
-                  {moduloActual.grupo} • {moduloActual.desc || 'Panel de Administración'}
-                </span>
-              </div>
+            <span className="adm-top__icon"><IconoActual size={19} /></span>
+            <div className="adm-top__title">
+              <h1>{moduloActual.titulo}</h1>
+              <span>{moduloActual.grupo}</span>
             </div>
           </div>
 
-          {/* Derecha: Reloj 12h & Fecha + Estado En Línea + Botón Volver a Caja */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'nowrap' }}>
-            {/* Reloj en formato 12 Horas con Fecha del Día con diseño idéntico al de En Línea */}
-            <div className="admin-topbar__pill admin-topbar__pill--reloj" style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 12px',
-              borderRadius: '20px',
-              background: 'rgba(245, 184, 61, 0.12)',
-              border: '1px solid rgba(245, 184, 61, 0.3)',
-              fontSize: '0.72rem',
-              color: 'var(--gold, #f5b842)',
-              fontWeight: 700,
-              whiteSpace: 'nowrap'
-            }}>
-              <Clock size={12} style={{ color: 'var(--gold, #f5b842)', flexShrink: 0 }} />
-              <span>{tiempoActual.fecha}</span>
-              <span style={{ opacity: 0.35 }}>•</span>
-              <span style={{ fontFamily: 'monospace', letterSpacing: '0.3px' }}>{tiempoActual.hora}</span>
-            </div>
-
-            {/* Estado En Línea */}
-            <div className="admin-topbar__pill admin-topbar__pill--online" style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '10px',
-              background: 'rgba(16, 185, 129, 0.12)',
-              border: '1px solid rgba(16, 185, 129, 0.25)',
-              fontSize: '0.72rem',
-              color: '#10b981',
-              fontWeight: 700,
-              whiteSpace: 'nowrap'
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-              <span>En Línea</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={alVolver}
-              className="admin-btn admin-btn-primary admin-topbar__volver"
-              style={{
-                padding: '7px 14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.78rem',
-                fontWeight: 700,
-                flexShrink: 0,
-                minHeight: '36px'
-              }}
-              title="Volver a la vista del Punto de Venta"
-            >
-              <ArrowLeft size={14} />
-              <span className="admin-btn-text-full">Volver a Caja</span>
+          <div className="adm-top__right">
+            <span className="adm-pill adm-pill--gold">
+              <Clock size={13} />
+              {tiempoActual.fecha}
+              <i>·</i>
+              <b>{tiempoActual.hora}</b>
+            </span>
+            <span className="adm-pill adm-pill--ok"><i className="adm-dot" />En línea</span>
+            <button type="button" className="px-btn px-btn--gold adm-top__back" onClick={alVolver} title="Volver a la vista del punto de venta">
+              <ArrowLeft size={16} />
+              <span>Volver a caja</span>
             </button>
           </div>
         </header>
 
-        {/* Canvas de Contenido del Módulo */}
-        <div
-          className="admin-content"
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '20px',
-            background: 'radial-gradient(circle at 50% 0%, rgba(245, 184, 61, 0.04), transparent 40%), var(--bg-base)'
-          }}
-        >
+        <div className="adm-content admin-content">
           {pestana === 'dashboard' && <DashboardGerencial apiUrl={urlBase} />}
           {pestana === 'mesas' && <GestionMesas apiUrl={urlBase} />}
           {pestana === 'productos' && <GestionProductos apiUrl={urlBase} />}
@@ -481,16 +278,15 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
           {pestana === 'historial' && <HistorialFacturas alVolver={() => setPestana('reportes')} apiUrl={urlBase} />}
           {pestana === 'tipo_pago' && <ReporteTipoPago apiUrl={urlBase} />}
           {pestana === 'usuarios' && <GestionUsuarios apiUrl={urlBase} usuarioIdActual={usuario.id} />}
+          {pestana === 'asistencia' && <GestionAsistencia apiUrl={urlBase} />}
           {pestana === 'negocio' && <ConfiguracionNegocio alVolver={() => setPestana('dashboard')} apiUrl={urlBase} alVerificarLicencia={alVerificarLicencia} />}
           {pestana === 'secuencias_ncf' && <GestionNCF apiUrl={urlBase} />}
           {pestana === 'tema' && <TemaSettings apiUrl={urlBase} />}
           {pestana === 'logo_fondo' && <LogoFondoSettings apiUrl={urlBase} />}
           {pestana === 'dispositivos' && <GestionDispositivos apiUrl={urlBase} />}
         </div>
-
       </main>
 
     </div>
   );
 }
-

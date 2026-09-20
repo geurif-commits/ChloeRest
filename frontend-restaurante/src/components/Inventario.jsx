@@ -255,7 +255,7 @@ function Inventario({ alVolver, apiUrl }) {
               <span>Registrar Insumo / Ingrediente</span>
             </h3>
 
-            <div style={{ background: 'rgba(245, 184, 61, 0.08)', border: '1px solid rgba(245, 184, 61, 0.2)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--kpi-gold)', marginBottom: '14px' }}>
+            <div style={{ background: 'color-mix(in srgb, var(--gold) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 20%, transparent)', padding: '10px 14px', borderRadius: '8px', fontSize: '0.78rem', color: 'var(--kpi-gold)', marginBottom: '14px' }}>
               El <strong>Número de Artículo</strong> se genera y vincula automáticamente al guardar.
             </div>
 
@@ -420,7 +420,7 @@ function Inventario({ alVolver, apiUrl }) {
       {/* Modal de Ajuste de Stock */}
       {itemAjuste && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '16px' }}>
-          <div className="admin-section" style={{ width: '100%', maxWidth: '440px', background: 'rgba(15, 20, 35, 0.98)', border: '1px solid rgba(245, 184, 61, 0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+          <div className="admin-section" style={{ width: '100%', maxWidth: '440px', background: 'rgba(15, 20, 35, 0.98)', border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '10px' }}>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <SlidersHorizontal size={18} />

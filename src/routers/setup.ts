@@ -113,7 +113,7 @@ router.post(
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : null;
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : null;
     const temaRaw = String(req.body.tema_activo || '').trim();
-    const tema = ['claro-luxury-gold', 'negro-brillante'].includes(temaRaw)
+    const tema = ['claro-luxury-gold', 'negro-brillante', 'marfil-dorado'].includes(temaRaw)
       ? temaRaw
       : 'claro-luxury-gold';
     const primario = String(req.body.color_primario || '').trim() || null;

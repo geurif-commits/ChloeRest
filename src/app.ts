@@ -32,6 +32,7 @@ import menuConfiguracionRouter from './routers/menuConfiguracion.js';
 import dispositivosRouter from './routers/dispositivos.js';
 import duenoRouter from './routers/dueno.js';
 import cajaRouter from './routers/caja.js';
+import asistenciaRouter from './routers/asistencia.js';
 import reportesRouter from './routers/reportes.js';
 import dgiiRouter from './routers/dgii.js';
 import dgiiEcfRouter from './routers/dgiiEcf.js';
@@ -167,6 +168,7 @@ export const createApp = (): Express => {
   app.use(dispositivosRouter);
   app.use(duenoRouter);
   app.use(cajaRouter);
+  app.use(asistenciaRouter);
   app.use(reportesRouter);
   app.use(dgiiRouter);
   app.use(dgiiEcfRouter);

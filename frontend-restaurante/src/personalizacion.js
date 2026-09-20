@@ -1,56 +1,74 @@
 const VAR_STYLE_ID = 'pos-personalizacion-vars';
 
-function oscurecerColor(hex, factor = 0.18) {
-  const limpiar = String(hex || '').trim().replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(limpiar)) return hex;
-  const r = Math.max(0, Math.round(parseInt(limpiar.slice(0, 2), 16) * (1 - factor)));
-  const g = Math.max(0, Math.round(parseInt(limpiar.slice(2, 4), 16) * (1 - factor)));
-  const b = Math.max(0, Math.round(parseInt(limpiar.slice(4, 6), 16) * (1 - factor)));
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+/** Los tres temas oficiales. marfil-dorado es una paleta clara sobre la base claro-luxury-gold. */
+export const TEMAS_SISTEMA = ['claro-luxury-gold', 'negro-brillante', 'marfil-dorado'];
+export const LOGIN_SKINS = ['esmeralda', 'marfil', 'medianoche'];
+const CLAVE_LOCAL = 'POS_THEME_LOCAL';
+
+let temaServidor = 'claro-luxury-gold';
+
+const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const escribir = (k, v) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* sin almacenamiento */ } };
+
+/** Escribe el tema en <html>: data-theme (base) y data-paleta (variante). */
+export function aplicarTemaId(id) {
+  const tema = TEMAS_SISTEMA.includes(id) ? id : 'claro-luxury-gold';
+  const raiz = document.documentElement;
+  raiz.setAttribute('data-theme', tema === 'marfil-dorado' ? 'claro-luxury-gold' : tema);
+  if (tema === 'marfil-dorado') raiz.setAttribute('data-paleta', 'dorado');
+  else raiz.removeAttribute('data-paleta');
+  return tema;
 }
 
-function aColorRgba(hex, alpha) {
-  const limpiar = String(hex || '').trim().replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(limpiar)) return null;
-  const r = parseInt(limpiar.slice(0, 2), 16);
-  const g = parseInt(limpiar.slice(2, 4), 16);
-  const b = parseInt(limpiar.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+/** Identificador oficial del tema que se está mostrando. */
+export function temaActualId() {
+  const raiz = document.documentElement;
+  const base = raiz.getAttribute('data-theme');
+  if (base === 'negro-brillante') return 'negro-brillante';
+  return raiz.getAttribute('data-paleta') === 'dorado' ? 'marfil-dorado' : 'claro-luxury-gold';
+}
+
+/** Alterna claro/oscuro en este terminal (preferencia local que no se pierde al recargar la configuración). */
+export function alternarTemaLocal() {
+  const nuevo = temaActualId() === 'negro-brillante'
+    ? (temaServidor === 'negro-brillante' ? 'claro-luxury-gold' : temaServidor)
+    : 'negro-brillante';
+  escribir(CLAVE_LOCAL, nuevo);
+  escribir('POS_THEME', nuevo);
+  aplicarTemaId(nuevo);
+}
+
+/** El administrador eligió un tema para todo el sistema: se descarta la preferencia local. */
+export function fijarTemaSistema(id) {
+  escribir(CLAVE_LOCAL, null);
+  const aplicado = aplicarTemaId(id);
+  temaServidor = aplicado;
+  escribir('POS_THEME', aplicado);
 }
 
 /**
  * Aplica la personalización del sistema al documento:
- *  - tema activo (data-theme)
- *  - colores personalizados como variables CSS (:root)
- *  - guarda el tema como preferencia local
+ *  - tema activo (data-theme / data-paleta) y estilo del login (data-login-skin)
+ *  - colores de mesa como variables CSS (:root)
+ * Opciones: { soloVistaPrevia: true } aplica el tema pedido sin tocar el almacenamiento local.
  */
-export function aplicarPersonalizacion(config, negocioConfig) {
+export function aplicarPersonalizacion(config, negocioConfig, opciones = {}) {
   if (!config) return;
-  // Tema universal claro: el oscuro se retiró del sistema; siempre 'claro'
-  // sin importar valores guardados antiguos.
-  const permitidos = ['claro-luxury-gold', 'negro-brillante'];
-  const solicitado = String(config.tema_activo || localStorage.getItem('POS_THEME') || 'claro-luxury-gold');
-  const tema = permitidos.includes(solicitado) ? solicitado : 'claro-luxury-gold';
-  document.documentElement.setAttribute('data-theme', tema);
-  localStorage.setItem('POS_THEME', tema);
+  const solicitadoServidor = String(config.tema_activo || leer('POS_THEME') || 'claro-luxury-gold');
+  temaServidor = TEMAS_SISTEMA.includes(solicitadoServidor) ? solicitadoServidor : 'claro-luxury-gold';
 
-  const primario = config.color_primario ? String(config.color_primario).trim() : '';
-  const secundario = config.color_secundario ? String(config.color_secundario).trim() : '';
+  // La elección local del terminal (botón claro/oscuro) prevalece sobre la configuración cargada del servidor.
+  const local = opciones.soloVistaPrevia ? null : leer(CLAVE_LOCAL);
+  const tema = TEMAS_SISTEMA.includes(local) ? local : temaServidor;
+  aplicarTemaId(tema);
+  escribir('POS_THEME', tema);
+
+  const skin = LOGIN_SKINS.includes(config.login_theme) ? config.login_theme : 'esmeralda';
+  document.documentElement.setAttribute('data-login-skin', skin);
 
   document.getElementById(VAR_STYLE_ID)?.remove();
 
   const cssVars = [];
-  if (primario) {
-    const glow = aColorRgba(primario, 0.3) || primario;
-    const hover = oscurecerColor(primario);
-    cssVars.push(
-      `--accent: ${primario} !important;`,
-      `--accent-hover: ${secundario || hover} !important;`,
-      `--accent-secondary: ${secundario || hover} !important;`,
-      `--accent-glow: ${glow} !important;`,
-      `--success: ${primario} !important;`
-    );
-  }
 
   if (negocioConfig) {
     if (negocioConfig.mesa_color_disponible) cssVars.push(`--mesa-disponible: ${negocioConfig.mesa_color_disponible};`);
@@ -61,7 +79,7 @@ export function aplicarPersonalizacion(config, negocioConfig) {
   if (cssVars.length) {
     const style = document.createElement('style');
     style.id = VAR_STYLE_ID;
-    style.textContent = `:root[data-theme="${tema}"] { ${cssVars.join('\n')} }`;
+    style.textContent = `:root[data-theme] { ${cssVars.join('\n')} }`;
     document.head.appendChild(style);
   }
 

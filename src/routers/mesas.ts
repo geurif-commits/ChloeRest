@@ -30,7 +30,34 @@ interface IMesaListaFila {
   estado: string;
   camarero_id: number | null;
   camarero: string | null;
+  cuenta_id: number | null;
+  minutos_abierta: number | null;
+  total_cuenta: string | null;
+  platos_pendientes: string | null;
 }
+
+/**
+ * Consulta base del listado de mesas: mesa + camarero + resumen de la cuenta abierta
+ * (minutos abierta, subtotal consumido y platos aún pendientes en cocina).
+ */
+const MESAS_LISTA_SQL = `
+  SELECT m.*, u.nombre AS camarero,
+         c.id AS cuenta_id,
+         (EXTRACT(EPOCH FROM (NOW() - c.fecha_apertura)) / 60)::int AS minutos_abierta,
+         t.total_cuenta,
+         t.platos_pendientes
+  FROM mesas m
+  LEFT JOIN usuarios u ON u.id = m.camarero_id
+  LEFT JOIN LATERAL (
+    SELECT id, fecha_apertura FROM cuentas
+    WHERE mesa_id = m.id AND estado = 'Abierta' ORDER BY id DESC LIMIT 1
+  ) c ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(cantidad * precio_unitario), 0) AS total_cuenta,
+           COUNT(*) FILTER (WHERE COALESCE(estado_cocina, 'Pendiente') = 'Pendiente') AS platos_pendientes
+    FROM cuenta_detalles WHERE cuenta_id = c.id AND anulado_en IS NULL
+  ) t ON c.id IS NOT NULL
+`;
 
 /** Fila de cuenta recién creada por comanda (RETURNING sin tipo_servicio). */
 interface ICuentaNuevaFila {
@@ -79,8 +106,7 @@ router.get('/api/mesas', requireAuth, route(async (req: Request, res: Response) 
   const db = getDatabase();
   if (req.auth!.userRole === 'Camarero') {
     const result = await db.query<IMesaListaFila>(
-      `SELECT m.*, u.nombre AS camarero FROM mesas m
-       LEFT JOIN usuarios u ON u.id = m.camarero_id
+      `${MESAS_LISTA_SQL}
        WHERE m.estado = 'Disponible' OR m.camarero_id = $1
        ORDER BY m.id`,
       [req.auth!.userId]
@@ -89,8 +115,7 @@ router.get('/api/mesas', requireAuth, route(async (req: Request, res: Response) 
     return;
   }
   const result = await db.query<IMesaListaFila>(
-    `SELECT m.*, u.nombre AS camarero FROM mesas m
-     LEFT JOIN usuarios u ON u.id = m.camarero_id
+    `${MESAS_LISTA_SQL}
      ORDER BY m.id`
   );
   res.json(result.rows);

@@ -131,7 +131,7 @@ function GestionMesas({ apiUrl }) {
         {/* Banner de Estado del Salón Horizontal */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', width: '100%' }}>
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <TableProperties size={20} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>

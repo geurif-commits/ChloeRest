@@ -1,16 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Search, X, Plus, Utensils, Sun, Moon } from 'lucide-react';
 import { obtenerSesion } from '../../api.js';
+import { useTemaLocal } from '../../utils/tema.js';
 import SafeImage from '../SafeImage.jsx';
+import './pedido.css';
 
-const bebidasClave = ['bar', 'bebida', 'cerveza', 'ron', 'whiskey', 'vino', 'vodka', 'jugo', 'cóctel', 'coctel', 'refresco', 'agua', 'licor'];
+const bebidasClave = ['bar', 'bebida', 'cerveza', 'ron', 'whiskey', 'vino', 'vodka', 'jugo', 'coctel', 'refresco', 'agua', 'licor'];
 
-const EMOJIS = {
-  cocina: '🍳', acompañamientos: '🥗', 'platos fuertes': '🍖', ensaladas: '🥬',
-  entrada: '🥪', pastas: '🍝', pizzas: '🍕', mariscos: '🐟', postres: '🍰', otros: '📦',
-  bebidas: '🥤', jugos: '🧃', cócteles: '🍸', cocteles: '🍸', cerveza: '🍺',
-  vinos: '🍷', licores: '🥃', 'café / té': '☕', 'cafe / te': '☕', refrescos: '🥤',
-  aguas: '💧', bar: '🍸', barra: '🍸',
-};
+const normalizar = (valor) => String(valor || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 function ProductoGrid({
   productos,
@@ -25,8 +22,11 @@ function ProductoGrid({
   isMobile,
   mobileTab,
   apiUrl,
+  cantidades = {},
 }) {
   const [categoriasMenu, setCategoriasMenu] = useState([]);
+  const [tipo, setTipo] = useState('comida');
+  const { esOscuro, alternar: alternarTema } = useTemaLocal();
 
   useEffect(() => {
     if (!apiUrl) return;
@@ -40,155 +40,127 @@ function ProductoGrid({
       .catch(() => {});
   }, [apiUrl]);
 
-  const todasCategorias = [...new Set([
-    ...categoriasMenu.map((c) => c.nombre),
-    ...productos.map((p) => p.categoria)
-  ].filter(Boolean))];
+  const { alimentos, bebidas } = useMemo(() => {
+    const todas = [...new Set([
+      ...categoriasMenu.map((c) => c.nombre),
+      ...productos.map((p) => p.categoria)
+    ].filter(Boolean))];
+    const tipos = new Map(categoriasMenu.map((c) => [c.nombre, normalizar(c.tipo || c.tipo_destino)]));
+    const esBebida = (cat) => {
+      const t = tipos.get(cat);
+      if (t) return t === 'bar' || t === 'bebida' || t === 'bebidas';
+      const nombre = normalizar(cat);
+      if (/ceviche|sopa|ensalada|entrada|principal|pasta|pizza|criollo|mofongo|postre/.test(nombre)) return false;
+      return bebidasClave.some((k) => new RegExp(`\\b${k}\\b`).test(nombre));
+    };
+    return { alimentos: todas.filter((c) => !esBebida(c)), bebidas: todas.filter(esBebida) };
+  }, [categoriasMenu, productos]);
 
-  const esBebida = (cat) => bebidasClave.some((t) => cat.toLowerCase().includes(t));
-  const alimentos = todasCategorias.filter((cat) => !esBebida(cat));
-  const bebidas = todasCategorias.filter(esBebida);
+  const conteo = useMemo(
+    () => productos.reduce((acc, p) => { acc[p.categoria] = (acc[p.categoria] || 0) + 1; return acc; }, {}),
+    [productos]
+  );
+
+  const lista = tipo === 'comida' ? alimentos : bebidas;
+  const seleccionada = lista.includes(categoriaActiva) ? categoriaActiva : (lista[0] || '');
+
+  // Si la categoría activa pertenece a otro tipo, el selector sigue a la categoría.
+  useEffect(() => {
+    if (!categoriaActiva) return;
+    if (alimentos.includes(categoriaActiva) && tipo !== 'comida') setTipo('comida');
+    else if (bebidas.includes(categoriaActiva) && tipo !== 'bebida') setTipo('bebida');
+  }, [categoriaActiva, alimentos, bebidas]);
+
+  const cambiarTipo = (nuevo) => {
+    setTipo(nuevo);
+    onCategoriaChange((nuevo === 'comida' ? alimentos : bebidas)[0] || '');
+  };
 
   const buscando = busqueda.trim().length > 0;
+  const mostrados = buscando
+    ? productos.filter((p) => {
+      const t = normalizar(busqueda.trim());
+      return normalizar(p.nombre).includes(t) || normalizar(p.categoria).includes(t);
+    })
+    : productos.filter((p) => p.categoria === seleccionada);
 
-  const productosFiltrados = productos.filter((p) => {
-    const coincideCat = !categoriaActiva || p.categoria === categoriaActiva;
-    const coincideBusqueda = p.nombre.toLowerCase().includes(busqueda.toLowerCase());
-    return coincideCat && coincideBusqueda;
-  });
-
-  const resultadosBusqueda = productos.filter((p) => {
-    const termino = busqueda.trim().toLowerCase();
-    return (
-      p.nombre.toLowerCase().includes(termino) ||
-      (p.categoria || '').toLowerCase().includes(termino)
-    );
-  });
-
-  const getEmoji = (cat) => EMOJIS[cat.toLowerCase()] || '🍽️';
-
-  const renderCategoriaBtn = (cat) => {
-    const activa = categoriaActiva === cat;
+  const renderProducto = (prod, i) => {
+    const enCarrito = cantidades[prod.id] || 0;
     return (
       <button
-        key={cat}
-        className={activa ? 'is-active' : ''}
-        onClick={() => onCategoriaChange(cat)}
+        key={prod.id}
+        type="button"
+        onClick={() => onAgregarProducto(prod)}
+        className="po-item"
+        style={{ '--i': Math.min(i, 30) }}
+        aria-label={`Agregar ${prod.nombre}`}
       >
-        <span className="pedido-categorias__emoji" aria-hidden="true">{getEmoji(cat)}</span>
-        <span className="pedido-categorias__nombre">{cat}</span>
+        {enCarrito > 0 && <span className="po-item__qty">{enCarrito}</span>}
+        {prod.imagen_url && <span className="po-item__media"><SafeImage src={prod.imagen_url} alt="" /></span>}
+        <span className="po-item__name">{prod.nombre}</span>
+        {prod.descripcion && <span className="po-item__desc">{prod.descripcion}</span>}
+        <span className="po-item__foot">
+          <span className="po-item__price">RD$ {formatearRD(prod.precio)}</span>
+          <span className="po-item__add" aria-hidden="true"><Plus size={18} strokeWidth={2.4} /></span>
+        </span>
       </button>
     );
   };
 
-  const renderProductoCarta = (prod) => (
-    <div key={prod.id} onClick={() => onAgregarProducto(prod)} className="pedido-producto">
-      <div className="pedido-producto__img">
-        {prod.imagen_url ? <SafeImage src={prod.imagen_url} alt={prod.nombre} className="pedido-producto__image" /> : <SafeImage src="/favicon.svg" alt="" className="pedido-producto__image pedido-producto__image--fallback" />}
-      </div>
-      <div className="pedido-producto__info">
-        <h4 className="pedido-producto__name">{prod.nombre}</h4>
-        <span className="pedido-producto__price">RD$ {formatearRD(prod.precio)}</span>
-      </div>
-    </div>
-  );
-
-  const renderSeccion = (titulo, items) => {
-    if (!items.length) return null;
-    const esAlimentos = titulo === 'Alimentos';
-    return (
-      <section className={`pedido-split__col ${esAlimentos ? 'pedido-split__col--alimentos' : 'pedido-split__col--bebidas'}`}>
-        <p className="pedido-split__col-title">{titulo}</p>
-        <div className="pedido-categorias pedido-categorias--split">
-          {items.map(renderCategoriaBtn)}
-        </div>
-      </section>
-    );
-  };
-
-  const renderBusqueda = () => {
-    const termino = busqueda.trim();
-    return (
-      <div>
-        <div className="pedido-detalle-head">
-          <div>
-            <p className="pedido-detalle-head__label">Búsqueda global</p>
-            <h3 className="pedido-detalle-head__title">
-              {resultadosBusqueda.length} resultado{resultadosBusqueda.length === 1 ? '' : 's'} para "{termino}"
-            </h3>
-          </div>
-          <button className="pedido-detalle-head__back" onClick={() => onBuscarChange('')}>
-            ✕ Limpiar búsqueda
-          </button>
-        </div>
-        {resultadosBusqueda.length === 0 ? (
-          <p style={{ textAlign: 'center', color: 'var(--text-muted, #9EA6B7)', padding: '30px 0', fontSize: '0.95rem' }}>
-            No se encontraron productos para "{termino}".
-          </p>
-        ) : (
-          <div className="pedido-grid pedido-grid--categoria">
-            {resultadosBusqueda.map(renderProductoCarta)}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderDetalle = () => {
-    const enAlimentos = alimentos.includes(categoriaActiva);
-    const titulo = enAlimentos ? 'Alimentos' : 'Bebidas';
-    return (
-      <div>
-        <div className="pedido-detalle-head">
-          <div>
-            <p className="pedido-detalle-head__label">{titulo}</p>
-            <h3 className="pedido-detalle-head__title">{categoriaActiva}</h3>
-          </div>
-          <button className="pedido-detalle-head__back" onClick={() => onCategoriaChange('')}>
-            ← Volver a categorías
-          </button>
-        </div>
-        <div className="pedido-grid pedido-grid--categoria">
-          {productosFiltrados.map(renderProductoCarta)}
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div
-      className="pedido-catalogo"
-      style={{ display: !isMobile || mobileTab === 'menu' ? 'flex' : 'none', height: isMobile ? 'auto' : '100vh' }}
-    >
+    <section className="po-catalog" style={{ display: !isMobile || mobileTab === 'menu' ? 'flex' : 'none' }}>
       {!isMobile && (
-        <header className="pedido-header">
-          <button onClick={onVolver}>⬅ Volver a Mesas</button>
-          <input
-            type="text"
-            placeholder="Buscar plato o bebida... 🔍"
-            value={busqueda}
-            onChange={(e) => onBuscarChange(e.target.value)}
-          />
+        <header className="po-bar">
+          <button type="button" className="po-btn" onClick={onVolver}><ArrowLeft size={18} />Mesas</button>
+          <label className="po-search">
+            <Search size={18} />
+            <input
+              type="text"
+              placeholder="Buscar plato o bebida"
+              value={busqueda}
+              onChange={(e) => onBuscarChange(e.target.value)}
+              aria-label="Buscar plato o bebida"
+            />
+            {busqueda && <button type="button" className="po-search__clear" onClick={() => onBuscarChange('')} aria-label="Limpiar búsqueda"><X size={14} /></button>}
+          </label>
+          <button type="button" className="po-btn po-btn--icon" onClick={alternarTema} aria-label={esOscuro ? 'Tema claro' : 'Tema oscuro'}>
+            {esOscuro ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
         </header>
       )}
 
-      <div style={{ flex: 1, padding: 'var(--space-md, 14px)', overflowY: 'auto', boxSizing: 'border-box' }}>
-        {cargando ? (
-          <p style={{ textAlign: 'center', color: 'var(--gold-light, #EBCB72)', fontSize: '1.2rem', padding: '40px' }}>
-            Cargando catálogo completo...
-          </p>
-        ) : buscando ? (
-          renderBusqueda()
-        ) : categoriaActiva ? (
-          renderDetalle()
-        ) : (
-          <div className="pedido-split">
-            {renderSeccion('Alimentos', alimentos)}
-            {renderSeccion('Bebidas', bebidas)}
+      <div className="po-body">
+        <nav className="po-rail" aria-label="Categorías">
+          <div className="po-seg" role="group" aria-label="Tipo de menú">
+            <button type="button" aria-pressed={tipo === 'comida'} onClick={() => cambiarTipo('comida')}>Comida</button>
+            <button type="button" aria-pressed={tipo === 'bebida'} onClick={() => cambiarTipo('bebida')}>Bebidas</button>
           </div>
-        )}
+          {lista.map((cat) => (
+            <button key={cat} type="button" className="po-cat" aria-current={!buscando && cat === seleccionada ? 'true' : undefined} onClick={() => { if (buscando) onBuscarChange(''); onCategoriaChange(cat); }}>
+              <span>{cat}</span><small>{conteo[cat] || 0}</small>
+            </button>
+          ))}
+          {!lista.length && <p className="po-rail__empty">Sin categorías</p>}
+        </nav>
+
+        <div className="po-items">
+          {cargando ? (
+            <div className="po-empty"><Utensils size={28} /><p>Cargando catálogo…</p></div>
+          ) : (
+            <>
+              <h2 className="po-items__title">
+                {buscando ? `${mostrados.length} resultado${mostrados.length === 1 ? '' : 's'} para “${busqueda.trim()}”` : (seleccionada || 'Menú')}
+              </h2>
+              {mostrados.length === 0 ? (
+                <div className="po-empty"><Search size={28} /><p>{buscando ? 'No se encontraron productos.' : 'Aún no hay productos en esta categoría.'}</p></div>
+              ) : (
+                <div className="po-items__grid">{mostrados.map(renderProducto)}</div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 

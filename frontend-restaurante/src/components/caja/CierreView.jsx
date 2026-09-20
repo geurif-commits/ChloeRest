@@ -1,9 +1,37 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ChartColumn, ClipboardList, CircleCheck, Banknote, CreditCard, Landmark, ArrowLeftRight, Lock,
+  Printer, Search, TrendingUp, TrendingDown, Save
+} from 'lucide-react';
 import { sanitizarDecimal } from '../../utils/input.js';
 import { toastAviso } from '../Toast.jsx';
+import './caja.css';
 
 function formatearRD(val) {
   return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/* Tarjetita métrica reutilizable */
+function Metrica({ etiqueta, valor, Icono, tono, grande }) {
+  return (
+    <div className={`cv-metric ${grande ? 'cv-metric--lg' : ''}`} data-tone={tono}>
+      <span className="cv-metric__label">{Icono && <Icono size={14} />}{etiqueta}</span>
+      <strong>{valor}</strong>
+    </div>
+  );
+}
+
+function Diferencia({ valor }) {
+  const n = Number(valor || 0);
+  if (n === 0) return null;
+  const sobra = n > 0;
+  return (
+    <div className={`cv-diff ${sobra ? 'cv-diff--up' : 'cv-diff--down'}`}>
+      {sobra ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+      <span>{sobra ? 'Sobrante' : 'Faltante'}</span>
+      <strong>RD$ {formatearRD(Math.abs(n))}</strong>
+    </div>
+  );
 }
 
 function CierreView({
@@ -62,97 +90,51 @@ function CierreView({
 
   if (!cierreCajaData && !cierreReciente) return null;
 
+  const desgloseMetodos = cierreCajaData?.desgloseMetodos ?? [];
+  const desgloseFiscal = cierreCajaData?.desgloseFiscal ?? [];
+
   const mostrarReporte = cierreReciente ? (
-    <div style={{background: '#14141b', padding: '20px', borderRadius: '12px', border: '1px solid #00f576', marginBottom: '16px'}}>
-      <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px'}}>
-        <span style={{fontSize: '1.5rem'}}>✅</span>
+    <section className="cv-card cv-card--done">
+      <div className="cv-card__head">
+        <span className="cv-card__badge cv-card__badge--ok"><CircleCheck size={22} /></span>
         <div>
-          <h3 style={{color: '#00f576', margin: 0, fontSize: '1.1rem'}}>Caja Cerrada — Reporte del Turno</h3>
-          <p style={{color: '#9494ad', margin: 0, fontSize: '0.8rem'}}>
-            {new Date(cierreReciente.fecha_cierre).toLocaleString()}
-          </p>
+          <h3>Caja cerrada · reporte del turno</h3>
+          <p>{new Date(cierreReciente.fecha_cierre).toLocaleString()}</p>
         </div>
       </div>
 
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginBottom: '16px'}}>
-        <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px', textAlign: 'center'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>Cajero/a</span>
-          <span style={{color: '#fff', fontWeight: 'bold', fontSize: '0.95rem'}}>{cierreReciente.usuario_nombre}</span>
-        </div>
-        <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px', textAlign: 'center'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>Fondo Inicial</span>
-          <span style={{color: '#ffb703', fontWeight: 'bold', fontSize: '0.95rem'}}>RD$ {formatearRD(cierreReciente.monto_inicial)}</span>
-        </div>
-        <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px', textAlign: 'center'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>Total Ventas</span>
-          <span style={{color: '#00f576', fontWeight: 'bold', fontSize: '1.1rem'}}>RD$ {formatearRD(cierreReciente.total_ventas)}</span>
-        </div>
+      <div className="cv-grid cv-grid--3">
+        <Metrica etiqueta="Cajero/a" valor={cierreReciente.usuario_nombre} />
+        <Metrica etiqueta="Fondo inicial" valor={`RD$ ${formatearRD(cierreReciente.monto_inicial)}`} />
+        <Metrica etiqueta="Total ventas" valor={`RD$ ${formatearRD(cierreReciente.total_ventas)}`} tono="gold" grande />
       </div>
 
-      <h4 style={{color: '#ffb703', margin: '0 0 10px 0', fontSize: '0.85rem'}}>Desglose por Método de Pago</h4>
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px'}}>
-        <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px', textAlign: 'center', borderLeft: '3px solid #00f576'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>💵 Efectivo</span>
-          <span style={{color: '#00f576', fontWeight: 'bold', fontSize: '1rem'}}>RD$ {formatearRD(cierreReciente.efectivo)}</span>
-        </div>
-        <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px', textAlign: 'center', borderLeft: '3px solid #ffb703'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>💳 Tarjeta</span>
-          <span style={{color: '#ffb703', fontWeight: 'bold', fontSize: '1rem'}}>RD$ {formatearRD(cierreReciente.tarjeta)}</span>
-        </div>
-        <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px', textAlign: 'center', borderLeft: '3px solid #4da6ff'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>🏦 Transferencia</span>
-          <span style={{color: '#4da6ff', fontWeight: 'bold', fontSize: '1rem'}}>RD$ {formatearRD(cierreReciente.transferencia)}</span>
-        </div>
+      <h4 className="cv-subtitle">Desglose por método de pago</h4>
+      <div className="cv-grid cv-grid--3">
+        <Metrica etiqueta="Efectivo" Icono={Banknote} valor={`RD$ ${formatearRD(cierreReciente.efectivo)}`} tono="ok" />
+        <Metrica etiqueta="Tarjeta" Icono={CreditCard} valor={`RD$ ${formatearRD(cierreReciente.tarjeta)}`} tono="warn" />
+        <Metrica etiqueta="Transferencia" Icono={Landmark} valor={`RD$ ${formatearRD(cierreReciente.transferencia)}`} tono="info" />
       </div>
 
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px'}}>
-        <div style={{background: '#0a0a0f', padding: '10px', borderRadius: '8px', textAlign: 'center'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>ITBIS</span>
-          <span style={{color: '#ff6b6b', fontWeight: 'bold', fontSize: '0.9rem'}}>RD$ {formatearRD(cierreReciente.total_itbis)}</span>
-        </div>
-        <div style={{background: '#0a0a0f', padding: '10px', borderRadius: '8px', textAlign: 'center'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>Propina</span>
-          <span style={{color: '#ff6b6b', fontWeight: 'bold', fontSize: '0.9rem'}}>RD$ {formatearRD(cierreReciente.total_propina)}</span>
-        </div>
-        <div style={{background: '#0a0a0f', padding: '10px', borderRadius: '8px', textAlign: 'center'}}>
-          <span style={{color: '#9494ad', fontSize: '0.7rem', display: 'block'}}>Facturas</span>
-          <span style={{color: '#fff', fontWeight: 'bold', fontSize: '0.9rem'}}>{cierreReciente.total_facturas}</span>
-        </div>
+      <div className="cv-grid cv-grid--3">
+        <Metrica etiqueta="ITBIS" valor={`RD$ ${formatearRD(cierreReciente.total_itbis)}`} />
+        <Metrica etiqueta="Propina" valor={`RD$ ${formatearRD(cierreReciente.total_propina)}`} />
+        <Metrica etiqueta="Facturas" valor={cierreReciente.total_facturas} />
       </div>
 
-      {Number(cierreReciente.diferencia_efectivo || 0) !== 0 && (
-        <div style={{background: Number(cierreReciente.diferencia_efectivo) > 0 ? 'rgba(0,245,118,0.1)' : 'rgba(255,77,77,0.1)', padding: '10px', borderRadius: '8px', border: `1px solid ${Number(cierreReciente.diferencia_efectivo) > 0 ? '#00f576' : '#ff4d4d'}`}}>
-          <span style={{color: Number(cierreReciente.diferencia_efectivo) > 0 ? '#00f576' : '#ff4d4d', fontSize: '0.85rem'}}>
-            {Number(cierreReciente.diferencia_efectivo) > 0 ? '📈 Sobrante' : '📉 Faltante'}: RD$ {formatearRD(Math.abs(cierreReciente.diferencia_efectivo))}
-          </span>
-        </div>
-      )}
-    </div>
+      <Diferencia valor={cierreReciente.diferencia_efectivo} />
+    </section>
   ) : null;
 
   return (
     <div className="cierre-view">
       {/* Pestañas */}
-      <div style={{display: 'flex', gap: '4px', marginBottom: '16px'}}>
-        <button
-          onClick={() => setPestana('turno')}
-          style={{
-            flex: 1, padding: '10px', border: '1px solid #2a2a38', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
-            background: pestana === 'turno' ? 'linear-gradient(135deg, #00f576, #00b852)' : '#14141b',
-            color: pestana === 'turno' ? '#000' : '#9494ad'
-          }}
-        >
-          📊 Turno Actual
+      <div className="cv-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={pestana === 'turno'} className={`cv-tab ${pestana === 'turno' ? 'is-active' : ''}`} onClick={() => setPestana('turno')}>
+          <ChartColumn size={16} /> Turno actual
         </button>
-        <button
-          onClick={() => setPestana('historial')}
-          style={{
-            flex: 1, padding: '10px', border: '1px solid #2a2a38', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem',
-            background: pestana === 'historial' ? 'linear-gradient(135deg, #00f576, #00b852)' : '#14141b',
-            color: pestana === 'historial' ? '#000' : '#9494ad'
-          }}
-        >
-          📋 Historial de Cierres
+        <button type="button" role="tab" aria-selected={pestana === 'historial'} className={`cv-tab ${pestana === 'historial' ? 'is-active' : ''}`} onClick={() => setPestana('historial')}>
+          <ClipboardList size={16} /> Historial de cierres
         </button>
       </div>
 
@@ -161,178 +143,132 @@ function CierreView({
         <>
           {mostrarReporte}
 
-          <div className="cierre-view__breakdowns">
-            <div className="cierre-view__breakdown-card">
-              <h4 style={{ color: 'var(--orange)' }}>Desglose por Metodo de Pago</h4>
-              {cierreCajaData.desgloseMetodos.map((m, i) => (
-                <div key={i} className="cierre-view__breakdown-row">
-                  <span>{m.metodo_pago} ({m.cantidad} tickets)</span>
+          <div className="cv-grid cv-grid--2">
+            <section className="cv-card">
+              <h4 className="cv-subtitle">Desglose por método de pago</h4>
+              {desgloseMetodos.length === 0 && <p className="cv-empty">Aún no hay cobros en este turno.</p>}
+              {desgloseMetodos.map((m, i) => (
+                <div key={i} className="cv-row">
+                  <span>{m.metodo_pago} <small>({m.cantidad} tickets)</small></span>
                   <strong>RD$ {formatearRD(m.total)}</strong>
                 </div>
               ))}
-            </div>
-            <div className="cierre-view__breakdown-card">
-              <h4 style={{ color: 'var(--green)' }}>Desglose Fiscal (DGII)</h4>
-              {cierreCajaData.desgloseFiscal.map((f, i) => (
-                <div key={i} className="cierre-view__breakdown-row">
-                  <span>Tipo {f.tipo_comprobante} ({f.cantidad} facturas)</span>
+            </section>
+            <section className="cv-card">
+              <h4 className="cv-subtitle">Desglose fiscal (DGII)</h4>
+              {desgloseFiscal.length === 0 && <p className="cv-empty">Sin comprobantes emitidos en este turno.</p>}
+              {desgloseFiscal.map((f, i) => (
+                <div key={i} className="cv-row">
+                  <span>Tipo {f.tipo_comprobante} <small>({f.cantidad} facturas)</small></span>
                   <strong>RD$ {formatearRD(f.total)}</strong>
                 </div>
               ))}
-            </div>
+            </section>
           </div>
 
           {/* TASAS DE DIVISAS */}
-          <div style={{background: '#0a0a0f', padding: '14px', borderRadius: '10px', border: '1px solid #2a2a38', marginBottom: '16px'}}>
-            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-              <h4 style={{color: '#ffb703', margin: 0, fontSize: '0.85rem'}}>💱 Tasas de Divisas</h4>
-              <button onClick={onGuardarTasas} style={{background: 'transparent', border: '1px solid #2a2a38', color: '#9494ad', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem'}}>Guardar</button>
+          <section className="cv-card">
+            <div className="cv-card__bar">
+              <h4 className="cv-subtitle"><ArrowLeftRight size={15} /> Tasas de divisas</h4>
+              <button type="button" className="px-btn px-btn--sm" onClick={onGuardarTasas}><Save size={14} /> Guardar</button>
             </div>
-            <div style={{display: 'flex', gap: '12px'}}>
-              <div style={{flex: 1}}>
-                <label style={{color: '#9494ad', fontSize: '0.7rem', display: 'block', marginBottom: '3px'}}>USD $ → RD$</label>
-                <input type="text" inputMode="decimal" value={tasaUsd} onChange={(e) => onTasaUsdChange(sanitizarDecimal(e.target.value))}
-                  style={{width: '100%', padding: '7px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
-              </div>
-              <div style={{flex: 1}}>
-                <label style={{color: '#9494ad', fontSize: '0.7rem', display: 'block', marginBottom: '3px'}}>EUR € → RD$</label>
-                <input type="text" inputMode="decimal" value={tasaEur} onChange={(e) => onTasaEurChange(sanitizarDecimal(e.target.value))}
-                  style={{width: '100%', padding: '7px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
-              </div>
+            <div className="cv-grid cv-grid--2">
+              <label className="cv-field">
+                <span>USD $ → RD$</span>
+                <input className="po-input" type="text" inputMode="decimal" value={tasaUsd} onChange={(e) => onTasaUsdChange(sanitizarDecimal(e.target.value))} />
+              </label>
+              <label className="cv-field">
+                <span>EUR € → RD$</span>
+                <input className="po-input" type="text" inputMode="decimal" value={tasaEur} onChange={(e) => onTasaEurChange(sanitizarDecimal(e.target.value))} />
+              </label>
             </div>
-          </div>
+          </section>
 
           {/* ARQUEO CIEGO — CONTEO EN GAVETA */}
-          <div style={{background: '#14141b', padding: '18px', borderRadius: '12px', border: '2px solid #ffb703', marginBottom: '16px'}}>
-            <h4 style={{color: '#ffb703', margin: '0 0 12px 0', fontSize: '0.95rem'}}>🔒 Arqueo Ciego — Conteo Multidivisa en Gaveta</h4>
-
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '12px'}}>
-              <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px'}}>
-                <label style={{color: '#9494ad', fontSize: '0.7rem', display: 'block', marginBottom: '4px'}}>💵 Efectivo Pesos (RD$)</label>
-                <input type="text" inputMode="decimal" placeholder="0.00" value={efectivoFisico}
-                  onChange={(e) => onEfectivoChange(sanitizarDecimal(e.target.value))}
-                  style={{width: '100%', padding: '10px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center'}} />
-              </div>
-              <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px'}}>
-                <label style={{color: '#9494ad', fontSize: '0.7rem', display: 'block', marginBottom: '4px'}}>💵 Dolares ($ USD)</label>
-                <input type="text" inputMode="decimal" placeholder="0.00" value={usdFisicoArqueo}
-                  onChange={(e) => onUsdChange(sanitizarDecimal(e.target.value))}
-                  style={{width: '100%', padding: '10px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center'}} />
-                {usdFisicoArqueo > 0 && <span style={{color: '#00f576', fontSize: '0.75rem', display: 'block', marginTop: '4px', textAlign: 'center'}}>= RD$ {formatearRD(usdFisicoArqueo * tasaUsd)}</span>}
-              </div>
-              <div style={{background: '#0a0a0f', padding: '12px', borderRadius: '8px'}}>
-                <label style={{color: '#9494ad', fontSize: '0.7rem', display: 'block', marginBottom: '4px'}}>💶 Euros (€ EUR)</label>
-                <input type="text" inputMode="decimal" placeholder="0.00" value={eurFisicoArqueo}
-                  onChange={(e) => onEurChange(sanitizarDecimal(e.target.value))}
-                  style={{width: '100%', padding: '10px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center'}} />
-                {eurFisicoArqueo > 0 && <span style={{color: '#00f576', fontSize: '0.75rem', display: 'block', marginTop: '4px', textAlign: 'center'}}>= RD$ {formatearRD(eurFisicoArqueo * tasaEur)}</span>}
+          <section className="cv-card cv-card--accent">
+            <div className="cv-card__head">
+              <span className="cv-card__badge"><Lock size={20} /></span>
+              <div>
+                <h3>Arqueo ciego</h3>
+                <p>Cuenta el efectivo en gaveta por divisa antes de cerrar el turno.</p>
               </div>
             </div>
 
-            <div style={{marginBottom: '12px'}}>
-              <label style={{color: '#9494ad', fontSize: '0.7rem', display: 'block', marginBottom: '4px'}}>📝 Notas u Observaciones</label>
-              <input type="text" placeholder="Ej: Billetes de $100 USD y cambio inicial..." value={notasArqueo}
-                onChange={(e) => onNotasChange(e.target.value)}
-                style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
+            <div className="cv-grid cv-grid--3">
+              <label className="cv-field">
+                <span>Efectivo pesos (RD$)</span>
+                <input className="po-input cv-input--count" type="text" inputMode="decimal" placeholder="0.00" value={efectivoFisico} onChange={(e) => onEfectivoChange(sanitizarDecimal(e.target.value))} />
+              </label>
+              <label className="cv-field">
+                <span>Dólares (US$)</span>
+                <input className="po-input cv-input--count" type="text" inputMode="decimal" placeholder="0.00" value={usdFisicoArqueo} onChange={(e) => onUsdChange(sanitizarDecimal(e.target.value))} />
+                {usdFisicoArqueo > 0 && <em>= RD$ {formatearRD(usdFisicoArqueo * tasaUsd)}</em>}
+              </label>
+              <label className="cv-field">
+                <span>Euros (€)</span>
+                <input className="po-input cv-input--count" type="text" inputMode="decimal" placeholder="0.00" value={eurFisicoArqueo} onChange={(e) => onEurChange(sanitizarDecimal(e.target.value))} />
+                {eurFisicoArqueo > 0 && <em>= RD$ {formatearRD(eurFisicoArqueo * tasaEur)}</em>}
+              </label>
             </div>
 
-            <button onClick={onArqueo} style={{
-              width: '100%', padding: '11px', background: 'linear-gradient(135deg, #ffb703, #e6a800)', color: '#000',
-              border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem'
-            }}>
-              📋 Registrar Arqueo
-            </button>
-          </div>
+            <label className="cv-field">
+              <span>Notas u observaciones</span>
+              <input className="po-input" type="text" placeholder="Billetes de US$100, cambio inicial…" value={notasArqueo} onChange={(e) => onNotasChange(e.target.value)} />
+            </label>
+
+            <button type="button" className="px-btn px-btn--gold px-btn--lg" onClick={onArqueo}><ClipboardList size={18} /> Registrar arqueo</button>
+          </section>
 
           {/* BOTONES DE ACCIÓN */}
-          <div style={{display: 'flex', gap: '10px'}}>
-            <button onClick={onImprimir} style={{
-              flex: 1, padding: '14px', background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38',
-              borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem'
-            }}>
-              🖨️ Imprimir Cierre de Caja
-            </button>
-            <button onClick={onCerrarCaja} style={{
-              flex: 1, padding: '14px', background: 'linear-gradient(135deg, #ff4d4d, #cc0000)', color: '#fff',
-              border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem',
-              boxShadow: '0 4px 15px rgba(255,77,77,0.3)'
-            }}>
-              🔒 Cerrar Caja
-            </button>
+          <div className="cv-actions">
+            <button type="button" className="px-btn px-btn--lg" onClick={onImprimir}><Printer size={18} /> Imprimir cierre de caja</button>
+            <button type="button" className="px-btn px-btn--lg px-btn--danger" onClick={onCerrarCaja}><Lock size={18} /> Cerrar caja</button>
           </div>
         </>
       )}
 
       {/* PESTAÑA: Historial de Cierres */}
       {pestana === 'historial' && (
-        <div>
-          <div style={{display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'flex-end', flexWrap: 'wrap'}}>
-            <div style={{flex: 1, minWidth: '140px'}}>
-              <label style={{color: '#9494ad', fontSize: '0.75rem', display: 'block', marginBottom: '4px'}}>Desde</label>
-              <input type="date" value={filtroDesde} onChange={(e) => setFiltroDesde(e.target.value)}
-                style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
-            </div>
-            <div style={{flex: 1, minWidth: '140px'}}>
-              <label style={{color: '#9494ad', fontSize: '0.75rem', display: 'block', marginBottom: '4px'}}>Hasta</label>
-              <input type="date" value={filtroHasta} onChange={(e) => setFiltroHasta(e.target.value)}
-                style={{width: '100%', padding: '8px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
-            </div>
-            <button onClick={cargarHistorial} disabled={cargandoHistorial}
-              style={{padding: '9px 18px', background: 'linear-gradient(135deg, #00f576, #00b852)', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem'}}>
-              {cargandoHistorial ? 'Cargando...' : '🔍 Buscar'}
+        <div className="cv-history">
+          <div className="cv-filters">
+            <label className="cv-field">
+              <span>Desde</span>
+              <input className="po-input" type="date" value={filtroDesde} onChange={(e) => setFiltroDesde(e.target.value)} />
+            </label>
+            <label className="cv-field">
+              <span>Hasta</span>
+              <input className="po-input" type="date" value={filtroHasta} onChange={(e) => setFiltroHasta(e.target.value)} />
+            </label>
+            <button type="button" className="px-btn px-btn--gold" style={{ minHeight: 46 }} onClick={cargarHistorial} disabled={cargandoHistorial}>
+              <Search size={16} /> {cargandoHistorial ? 'Cargando…' : 'Buscar'}
             </button>
           </div>
 
           {historial.length === 0 ? (
-            <div style={{textAlign: 'center', color: '#888', padding: '40px', fontStyle: 'italic'}}>
-              <h3>No hay cierres registrados en este período</h3>
-            </div>
+            <div className="cv-blank">No hay cierres registrados en este período.</div>
           ) : (
-            <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+            <div className="cv-list">
               {historial.map((c) => (
-                <div key={c.id} style={{
-                  background: '#14141b', padding: '16px', borderRadius: '12px', border: '1px solid #2a2a38'
-                }}>
-                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', flexWrap: 'wrap', gap: '8px'}}>
+                <article key={c.id} className="cv-card">
+                  <div className="cv-card__bar">
                     <div>
-                      <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px'}}>
-                        <span style={{background: 'rgba(0,245,118,0.15)', color: '#00f576', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 'bold'}}>
-                          {new Date(c.fecha_cierre).toLocaleDateString()}
-                        </span>
-                        <span style={{color: '#fff', fontWeight: 'bold', fontSize: '0.95rem'}}>{c.usuario_nombre}</span>
+                      <div className="cv-who">
+                        <span className="cv-date">{new Date(c.fecha_cierre).toLocaleDateString()}</span>
+                        <strong>{c.usuario_nombre}</strong>
                       </div>
-                      <p style={{color: '#9494ad', fontSize: '0.75rem', margin: 0}}>
-                        Apertura: {new Date(c.fecha_apertura).toLocaleString()} — Cierre: {new Date(c.fecha_cierre).toLocaleString()}
-                      </p>
+                      <p className="cv-muted">Apertura {new Date(c.fecha_apertura).toLocaleString()} · Cierre {new Date(c.fecha_cierre).toLocaleString()}</p>
                     </div>
-                    <span style={{fontSize: '1.1rem', fontWeight: '800', color: '#00f576'}}>
-                      RD$ {formatearRD(c.total_ventas)}
-                    </span>
+                    <span className="cv-total">RD$ {formatearRD(c.total_ventas)}</span>
                   </div>
 
-                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px'}}>
-                    <div style={{background: '#0a0a0f', padding: '8px', borderRadius: '6px', textAlign: 'center'}}>
-                      <span style={{color: '#9494ad', fontSize: '0.65rem', display: 'block'}}>💵 Efectivo</span>
-                      <span style={{color: '#00f576', fontWeight: 'bold', fontSize: '0.85rem'}}>RD$ {formatearRD(c.efectivo)}</span>
-                    </div>
-                    <div style={{background: '#0a0a0f', padding: '8px', borderRadius: '6px', textAlign: 'center'}}>
-                      <span style={{color: '#9494ad', fontSize: '0.65rem', display: 'block'}}>💳 Tarjeta</span>
-                      <span style={{color: '#ffb703', fontWeight: 'bold', fontSize: '0.85rem'}}>RD$ {formatearRD(c.tarjeta)}</span>
-                    </div>
-                    <div style={{background: '#0a0a0f', padding: '8px', borderRadius: '6px', textAlign: 'center'}}>
-                      <span style={{color: '#9494ad', fontSize: '0.65rem', display: 'block'}}>🏦 Transferencia</span>
-                      <span style={{color: '#4da6ff', fontWeight: 'bold', fontSize: '0.85rem'}}>RD$ {formatearRD(c.transferencia)}</span>
-                    </div>
+                  <div className="cv-grid cv-grid--3">
+                    <Metrica etiqueta="Efectivo" Icono={Banknote} valor={`RD$ ${formatearRD(c.efectivo)}`} tono="ok" />
+                    <Metrica etiqueta="Tarjeta" Icono={CreditCard} valor={`RD$ ${formatearRD(c.tarjeta)}`} tono="warn" />
+                    <Metrica etiqueta="Transferencia" Icono={Landmark} valor={`RD$ ${formatearRD(c.transferencia)}`} tono="info" />
                   </div>
 
-                  {Number(c.diferencia_efectivo || 0) !== 0 && (
-                    <div style={{marginTop: '8px', padding: '6px 10px', borderRadius: '6px', background: Number(c.diferencia_efectivo) > 0 ? 'rgba(0,245,118,0.08)' : 'rgba(255,77,77,0.08)', border: `1px solid ${Number(c.diferencia_efectivo) > 0 ? 'rgba(0,245,118,0.3)' : 'rgba(255,77,77,0.3)'}`}}>
-                      <span style={{color: Number(c.diferencia_efectivo) > 0 ? '#00f576' : '#ff4d4d', fontSize: '0.75rem'}}>
-                        {Number(c.diferencia_efectivo) > 0 ? '📈' : '📉'} Diferencia: RD$ {formatearRD(Math.abs(c.diferencia_efectivo))}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                  <Diferencia valor={c.diferencia_efectivo} />
+                </article>
               ))}
             </div>
           )}

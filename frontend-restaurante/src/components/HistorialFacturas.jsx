@@ -315,7 +315,7 @@ function HistorialFacturas({ alVolver, apiUrl }) {
                 </div>
               </div>
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-md)', padding: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'rgba(245, 184, 61, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'color-mix(in srgb, var(--gold) 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Hash size={18} style={{ color: 'var(--gold)' }} />
                 </div>
                 <div>

@@ -33,7 +33,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     cobrar_propina: true,
     mesa_color_disponible: '#00f576',
     mesa_color_ocupada: '#ff4444',
-    mesa_color_reservada: '#d6a44d',
+    mesa_color_reservada: 'var(--gold)',
     comanda_modo: 'kds',
     ticket_font_family: 'Inter',
     ticket_font_size: '12',
@@ -287,7 +287,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 padding: '10px 16px',
                 borderRadius: '10px',
                 border: activa ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)',
-                background: activa ? 'rgba(245, 184, 61, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                background: activa ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'rgba(255, 255, 255, 0.03)',
                 color: activa ? 'var(--kpi-gold)' : 'var(--admin-text-muted)',
                 fontWeight: activa ? 700 : 500,
                 fontSize: '0.84rem',
@@ -309,7 +309,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Building2 size={20} />
               </div>
               <div>
@@ -447,7 +447,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
             </div>
 
             {licenciaVitalicia ? (
-              <div style={{ background: 'rgba(245, 184, 61, 0.1)', border: '1px solid rgba(245, 184, 61, 0.3)', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Sparkles size={24} style={{ color: 'var(--kpi-gold)' }} />
                 <div>
                   <strong style={{ color: 'var(--kpi-gold)', fontSize: '0.95rem' }}>Licencia Vitalicia Activa</strong>
@@ -492,7 +492,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {(mostrarActivacion || estadoLicencia?._mostrarRenovar) && (
             <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--kpi-gold)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Key size={20} />
                 </div>
                 <div>
@@ -613,7 +613,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {/* Cuentas Bancarias */}
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CreditCard size={20} />
               </div>
               <div>
@@ -755,7 +755,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
             <div className="admin-form-group">
               <label className="admin-label">Modo de Envío de Comandas a Producción</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'kds' ? 'rgba(245, 184, 61, 0.1)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'kds' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'kds' ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'kds' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     name="comanda_modo"
@@ -770,7 +770,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   </div>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'impresora' ? 'rgba(245, 184, 61, 0.1)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'impresora' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'impresora' ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'impresora' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     name="comanda_modo"

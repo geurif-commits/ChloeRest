@@ -10,7 +10,7 @@ import {
 import './admin.css';
 
 const ROLES_INFO = {
-  'Administrador': { label: 'Administrador', icon: Crown, color: 'var(--kpi-gold)', bg: 'rgba(245, 184, 61, 0.15)', desc: 'Acceso total y configuración del restaurante' },
+  'Administrador': { label: 'Administrador', icon: Crown, color: 'var(--kpi-gold)', bg: 'color-mix(in srgb, var(--gold) 15%, transparent)', desc: 'Acceso total y configuración del restaurante' },
   'Cajero': { label: 'Cajero', icon: CreditCard, color: 'var(--kpi-cyan)', bg: 'rgba(56, 189, 248, 0.15)', desc: 'Apertura/cierre de caja y cobro de cuentas' },
   'Capitán de Camareros': { label: 'Capitán de Salón', icon: Shield, color: 'var(--kpi-purple)', bg: 'rgba(168, 85, 247, 0.15)', desc: 'Toma pedidos y autorización de anulaciones' },
   'Camarero': { label: 'Camarero', icon: UserCheck, color: 'var(--kpi-green)', bg: 'rgba(16, 185, 129, 0.15)', desc: 'Atención a mesas y envío de comandas' },
@@ -161,7 +161,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
       {/* ── KPIs Superiores Horizontales ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', width: '100%' }}>
         <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Users size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -171,7 +171,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
         </div>
 
         <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Crown size={20} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -271,7 +271,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
                     const esActual = usu.id === usuarioIdActual;
 
                     return (
-                      <tr key={usu.id} style={{ background: idEditando === usu.id ? 'rgba(245, 184, 61, 0.08)' : 'transparent', transition: 'background 0.2s ease' }}>
+                      <tr key={usu.id} style={{ background: idEditando === usu.id ? 'color-mix(in srgb, var(--gold) 8%, transparent)' : 'transparent', transition: 'background 0.2s ease' }}>
                         <td style={{ color: 'var(--admin-text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>#{usu.id}</td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -280,7 +280,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
                             </div>
                             <div>
                               <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>{usu.nombre}</strong>
-                              {esActual && <span style={{ marginLeft: '6px', fontSize: '0.68rem', color: 'var(--kpi-gold)', background: 'rgba(245, 184, 61, 0.15)', padding: '1px 6px', borderRadius: '4px' }}>Tú</span>}
+                              {esActual && <span style={{ marginLeft: '6px', fontSize: '0.68rem', color: 'var(--kpi-gold)', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', padding: '1px 6px', borderRadius: '4px' }}>Tú</span>}
                             </div>
                           </div>
                         </td>
@@ -334,7 +334,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: modoEdicion ? 'rgba(245, 184, 61, 0.2)' : 'rgba(16, 185, 129, 0.15)', color: modoEdicion ? 'var(--kpi-gold)' : 'var(--kpi-green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: modoEdicion ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'rgba(16, 185, 129, 0.15)', color: modoEdicion ? 'var(--kpi-gold)' : 'var(--kpi-green)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {modoEdicion ? <Pencil size={18} /> : <UserPlus size={18} />}
               </div>
               <div>

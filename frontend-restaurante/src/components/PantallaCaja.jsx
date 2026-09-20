@@ -7,7 +7,7 @@ import AperturaModal from './AperturaModal';
 import ConfirmModal from './ConfirmModal';
 import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
-import './caja-modern.css';
+import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote } from 'lucide-react';
 import './caja/caja.css';
 
 import MesaGridPanel from './caja/MesaGridPanel';
@@ -972,193 +972,6 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
   return (
     <>
-      <style>{`
-        .caja-workspace {
-          display: flex !important;
-          flex-direction: column !important;
-          width: 100% !important;
-          height: 100dvh !important;
-          min-height: 0 !important;
-          overflow: hidden !important;
-        }
-
-        .caja-topbar {
-          width: 100%;
-          min-height: 64px;
-          flex: 0 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 24px;
-          background: #0f1728;
-          border-bottom: 1px solid #263149;
-          box-sizing: border-box;
-          overflow-x: auto;
-          scrollbar-width: thin;
-        }
-
-        .caja-topbar__brand {
-          flex: 0 0 auto;
-          color: #f5c542;
-          font-size: 1rem;
-          font-weight: 800;
-          margin-right: 8px;
-          padding-right: 16px;
-          border-right: 1px solid #2a354d;
-          white-space: nowrap;
-        }
-
-        .caja-topbar__user {
-          flex: 0 0 auto;
-          color: #8fa0bd;
-          font-size: 1rem;
-          white-space: nowrap;
-          margin-right: 4px;
-        }
-
-        .caja-topbar__tab {
-          flex: 0 0 auto;
-          border: 1px solid #2c3a55;
-          background: #17233a;
-          color: #d8e0ee;
-          border-radius: 9px;
-          padding: 10px 15px;
-          min-height: 40px;
-          font-size: 1rem;
-          font-weight: 800;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: 0.18s ease;
-        }
-
-        .caja-topbar__tab:hover {
-          background: #20304d;
-          border-color: #425574;
-        }
-
-        .caja-topbar__tab--active {
-          color: #f5c542;
-          border-color: #f5c542;
-          background: rgba(245, 197, 66, 0.10);
-        }
-
-        .caja-topbar__logout {
-          flex: 0 0 auto;
-          margin-left: auto;
-          border: 1px solid #ff4d5a;
-          background: #ff4d5a;
-          color: #fff;
-          border-radius: 9px;
-          padding: 10px 16px;
-          min-height: 40px;
-          font-size: 0.82rem;
-          font-weight: 800;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .caja-main--horizontal {
-          width: 100% !important;
-          min-width: 0 !important;
-          height: calc(100dvh - 64px) !important;
-          min-height: 0 !important;
-          flex: 1 1 auto !important;
-        }
-
-        /*
-         * RESUMEN 1 x 4
-         *
-         * Las cuatro tarjetas permanecen en una sola
-         * línea en escritorio.
-         */
-        .caja-summary-grid {
-          width: 100%;
-          display: grid;
-          grid-template-columns:
-            repeat(4, minmax(0, 1fr));
-          gap: 10px;
-          margin: 0 0 14px;
-        }
-
-        .caja-summary-card {
-          min-width: 0;
-          min-height: 92px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-start;
-          gap: 6px;
-
-          background: #14141b;
-          padding: 12px 14px;
-
-          border-radius: 10px;
-          border: 1px solid #2a2a38;
-
-          text-align: center;
-          box-sizing: border-box;
-        }
-
-        .caja-summary-card--total {
-          border-color: #00f576;
-        }
-
-        .caja-summary-card__label {
-          color: #9494ad;
-          font-size: 1.58rem;
-          display: block;
-          margin-bottom: 0;
-        }
-
-        .caja-summary-card__value {
-          color: #00f576;
-          font-weight: 800;
-          font-size: 1.58rem;
-        }
-
-        /*
-         * MesaGridPanel ocupa todo el ancho.
-         */
-        .caja-mesas-section {
-          width: 100%;
-          min-width: 0;
-          flex: 1 1 auto;
-        }
-
-        .caja-mesas-section .mesa-grid-panel {
-          width: 100%;
-          max-width: none;
-        }
-
-        @media (max-width: 850px) {
-          .caja-summary-grid {
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 500px) {
-          .caja-summary-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 760px) {
-          .caja-topbar {
-            padding: 8px 12px;
-          }
-
-          .caja-topbar__brand,
-          .caja-topbar__user {
-            display: none;
-          }
-
-          .caja-topbar__logout {
-            margin-left: 0;
-          }
-        }
-      `}</style>
-
       <div className="caja-workspace">
 
         {/* =========================
@@ -1169,80 +982,80 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           aria-label="Navegación de caja"
         >
           <div className="caja-topbar__brand">
-            Centro de Caja
+            <span className="caja-topbar__mark"><Landmark size={20} /></span>
+            <div className="caja-topbar__brand-text">
+              <strong>Centro de Caja</strong>
+              <span className="caja-topbar__user">
+                Cajero · {usuario?.nombre || 'Usuario'}
+              </span>
+            </div>
           </div>
 
-          <div className="caja-topbar__user">
-            Cajero:{' '}
-            {usuario?.nombre || 'Usuario'}
+          <div className="caja-topbar__tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'mesas'}
+              className={`caja-topbar__tab ${vistaActual === 'mesas' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={() => setVistaActual('mesas')}
+            >
+              <LayoutGrid size={16} />
+              Cuentas
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'historial'}
+              className={`caja-topbar__tab ${vistaActual === 'historial' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={() => setVistaActual('historial')}
+            >
+              <Receipt size={16} />
+              Historial
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'cierre'}
+              className={`caja-topbar__tab ${vistaActual === 'cierre' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={cargarCierreCaja}
+            >
+              <Lock size={16} />
+              Cierre de caja
+            </button>
           </div>
 
-          <button
-            type="button"
-            className={`caja-topbar__tab ${
-              vistaActual === 'mesas'
-                ? 'caja-topbar__tab--active'
-                : ''
-            }`}
-            onClick={() =>
-              setVistaActual('mesas')
-            }
-          >
-            Centro de Cuentas
-          </button>
+          <div className="caja-topbar__end">
+            {/* Fondo Inicial se mantiene arriba */}
+            <button
+              type="button"
+              className="caja-fondo"
+              title="Registrar o corregir el fondo inicial"
+              onClick={() => {
+                setVistaActual('mesas');
+                setMostrandoModalApertura(true);
+              }}
+            >
+              <Wallet size={17} />
+              Fondo inicial <b>RD$ {formatearRD(montoApertura)}</b>
+            </button>
 
-          <button
-            type="button"
-            className={`caja-topbar__tab ${
-              vistaActual === 'historial'
-                ? 'caja-topbar__tab--active'
-                : ''
-            }`}
-            onClick={() =>
-              setVistaActual('historial')
-            }
-          >
-            Historial de Facturas
-          </button>
-
-          {/* Fondo Inicial se mantiene arriba */}
-          <button
-            type="button"
-            className="caja-topbar__tab"
-            onClick={() => {
-              setVistaActual('mesas');
-              setMostrandoModalApertura(true);
-            }}
-          >
-            Fondo Inicial: RD${' '}
-            {formatearRD(montoApertura)}
-          </button>
-
-          <button
-            type="button"
-            className={`caja-topbar__tab ${
-              vistaActual === 'cierre'
-                ? 'caja-topbar__tab--active'
-                : ''
-            }`}
-            onClick={cargarCierreCaja}
-          >
-            Cierre de Caja
-          </button>
-
-          <button
-            type="button"
-            className="caja-topbar__logout"
-            onClick={alCerrarSesion}
-          >
-            🚪 Salir
-          </button>
+            <button
+              type="button"
+              className="px-btn caja-topbar__logout"
+              onClick={alCerrarSesion}
+            >
+              <LogOut size={16} />
+              Salir
+            </button>
+          </div>
         </nav>
 
         {/* =========================
             CONTENIDO PRINCIPAL
         ========================== */}
-        <main className="caja-main caja-main--horizontal">
+        <main className="caja-main">
 
           <div className="caja-main__content">
 
@@ -1250,17 +1063,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 CENTRO DE CUENTAS
             ========================== */}
             {vistaActual === 'mesas' && (
-              <div
-                className="caja-panels"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'stretch',
-                  justifyContent: 'flex-start',
-                  width: '100%',
-                  gap: '0'
-                }}
-              >
+              <div className="caja-panels">
 
                 {/* =========================
                     ESTADÍSTICAS 1 x 4
@@ -1270,74 +1073,45 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
                     <div className="caja-summary-card">
                       <span className="caja-summary-card__label">
-                        Ventas Netas
+                        <TrendingUp size={15} />
+                        Ventas netas
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.subtotal
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.subtotal)}
                       </span>
                     </div>
 
                     <div className="caja-summary-card">
                       <span className="caja-summary-card__label">
-                        ITBIS Recaudado
+                        <Percent size={15} />
+                        ITBIS recaudado
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.itbis
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.itbis)}
                       </span>
                     </div>
 
                     <div className="caja-summary-card">
                       <span className="caja-summary-card__label">
-                        Propina Legal
+                        <Sparkles size={15} />
+                        Propina legal
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.propina
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.propina)}
                       </span>
                     </div>
 
-                    <div
-                      className="
-                        caja-summary-card
-                        caja-summary-card--total
-                      "
-                    >
+                    <div className="caja-summary-card caja-summary-card--total">
                       <span className="caja-summary-card__label">
-                        Total Ingresos
+                        <Banknote size={15} />
+                        Total ingresos
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.total
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.total)}
                       </span>
                     </div>
 
@@ -2009,7 +1783,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                       '1.1rem'
                   }}
                 >
-                  🍽️ Abrir{' '}
+                  Abrir{' '}
                   {
                     mesaParaAbrir.nombre_numero
                   }
@@ -2086,7 +1860,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                               '1.2rem'
                           }}
                         >
-                          👤
+                          
                         </span>
 
                         <span
@@ -2199,7 +1973,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                         '0.9rem'
                     }}
                   >
-                    ✅ Asignar y Abrir Mesa
+                    Asignar y Abrir Mesa
                   </button>
                 </div>
               </div>
@@ -2263,7 +2037,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                       '10px'
                   }}
                 >
-                  🔒
+                  
                 </div>
 
                 <h3
@@ -2418,7 +2192,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                   >
                     {verificandoPin
                       ? 'Verificando...'
-                      : '🔓 Acceder'}
+                      : 'Acceder'}
                   </button>
                 </div>
               </div>

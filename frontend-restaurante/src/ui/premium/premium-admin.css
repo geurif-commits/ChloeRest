@@ -1,0 +1,84 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   PREMIUM — refinamiento del módulo de administración
+   Prefijo :root .admin-layout para ganar cascada sin !important.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root .admin-layout { background: var(--px-hero); font-family: var(--px-font-ui); }
+:root .admin-layout .admin-main { background: transparent; }
+
+/* Barra lateral */
+:root .admin-layout .admin-sidebar { background: var(--px-surface); border-right: 1px solid var(--px-line); box-shadow: 8px 0 40px color-mix(in srgb, var(--px-ink) 3%, transparent); }
+:root .admin-layout .admin-sidebar__logo { border-radius: 14px; background: var(--px-gold-grad); color: var(--px-on-gold); box-shadow: 0 8px 20px color-mix(in srgb, var(--px-gold) 30%, transparent); }
+:root .admin-layout .admin-sidebar__name { font: 600 1.12rem/1.1 var(--px-font-display); letter-spacing: -.01em; color: var(--px-ink); }
+:root .admin-layout .admin-sidebar__subtitle { font-size: .62rem; letter-spacing: .16em; color: var(--px-gold); font-weight: 700; }
+:root .admin-layout .admin-nav-btn { position: relative; padding: 11px 14px; border-radius: 12px; font-weight: 600; color: var(--px-ink-2); transition: background var(--px-t-fast), color var(--px-t-fast), transform var(--px-t-fast); }
+:root .admin-layout .admin-nav-btn:hover { background: var(--px-surface-2); color: var(--px-ink); }
+:root .admin-layout .admin-nav-btn.activo { background: var(--px-raised); border-color: var(--px-line); color: var(--px-ink); font-weight: 700; box-shadow: var(--px-shadow-1), var(--px-inset); }
+:root .admin-layout .admin-nav-btn.activo::before { content: ''; position: absolute; left: -1px; top: 26%; bottom: 26%; width: 3px; border-radius: 0 3px 3px 0; background: var(--px-gold-grad); }
+:root .admin-layout .admin-nav-btn.activo .admin-nav-btn__icon-wrapper { background: var(--px-gold-soft); color: var(--px-gold); }
+:root .admin-layout .admin-sidebar__avatar { background: var(--px-gold-grad); color: var(--px-on-gold); font-weight: 800; }
+
+/* Barra superior */
+:root .admin-layout .admin-topbar { background: var(--px-glass); border-bottom: 1px solid var(--px-line); backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3); min-height: var(--px-topbar-h); }
+:root .admin-layout .admin-topbar__title { font: 600 1.35rem/1.1 var(--px-font-display); letter-spacing: -.015em; color: var(--px-ink); }
+:root .admin-layout .admin-topbar__module-icon { background: var(--px-gold-soft); color: var(--px-gold); border: 1px solid var(--border-gold); border-radius: 12px; }
+:root .admin-layout .admin-topbar__exit-btn { border-radius: var(--px-r-sm); background: var(--px-gold-grad); color: var(--px-on-gold); border: 0; font-weight: 700; box-shadow: 0 6px 16px color-mix(in srgb, var(--px-gold) 30%, transparent); }
+
+/* Superficies */
+:root .admin-layout .admin-content { padding: 26px var(--px-gutter) 44px; }
+:root .admin-layout .admin-card,
+:root .admin-layout .admin-section,
+:root .admin-layout .tarjeta-resumen,
+:root .admin-layout .admin-panel-formulario,
+:root .admin-layout .admin-panel-lista {
+  background: var(--px-surface); border: 1px solid var(--px-line); border-radius: var(--px-r-lg);
+  box-shadow: var(--px-shadow-1), var(--px-inset);
+}
+:root .admin-layout .admin-card:hover { border-color: var(--border-gold); box-shadow: var(--px-shadow-2), var(--px-inset); }
+:root .admin-layout .admin-section-title { font: 600 1.25rem/1.15 var(--px-font-display); letter-spacing: -.01em; color: var(--px-ink); }
+
+/* KPI */
+:root .admin-layout .admin-info-card { padding: 20px 22px; border-radius: var(--px-r-lg); background: var(--px-surface); border: 1px solid var(--px-line); box-shadow: var(--px-shadow-1), var(--px-inset); }
+:root .admin-layout .admin-info-card:hover { border-color: var(--border-gold); transform: translateY(-2px); box-shadow: var(--px-shadow-2), var(--px-inset); }
+:root .admin-layout .admin-info-card__label { font-size: .68rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--px-ink-3); }
+:root .admin-layout .admin-info-card__value { font: 600 1.7rem/1.1 var(--px-font-display); letter-spacing: -.02em; font-variant-numeric: lining-nums tabular-nums; }
+
+/* Tablas */
+:root .admin-layout .admin-tabla, :root .admin-layout .admin-table { border-collapse: separate; border-spacing: 0; }
+:root .admin-layout .admin-tabla th, :root .admin-layout .admin-table th { padding: 13px 16px; font-size: .68rem; font-weight: 700; letter-spacing: .12em; color: var(--px-ink-3); background: var(--px-surface-2); border-bottom: 1px solid var(--px-line-2); }
+:root .admin-layout .admin-tabla td, :root .admin-layout .admin-table td { padding: 14px 16px; border-bottom: 1px solid var(--px-line); color: var(--px-ink); font-variant-numeric: lining-nums tabular-nums; }
+:root .admin-layout .admin-tabla tbody tr, :root .admin-layout .admin-table tbody tr { transition: background var(--px-t-fast); }
+:root .admin-layout .admin-tabla tbody tr:hover, :root .admin-layout .admin-table tbody tr:hover { background: var(--px-gold-soft); }
+:root .admin-layout .tabla-contenedor, :root .admin-layout .admin-table-container { border-radius: var(--px-r-md); border: 1px solid var(--px-line); overflow: auto; background: var(--px-surface); }
+
+/* Pestañas / sub-navegación */
+:root .admin-layout .admin-subbar, :root .admin-layout .admin-tabs { background: var(--px-surface); border: 1px solid var(--px-line); border-radius: var(--px-r-md); box-shadow: var(--px-shadow-1); }
+:root .admin-layout .admin-subbar__tab, :root .admin-layout .admin-tab { border-radius: 10px; font-weight: 600; color: var(--px-ink-3); transition: all var(--px-t-fast); }
+:root .admin-layout .admin-subbar__tab:hover, :root .admin-layout .admin-tab:hover { color: var(--px-ink); }
+:root .admin-layout .admin-subbar__tab--active, :root .admin-layout .admin-tab.activo { background: var(--px-raised); color: var(--px-ink); box-shadow: var(--px-shadow-1), var(--px-inset); }
+
+/* Botones */
+:root .admin-layout .admin-btn { min-height: 40px; border-radius: var(--px-r-sm); font-weight: 650; letter-spacing: -.005em; transition: transform var(--px-t-fast), box-shadow var(--px-t-fast), filter var(--px-t-fast), border-color var(--px-t-fast); }
+:root .admin-layout .admin-btn:hover:not(:disabled) { transform: translateY(-1px); }
+:root .admin-layout .admin-btn-primary, :root .admin-layout .btn-guardar-admin { background: var(--px-gold-grad); color: var(--px-on-gold); border: 0; box-shadow: 0 6px 18px color-mix(in srgb, var(--px-gold) 32%, transparent), inset 0 1px 0 rgba(255,255,255,.4); }
+:root .admin-layout .admin-btn-primary:hover:not(:disabled) { background: var(--px-gold-grad-hover); box-shadow: 0 10px 24px color-mix(in srgb, var(--px-gold) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.45); filter: none; }
+:root .admin-layout .admin-btn-secondary { background: var(--px-raised); border: 1px solid var(--px-line-2); color: var(--px-ink); box-shadow: var(--px-shadow-1), var(--px-inset); }
+:root .admin-layout .admin-btn-secondary:hover:not(:disabled) { border-color: var(--px-gold); }
+
+/* Campos */
+:root .admin-layout .admin-input, :root .admin-layout .admin-select, :root .admin-layout .admin-textarea, :root .admin-layout .form-input, :root .admin-layout .money-input {
+  min-height: 44px; border-radius: var(--px-r-sm); background: var(--px-raised); border: 1px solid var(--px-line-2); color: var(--px-ink); box-shadow: var(--px-inset);
+  transition: border-color var(--px-t-fast), box-shadow var(--px-t-fast);
+}
+:root .admin-layout .admin-input:focus, :root .admin-layout .admin-select:focus, :root .admin-layout .admin-textarea:focus, :root .admin-layout .form-input:focus, :root .admin-layout .money-input:focus { outline: none; border-color: var(--px-gold); box-shadow: 0 0 0 4px var(--px-gold-soft); }
+:root .admin-layout .admin-label { font-size: .78rem; font-weight: 650; color: var(--px-ink-2); }
+
+/* Modales */
+:root .admin-modal-overlay { background: var(--bg-overlay); backdrop-filter: blur(10px); }
+:root .admin-modal { background: var(--px-surface); border: 1px solid var(--px-line-2); border-radius: var(--px-r-xl); box-shadow: var(--px-shadow-3), var(--px-inset); animation: px-pop .35s var(--px-ease) both; }
+:root .admin-modal-header { border-bottom: 1px solid var(--px-line); }
+:root .admin-modal-header h3, .admin-modal-header h2 { font: 600 1.3rem/1.15 var(--px-font-display); letter-spacing: -.01em; }
+:root .admin-modal-footer { border-top: 1px solid var(--px-line); }
+
+/* Insignias */
+:root .admin-layout .admin-badge, :root .admin-layout .badge-categoria { border-radius: var(--px-r-pill); font-weight: 700; letter-spacing: .02em; }

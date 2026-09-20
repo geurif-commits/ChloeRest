@@ -1,0 +1,35 @@
+/* Estilos de la pantalla de login y del PinPad (tres opciones).
+   Se activan con <html data-login-skin="esmeralda|marfil|medianoche"> (ver personalizacion.js).
+   "esmeralda" es el diseño base y sigue el tema del sistema; los otros dos fuerzan su propia paleta. */
+
+:root[data-login-skin="marfil"] :is(.lg, .gate) {
+  color-scheme: light;
+  --px-canvas: #f2ede3; --px-surface: #fffdf9; --px-surface-2: #f7f1e5; --px-raised: #ffffff;
+  --px-ink: #1d1810; --px-ink-2: #55473a; --px-ink-3: #7b6c57;
+  --px-line: rgba(64, 44, 12, .10); --px-line-2: rgba(64, 44, 12, .18);
+  --px-ok: #1c7c57; --px-warn: #b7791f; --px-bad: #b83a30; --px-info: #2f5f9a;
+  --px-shadow-1: 0 1px 2px rgba(60, 40, 10, .06); --px-shadow-2: 0 14px 30px -14px rgba(60, 40, 10, .22); --px-shadow-3: 0 30px 70px -24px rgba(60, 40, 10, .32);
+  --gold: #a9761b; --gold-light: #c9962f; --gold-dark: #7d5510; --gold-soft: rgba(169, 118, 27, .10);
+  --text-on-accent: #ffffff; --brand-ink: #2b2010;
+  --bg-tertiary: #ece3d1; --bg-overlay: rgba(36, 26, 10, .48);
+  --green-soft: rgba(28, 124, 87, .10); --blue-soft: rgba(47, 95, 154, .09); --orange-soft: rgba(183, 121, 31, .11); --red-soft: rgba(184, 58, 48, .09);
+  --green: #1c7c57; --blue: #2f5f9a; --orange: #b7791f; --red: #b83a30;
+}
+:root[data-login-skin="marfil"] .lg-brand { --b-text: #f6eddb; --b-text-2: #d2bd93; --b-acc: #e6bc5a; }
+
+:root[data-login-skin="medianoche"] :is(.lg, .gate) {
+  color-scheme: dark;
+  --px-canvas: #070b18; --px-surface: #0d1426; --px-surface-2: #121b33; --px-raised: #121b33;
+  --px-ink: #eaf0ff; --px-ink-2: #b4c0e0; --px-ink-3: #7e8db3;
+  --px-line: rgba(160, 185, 255, .10); --px-line-2: rgba(160, 185, 255, .22);
+  --px-ok: #5fe0b0; --px-warn: #f3b95f; --px-bad: #ff8f85; --px-info: #9db8ff;
+  --px-shadow-1: 0 1px 2px rgba(0, 0, 0, .5); --px-shadow-2: 0 14px 30px -14px rgba(0, 0, 0, .75); --px-shadow-3: 0 34px 70px -24px rgba(0, 0, 0, .85);
+  --gold: #5b8cff; --gold-light: #9db8ff; --gold-dark: #3f6fe6; --gold-soft: rgba(91, 140, 255, .14);
+  --text-on-accent: #061024; --brand-ink: #0a1024;
+  --bg-tertiary: #1a2542; --bg-overlay: rgba(2, 4, 12, .8);
+  --green-soft: rgba(95, 224, 176, .12); --blue-soft: rgba(157, 184, 255, .14); --orange-soft: rgba(243, 185, 95, .13); --red-soft: rgba(255, 143, 133, .13);
+  --green: #5fe0b0; --blue: #9db8ff; --orange: #f3b95f; --red: #ff8f85;
+}
+:root[data-login-skin="medianoche"] .lg-brand { --b-text: #e6ecff; --b-text-2: #97a8d6; --b-acc: #9db8ff; }
+:root[data-login-skin="medianoche"] .lg-brand::before,
+:root[data-login-skin="medianoche"] .lg-brand::after { border-color: rgba(157, 184, 255, .12); }

@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChefHat, Martini, Bell, LogOut, Timer, Flame, Salad, StickyNote, Check, CheckCheck, CircleCheckBig } from 'lucide-react';
 import { toastError, toastExito } from './Toast.jsx';
+import './kd.css';
 import ConfirmModal from './ConfirmModal';
 import { obtenerSesion, obtenerTicketSse } from '../api.js';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
+
+let contextoAudio = null;
 
 function reproducirAlertaComanda() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    contextoAudio ||= new AudioCtx();
+    const ctx = contextoAudio;
+    if (ctx.state === 'suspended') ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
@@ -30,6 +36,8 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
   const [actualizadoEn, setActualizadoEn] = useState(null);
   const [confirmData, setConfirmData] = useState(null);
   const conteoPrevio = useRef(0);
+  const idsPrevios = useRef(new Set());
+  const kdsInicializado = useRef(false);
   const esBar = tipo === 'Bar';
 
   const cargarPedidos = useCallback(async () => {
@@ -50,11 +58,15 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
         return acc;
       }, {});
 
-      const totalItems = data.length;
-      if (totalItems > conteoPrevio.current && conteoPrevio.current > 0) {
-        reproducirAlertaComanda();
-      }
-      conteoPrevio.current = totalItems;
+       const totalItems = data.length;
+       const idsActuales = new Set(data.map((item) => item.detalle_id));
+       const hayNuevo = kdsInicializado.current && [...idsActuales].some((id) => !idsPrevios.current.has(id));
+       if (hayNuevo) {
+         reproducirAlertaComanda();
+       }
+       conteoPrevio.current = totalItems;
+       idsPrevios.current = idsActuales;
+       kdsInicializado.current = true;
 
       setPedidosPorMesa(agrupados);
       setActualizadoEn(new Date());
@@ -112,7 +124,7 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
       const headers = { 'X-Device-ID': devId };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${apiUrl}/api/kds/despachar/${idDetalle}?token=${encodeURIComponent(token || '')}&deviceId=${encodeURIComponent(devId || '')}`, {
+       const res = await fetch(`${apiUrl}/api/kds/despachar/${idDetalle}`, {
         method: 'PUT',
         headers,
       });
@@ -136,7 +148,7 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
           if (token) headers['Authorization'] = `Bearer ${token}`;
 
           await Promise.all(items.map(async (item) => {
-            const res = await fetch(`${apiUrl}/api/kds/despachar/${item.detalle_id}?token=${encodeURIComponent(token || '')}&deviceId=${encodeURIComponent(devId || '')}`, {
+             const res = await fetch(`${apiUrl}/api/kds/despachar/${item.detalle_id}`, {
               method: 'PUT',
               headers,
             });
@@ -160,96 +172,75 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
 
   const pendientes = pedidos.reduce((total, pedido) => total + pedido.items.length, 0);
 
+  const IconoTipo = esBar ? Martini : ChefHat;
+
   return (
     <>
-      <main className={`kds-board ${esBar ? 'kds-board--bar' : 'kds-board--cocina'}`}>
-        <header className="kds-board__header">
-          <div className="kds-board__brand">
-            <span>{esBar ? '🍸' : '👨‍🍳'}</span>
+      <main className={`kd ${esBar ? 'kd--bar' : 'kd--cocina'}`}>
+        <header className="kd-head">
+          <div className="kd-head__brand">
+            <span className="kd-head__mark"><IconoTipo size={26} strokeWidth={1.8} /></span>
             <div>
-              <p>{esBar ? 'Servicio de Bebidas y Barra' : 'Producción de Cocina y Platos'}</p>
-              <h1>{esBar ? 'KDS Bar & Coctelería' : 'KDS Cocina & Comandas'}</h1>
+              <span className="px-eyebrow">{esBar ? 'Servicio de bebidas' : 'Producción de cocina'}</span>
+              <h1>{esBar ? 'Bar y coctelería' : 'Cocina y comandas'}</h1>
             </div>
           </div>
-          <div className="kds-board__metrics">
-            <div>
-              <strong>{pedidos.length}</strong>
-              <span>Mesas</span>
-            </div>
-            <div>
-              <strong>{pendientes}</strong>
-              <span>Pendientes</span>
-            </div>
-            <div className="kds-board__live">
-              <i style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#00f576', display: 'inline-block', marginRight: '6px' }} />
-              En vivo
-            </div>
-            <button
-              onClick={() => { reproducirAlertaComanda(); toastExito('Sonido de campana activado.'); }}
-              title="Probar sonido de comanda"
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}
-            >
-              🔔
-            </button>
-            <button onClick={alSalir}>← Salir</button>
+          <div className="kd-head__tools">
+            <div className="kd-metric"><strong>{pedidos.length}</strong><span>Mesas</span></div>
+            <div className="kd-metric kd-metric--hot"><strong>{pendientes}</strong><span>Pendientes</span></div>
+            <span className="kd-live"><i />En vivo</span>
+            <button type="button" className="px-btn px-btn--icon" onClick={() => { reproducirAlertaComanda(); toastExito('Sonido de campana activado.'); }} title="Probar sonido de comanda" aria-label="Probar sonido de comanda"><Bell size={18} /></button>
+            <button type="button" className="px-btn" onClick={alSalir}><LogOut size={16} /> Salir</button>
           </div>
         </header>
 
-        <section className="kds-board__subheader">
+        <div className="kd-sub">
           <span>Pedidos ordenados por tiempo de espera</span>
           <span>{actualizadoEn ? `Actualizado ${actualizadoEn.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Actualizando…'}</span>
-        </section>
+        </div>
 
-        <section className="kds-board__content">
+        <section className="kd-body">
           {pedidos.length === 0 ? (
-            <div className="kds-board__empty">
-              <span>{esBar ? '🍸' : '✨'}</span>
+            <div className="kd-empty">
+              <span className="kd-empty__icon"><CircleCheckBig size={34} strokeWidth={1.6} /></span>
               <h2>{esBar ? 'No hay bebidas pendientes' : 'No hay pedidos pendientes'}</h2>
               <p>{esBar ? 'El bar está al día.' : 'La cocina está al día.'}</p>
             </div>
           ) : (
-            <div className="kds-board__grid">
+            <div className="kd-grid">
               {pedidos.map(({ mesa, items, minutos }) => {
                 const prioridad = minutos >= 20 ? 'critica' : minutos >= 10 ? 'atencion' : 'normal';
-                const colorTiempo = minutos >= 20 ? '#ef4444' : minutos >= 10 ? '#f5b842' : '#00f576';
                 return (
-                  <article key={mesa} className={`kds-order kds-order--${prioridad}`} style={{ borderTop: `4px solid ${colorTiempo}` }}>
-                    <header>
+                  <article key={mesa} className={`kd-order kd-order--${prioridad}`}>
+                    <header className="kd-order__head">
                       <div>
                         <span>Mesa</span>
                         <h2>{mesa}</h2>
                       </div>
-                      <strong className="kds-order__time" style={{ color: colorTiempo }}>
-                        ⏱️ {minutos} min
-                      </strong>
+                      <strong className="kd-order__time"><Timer size={17} />{minutos} min</strong>
                     </header>
-                    <ul>
+                    <ul className="kd-order__items">
                       {items.map((item) => (
-                        <li key={item.detalle_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span className="kds-order__qty" style={{ fontWeight: 800, color: 'var(--gold, #f5b842)' }}>{item.cantidad}×</span>
-                              <strong>{item.producto}</strong>
-                            </div>
+                        <li key={item.detalle_id} className="kd-item">
+                          <span className="kd-item__qty">{Number(item.cantidad)}×</span>
+                          <div className="kd-item__main">
+                            <strong>{item.producto}</strong>
                             {(item.notas || item.guarnicion || item.termino) && (
-                              <div style={{ fontSize: '0.78rem', color: '#93c5fd', marginTop: '3px', paddingLeft: '22px' }}>
-                                {item.termino && <span style={{ marginRight: '6px' }}>🥩 {item.termino}</span>}
-                                {item.guarnicion && <span style={{ marginRight: '6px' }}>🥗 {item.guarnicion}</span>}
-                                {item.notas && <span>📝 {item.notas}</span>}
+                              <div className="kd-item__mods">
+                                {item.termino && <span><Flame size={12} />{item.termino}</span>}
+                                {item.guarnicion && <span><Salad size={12} />{item.guarnicion}</span>}
+                                {item.notas && <span><StickyNote size={12} />{item.notas}</span>}
                               </div>
                             )}
                           </div>
-                          <button
-                            onClick={() => despacharItem(item.detalle_id)}
-                            style={{ background: 'rgba(0,245,118,0.15)', color: '#00f576', border: '1px solid rgba(0,245,118,0.3)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 600 }}
-                          >
-                            Listo ✓
+                          <button type="button" className="kd-item__done" onClick={() => despacharItem(item.detalle_id)} aria-label={`Marcar ${item.producto} como listo`}>
+                            <Check size={16} strokeWidth={2.6} /> Listo
                           </button>
                         </li>
                       ))}
                     </ul>
-                    <button className="kds-order__complete" onClick={() => despacharMesaCompleta(items)}>
-                      ✓ Despachar mesa completa
+                    <button type="button" className="kd-order__complete" onClick={() => despacharMesaCompleta(items)}>
+                      <CheckCheck size={18} /> Despachar mesa completa
                     </button>
                   </article>
                 );

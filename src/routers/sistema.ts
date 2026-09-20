@@ -30,9 +30,12 @@ router.get('/api/app/version', route(async (_req: Request, res: Response) => {
   });
 }));
 
-const LOGIN_THEMES_VALIDOS = [
-  'olive_garden',
-];
+/** Estilos de la pantalla de login / PinPad (tres opciones). */
+const LOGIN_THEMES_VALIDOS = ['esmeralda', 'marfil', 'medianoche'];
+const LOGIN_THEME_DEFECTO = 'esmeralda';
+
+/** Temas oficiales del sistema (tres). marfil-dorado es una paleta clara sobre la base claro-luxury-gold. */
+const TEMAS_SISTEMA_VALIDOS = ['claro-luxury-gold', 'negro-brillante', 'marfil-dorado'];
 
 /** true si el valor es un color hexadecimal #RRGGBB (esHex del legacy). */
 function esHex(value: unknown): boolean {
@@ -105,14 +108,14 @@ async function jsonConfiguracion(
     slogan: row.slogan || null,
     logo_url: row.logo_url || alternativos?.logo_url || null,
     fondo_login_url: row.fondo_login_url || null,
-    tema_activo: ['claro-luxury-gold', 'negro-brillante'].includes(String(row.tema_activo || ''))
+    tema_activo: TEMAS_SISTEMA_VALIDOS.includes(String(row.tema_activo || ''))
       ? row.tema_activo
       : 'claro-luxury-gold',
     estilo_login: row.estilo_login || 'moderno',
     color_primario: row.color_primario || null,
     color_secundario: row.color_secundario || null,
     opacidad_fondo: Number(row.opacidad_fondo || 1),
-    login_theme: row.login_theme || 'olive_garden',
+    login_theme: LOGIN_THEMES_VALIDOS.includes(String(row.login_theme || '')) ? row.login_theme : LOGIN_THEME_DEFECTO,
     login_marca_tamano: row.login_marca_tamano || 'grande',
     color_acento: row.color_acento || null,
     fondo_tipo: row.fondo_tipo || 'imagen',
@@ -282,8 +285,8 @@ router.put(
     const logoAnterior = typeof row.logo_url === 'string' ? row.logo_url : null;
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : (body.quitar_fondo ? null : fondoAnterior);
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : (body.quitar_logo ? null : logoAnterior);
-    // Solo los dos temas oficiales del sistema: claro-luxury-gold y negro-brillante.
-    const temasValidos = ['claro-luxury-gold', 'negro-brillante'];
+    // Solo los tres temas oficiales del sistema.
+    const temasValidos = TEMAS_SISTEMA_VALIDOS;
     const temaRaw = String(body.tema_activo || '').trim();
     const temaPrevio = String(row.tema_activo || '').trim();
     const tema = temasValidos.includes(temaRaw)
@@ -299,7 +302,7 @@ router.put(
     const slogan = String(body.slogan || '').trim() || null;
     const loginTheme = LOGIN_THEMES_VALIDOS.includes(String(body.login_theme || '').trim())
       ? String(body.login_theme).trim()
-      : 'olive_garden';
+      : (LOGIN_THEMES_VALIDOS.includes(String(row.login_theme || '')) ? String(row.login_theme) : LOGIN_THEME_DEFECTO);
     const marcaTamanosValidos = ['mediano', 'grande', 'gigante'];
     const marcaTamanoRaw = String(body.login_marca_tamano || '').trim();
     const loginMarcaTamano = marcaTamanosValidos.includes(marcaTamanoRaw)

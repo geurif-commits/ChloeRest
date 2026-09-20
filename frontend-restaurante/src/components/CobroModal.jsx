@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
 import { toastAviso } from './Toast.jsx';
+import { Banknote, CreditCard, Landmark, UtensilsCrossed, ArrowLeft, ArrowRight, FileText, Check, Layers } from 'lucide-react';
+import './caja/caja.css';
 
 const METODOS = [
-  { v: 'Efectivo', i: '💵', l: 'Efectivo' },
-  { v: 'Tarjeta', i: '💳', l: 'Tarjeta' },
-  { v: 'Transferencia', i: '🏦', l: 'Transferencia' },
+  { v: 'Efectivo', Icono: Banknote, l: 'Efectivo' },
+  { v: 'Tarjeta', Icono: CreditCard, l: 'Tarjeta' },
+  { v: 'Transferencia', Icono: Landmark, l: 'Transferencia' },
 ];
 
 export default function CobroModal({ config, onClose }) {
@@ -125,7 +127,7 @@ export default function CobroModal({ config, onClose }) {
           <div className={`cobro-slide ${animDir === 'right' ? 'cobro-slide--animating' : ''}`}>
             <div className="cobro-header">
               <div className="cobro-header__mesa">
-                <span className="cobro-header__icono">🍽️</span>
+                <span className="cobro-header__icono"><UtensilsCrossed size={22} /></span>
                 <div>
                   <h2>{mesa?.nombre_numero || 'Mesa'}</h2>
                   <p className="cobro-header__sub">Cuenta abierta · {cuentaMesa.length} artículo{cuentaMesa.length !== 1 ? 's' : ''}</p>
@@ -150,8 +152,8 @@ export default function CobroModal({ config, onClose }) {
 
               <div className="cobro-totales">
                 <div className="cobro-totales__row"><span>Subtotal</span><strong>RD$ {formatearRD(subtotal)}</strong></div>
-                {configNegocio?.cobrar_itbis && <div className="cobro-totales__row"><span>ITBIS (18%)</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
-                {configNegocio?.cobrar_propina && <div className="cobro-totales__row"><span>Propina (10%)</span><strong>RD$ {formatearRD(propina)}</strong></div>}
+                {configNegocio?.cobrar_itbis && <div className="cobro-totales__row"><span>ITBIS 18%</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
+                {configNegocio?.cobrar_propina && <div className="cobro-totales__row"><span>Propina legal 10%</span><strong>RD$ {formatearRD(propina)}</strong></div>}
                 <div className="cobro-totales__row cobro-totales__row--total"><span>Total</span><strong>RD$ {formatearRD(total)}</strong></div>
               </div>
             </div>
@@ -159,9 +161,9 @@ export default function CobroModal({ config, onClose }) {
             <div className="cobro-acciones">
               <button className="cobro-btn cobro-btn--cancelar" onClick={onClose}>Cancelar</button>
               {onImprimirPreCheque && (
-                <button className="cobro-btn cobro-btn--cancelar" onClick={onImprimirPreCheque}>📄 Estado de Cuenta</button>
+                <button className="cobro-btn cobro-btn--cancelar" onClick={onImprimirPreCheque}><FileText size={17} /> Pre-cuenta</button>
               )}
-              <button className="cobro-btn cobro-btn--pagar" onClick={irAPago}>Proceder al Pago →</button>
+              <button className="cobro-btn cobro-btn--pagar" onClick={irAPago}>Proceder al pago <ArrowRight size={17} /></button>
             </div>
           </div>
           )}
@@ -170,7 +172,7 @@ export default function CobroModal({ config, onClose }) {
           {paso === 'pago' && (
           <div className={`cobro-slide ${animDir === 'left' ? 'cobro-slide--animating-left' : 'cobro-slide--animating'}`}>
             <div className="cobro-header cobro-header--tight">
-              <button className="cobro-header__back" onClick={irADetalles}>←</button>
+              <button className="cobro-header__back" onClick={irADetalles} aria-label="Volver"><ArrowLeft size={18} /></button>
               <div className="cobro-header__total">
                 <span className="cobro-header__total-label">Total</span>
                 <span className="cobro-header__total-value">RD$ {formatearRD(total)}</span>
@@ -183,7 +185,7 @@ export default function CobroModal({ config, onClose }) {
                 <div className="cobro-row__metodos">
                   {METODOS.map((m) => (
                     <button key={m.v} className={`cobro-pago__btn ${metodoPago === m.v ? 'activo' : ''}`} onClick={() => setMetodoPago(m.v)}>
-                      <span>{m.i}</span><span>{m.l}</span>
+                      <m.Icono size={18} /><span>{m.l}</span>
                     </button>
                   ))}
                 </div>
@@ -239,7 +241,7 @@ export default function CobroModal({ config, onClose }) {
                     setPagoMixto(e.target.checked);
                     if (!e.target.checked) { setMetodoPago2(''); setMontoPago2(''); setBancoPago2(''); }
                   }} />
-                  <span>💳 Mixto</span>
+                  <span><Layers size={15} style={{ verticalAlign: "-2px", marginRight: 6 }} />Pago mixto</span>
                 </label>
 
                 {pagoMixto && (
@@ -248,7 +250,7 @@ export default function CobroModal({ config, onClose }) {
                       <div className="cobro-row__metodos">
                         {METODOS.filter(m => m.v !== metodoPago).map((m) => (
                           <button key={m.v} className={`cobro-pago__btn cobro-pago__btn--sm ${metodoPago2 === m.v ? 'activo' : ''}`} onClick={() => setMetodoPago2(m.v)}>
-                            <span>{m.i}</span><span>{m.l}</span>
+                            <m.Icono size={18} /><span>{m.l}</span>
                           </button>
                         ))}
                       </div>
@@ -303,8 +305,8 @@ export default function CobroModal({ config, onClose }) {
             </div>
 
             <div className="cobro-acciones cobro-acciones--tight">
-              <button className="cobro-btn cobro-btn--cancelar" onClick={irADetalles}>← Atrás</button>
-              <button className="cobro-btn cobro-btn--pagar" onClick={handleCobro}>✅ Facturar</button>
+              <button className="cobro-btn cobro-btn--cancelar" onClick={irADetalles}><ArrowLeft size={17} /> Atrás</button>
+              <button className="cobro-btn cobro-btn--pagar" onClick={handleCobro}><Check size={18} /> Facturar</button>
             </div>
           </div>
           )}

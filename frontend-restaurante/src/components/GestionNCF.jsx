@@ -35,7 +35,10 @@ function GestionNCF({ alVolver, apiUrl }) {
     proveedor_ecf: 'algoback',
     algoback_api_key: '',
     algoback_url: 'https://api-dgii.algoback.com/ecf/procesar-factura',
-    algoback_ambiente: 'TEST'
+    algoback_ambiente: 'TEST',
+    email_mseller: '',
+    password_mseller: '',
+    api_key_mseller: ''
   });
   const [guardandoEcf, setGuardandoEcf] = useState(false);
 
@@ -268,9 +271,13 @@ function GestionNCF({ alVolver, apiUrl }) {
     return 'RD$ ' + Number(monto).toFixed(2);
   };
 
-  const ecfAmbienteBadgeClass = configEcf.algoback_ambiente === 'PROD'
-    ? 'admin-badge admin-badge-success'
-    : 'admin-badge admin-badge-warning';
+  const ecfAmbienteBadgeClass = configEcf.proveedor_ecf === 'mseller'
+    ? (configEcf.ambiente === 'Producción' || configEcf.ambiente === 'Certificacion' ? 'admin-badge admin-badge-success' : 'admin-badge admin-badge-warning')
+    : configEcf.algoback_ambiente === 'PROD'
+      ? 'admin-badge admin-badge-success'
+      : 'admin-badge admin-badge-warning';
+
+  const nombreProveedor = configEcf.proveedor_ecf === 'mseller' ? 'MSeller ECF' : 'AlgoBack';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
@@ -464,11 +471,13 @@ function GestionNCF({ alVolver, apiUrl }) {
                 <Settings size={20} /> Facturación Electrónica e-CF (DGII)
               </h2>
               <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0', fontSize: '0.85rem' }}>
-                Configura AlgoBack, envía comprobantes y consulta su estado.
+                Configura el proveedor de facturación electrónica ({nombreProveedor}), envía comprobantes y consulta su estado.
               </p>
             </div>
             <span className={ecfAmbienteBadgeClass}>
-              AlgoBack {configEcf.algoback_ambiente || 'TEST'}
+              {configEcf.proveedor_ecf === 'mseller'
+                ? `MSeller ${configEcf.ambiente || 'TesteCF'}`
+                : `AlgoBack ${configEcf.algoback_ambiente || 'TEST'}`}
             </span>
           </div>
 
@@ -515,6 +524,22 @@ function GestionNCF({ alVolver, apiUrl }) {
                 </div>
               </div>
 
+              <div className="admin-form-group">
+                <label className="admin-label">Proveedor de Facturación Electrónica</label>
+                <select
+                  className="admin-input"
+                  value={configEcf.proveedor_ecf}
+                  onChange={(e) => setConfigEcf({ ...configEcf, proveedor_ecf: e.target.value })}
+                >
+                  <option value="algoback">AlgoBack</option>
+                  <option value="mseller">MSeller ECF (2.º proveedor)</option>
+                </select>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '5px 0 0 0' }}>
+                  El proveedor seleccionado se usará para enviar y consultar los e-CF.
+                </p>
+              </div>
+
+              {configEcf.proveedor_ecf !== 'mseller' && (
               <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                 <h4 style={{ color: 'var(--blue)', margin: '0 0 12px 0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Settings size={16} /> AlgoBack - API Facturación Electrónica
@@ -552,11 +577,60 @@ function GestionNCF({ alVolver, apiUrl }) {
                   />
                 </div>
               </div>
+              )}
+
+              {configEcf.proveedor_ecf === 'mseller' && (
+                <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ color: 'var(--blue)', margin: '0 0 12px 0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Settings size={16} /> MSeller ECF - API Facturación Electrónica
+                  </h4>
+                  <div className="admin-form-row">
+                    <div className="admin-form-group" style={{ flex: 1 }}>
+                      <label className="admin-label">Email de MSeller</label>
+                      <input
+                        type="email"
+                        className="admin-input"
+                        placeholder="cuenta@mseller.app"
+                        value={configEcf.email_mseller}
+                        onChange={(e) => setConfigEcf({ ...configEcf, email_mseller: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-form-group" style={{ flex: 1 }}>
+                      <label className="admin-label">Password de MSeller</label>
+                      <input
+                        type="password"
+                        className="admin-input"
+                        placeholder="••••••••"
+                        value={configEcf.password_mseller}
+                        onChange={(e) => setConfigEcf({ ...configEcf, password_mseller: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="admin-form-group" style={{ marginTop: '10px' }}>
+                    <label className="admin-label">API Key de MSeller</label>
+                    <input
+                      type="password"
+                      className="admin-input"
+                      placeholder="X-API-KEY. Ej: MSELLER-0000-..."
+                      value={configEcf.api_key_mseller}
+                      onChange={(e) => setConfigEcf({ ...configEcf, api_key_mseller: e.target.value })}
+                    />
+                  </div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '10px 0 0 0', lineHeight: '1.5' }}>
+                    El entorno (TesteCF / CerteCF / eCF) se deriva del campo <b>Ambiente DGII</b> (Pruebas &#8594; TesteCF).
+                    Al guardar, los campos en blanco conservan los valores ya guardados en el servidor.
+                  </p>
+                </div>
+              )}
 
               <div style={{ background: 'var(--bg-base)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <AlertCircle size={16} style={{ color: 'var(--blue)', marginTop: '2px', flexShrink: 0 }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
-                  Registrarse en <a href="https://algoback.com" target="_blank" rel="noopener" style={{ color: 'var(--blue)' }}>algoback.com</a> &#8594; subir certificado .p12 &#8594; generar API Key &#8594; pegar arriba. Los comprobantes se envían vía POST con tu API Key.
+                  {configEcf.proveedor_ecf === 'mseller' ? (
+                    <>Registrarse en <a href="https://mseller.app" target="_blank" rel="noopener" style={{ color: 'var(--blue)' }}>mseller.app</a> &#8594; crear cuenta y generar API Key &#8594; pegarla arriba. El envío se realiza contra <code style={{ color: 'var(--blue)' }}>ecf.api.mseller.app</code> usando tu token de autenticación.</>
+                  ) : (
+                    <>Registrarse en <a href="https://algoback.com" target="_blank" rel="noopener" style={{ color: 'var(--blue)' }}>algoback.com</a> &#8594; subir certificado .p12 &#8594; generar API Key &#8594; pegar arriba. Los comprobantes se envían vía POST con tu API Key.</>
+                  )}
                 </p>
               </div>
 
@@ -575,7 +649,7 @@ function GestionNCF({ alVolver, apiUrl }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ background: 'var(--bg-base)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                 <h4 style={{ color: 'var(--green)', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Send size={18} /> Enviar Comprobante e-CF a AlgoBack
+                  <Send size={18} /> Enviar Comprobante e-CF ({nombreProveedor})
                 </h4>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 15px 0' }}>
                   Ingresa el ID de una cuenta cerrada con tipo de comprobante <b style={{ color: 'var(--blue)' }}>e-CF</b> para enviarla como comprobante electrónico.
@@ -606,7 +680,7 @@ function GestionNCF({ alVolver, apiUrl }) {
               <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '10px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <AlertCircle size={16} style={{ color: 'var(--kpi-gold)', marginTop: '2px', flexShrink: 0 }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', lineHeight: '1.5' }}>
-                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a AlgoBack &#8594; 4) AlgoBack firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
+                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a {nombreProveedor} &#8594; 4) {nombreProveedor} firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
                 </p>
               </div>
             </div>
@@ -758,7 +832,7 @@ function GestionNCF({ alVolver, apiUrl }) {
             <div className="admin-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                  📊 Vista Previa de Ventas Reportadas (Período: {datos607.periodo}) — RNC Emisor: {datos607.rncEmisor || 'N/D'}
+                  Vista Previa de Ventas Reportadas (Período: {datos607.periodo}) — RNC Emisor: {datos607.rncEmisor || 'N/D'}
                 </h4>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   Total Registros: <strong>{datos607.totalRegistros}</strong>

@@ -19,7 +19,7 @@ export default function LogoFondoSettings({ apiUrl }) {
     slogan: '',
     logo_url: '',
     fondo_login_url: '',
-    login_theme: 'olive_garden',
+    login_theme: 'esmeralda',
     opacidad_fondo: 1,
   });
   const [fondoArchivo, setFondoArchivo] = useState(null);
@@ -41,7 +41,7 @@ export default function LogoFondoSettings({ apiUrl }) {
             slogan: data.slogan || '',
             logo_url: data.logo_url || '',
             fondo_login_url: data.fondo_login_url || '',
-            login_theme: data.login_theme || 'olive_garden',
+            login_theme: data.login_theme || 'esmeralda',
             opacidad_fondo: Number(data.opacidad_fondo || 1),
           };
           setConfig(nueva);
@@ -68,7 +68,7 @@ export default function LogoFondoSettings({ apiUrl }) {
       const fd = new FormData();
       fd.append('nombre_negocio', config.nombre_negocio);
       fd.append('slogan', config.slogan);
-      fd.append('login_theme', config.login_theme || 'olive_garden');
+      fd.append('login_theme', config.login_theme || 'esmeralda');
       fd.append('opacidad_fondo', config.opacidad_fondo);
       if (fondoArchivo) fd.append('fondo_archivo', fondoArchivo);
       else if (config.quitarFondo) fd.append('quitar_fondo', '1');
@@ -364,7 +364,7 @@ export default function LogoFondoSettings({ apiUrl }) {
           style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
         >
           {(() => {
-            const skinActivo = LOGIN_TEMAS.find((t) => t.id === (config.login_theme || 'olive_garden')) || LOGIN_TEMAS[0];
+            const skinActivo = LOGIN_TEMAS.find((t) => t.id === (config.login_theme || 'esmeralda')) || LOGIN_TEMAS[0];
             const colorAcento = skinActivo.paleta[2] || 'var(--gold, #f5b842)';
             const colorSecundario = skinActivo.paleta[3] || 'var(--gold, #f5b842)';
             const esClaro = skinActivo.categoria === 'Luz';
