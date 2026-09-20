@@ -27,6 +27,7 @@ import { obtenerDeviceId } from '../../utils/dispositivo.js';
 import { esElectronApp } from '../../configApi.js';
 import logoPredeterminado from '../../assets/branding/chloe-logo.png';
 import { useTemaLocal } from '../../utils/tema.js';
+import { horariosDe, rango, turnoVigente } from '../../utils/turnos.js';
 import Screensaver, { TIPOS_PROTECTOR, VistaPreviaProtector } from './Screensaver.jsx';
 
 const PIN_LONGITUD_DEFECTO = 6;
@@ -47,14 +48,6 @@ function duracion(minutos = 0) {
   const r = m % 60;
   if (h === 0) return `${r} min`;
   return r === 0 ? `${h} h` : `${h} h ${r} min`;
-}
-
-// Turno vigente según la hora del terminal (Turno 1: 10–17 h, Turno 2: 17–24 h).
-function turnoDeAhora(d = new Date()) {
-  const h = d.getHours();
-  if (h >= 10 && h < 17) return { nombre: 'Turno 1', rango: '10:00 a. m. – 5:00 p. m.' };
-  if (h >= 17) return { nombre: 'Turno 2', rango: '5:00 p. m. – 12:00 a. m.' };
-  return { nombre: 'Fuera de horario', rango: 'Turnos desde las 10:00 a. m.' };
 }
 
 function LoginScreen({
@@ -92,7 +85,8 @@ function LoginScreen({
   const hora = ahora.toLocaleTimeString('es-DO', { hour: 'numeric', minute: '2-digit', hour12: true });
   const fecha = ahora.toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long' });
   const saludo = ahora.getHours() < 12 ? 'Buenos días' : ahora.getHours() < 19 ? 'Buenas tardes' : 'Buenas noches';
-  const turnoVigente = turnoDeAhora(ahora);
+  const horarios = horariosDe(configSistema?.turnos_config);
+  const turnoActual = turnoVigente(ahora, horarios);
 
   /* Logo del restaurante */
   useEffect(() => {
@@ -352,7 +346,7 @@ function LoginScreen({
         <div className="lg-brand__bottom">
           <ul className="lg-facts">
             <li><Tablet size={18} />Terminal autorizada</li>
-            <li><Clock size={18} />{turnoVigente.nombre} · {turnoVigente.rango}</li>
+            <li><Clock size={18} />{turnoActual.nombre} · {turnoActual.rango}</li>
             <li>{servidorOnline ? <Wifi size={18} /> : <WifiOff size={18} />}{servidorOnline ? 'En línea' : 'Sin conexión'} · {provincia}</li>
           </ul>
           <button type="button" className="lg-brand__btn" onClick={() => cambiarModo(esTurno ? 'acceso' : 'turno')} disabled={cargando}>
@@ -425,8 +419,8 @@ function LoginScreen({
 
               {esTurno && (
                 <div className="lg-legend" aria-label="Horarios de turno">
-                  <div><b>Turno 1</b><span>10:00 a. m. – 5:00 p. m.</span></div>
-                  <div><b>Turno 2</b><span>5:00 p. m. – 12:00 a. m.</span></div>
+                  <div><b>Turno 1</b><span>{rango(horarios.turno1)}</span></div>
+                  <div><b>Turno 2</b><span>{rango(horarios.turno2)}</span></div>
                 </div>
               )}
             </>

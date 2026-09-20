@@ -792,6 +792,15 @@ const migrations: IMigracion[] = [{
         WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
     `,
   }, {
+    id: '046_mseller_ecf',
+    sql: `
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS email_mseller VARCHAR(200);
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS password_mseller TEXT;
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS api_key_mseller TEXT;
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS proveedor_ecf VARCHAR(20) DEFAULT 'algoback';
+    `,
+  },
+  {
     id: '047_turnos_empleados',
     sql: `
       -- Turnos y asistencia del personal (Turno 1: 10-17, Turno 2: 17-24).
@@ -821,6 +830,14 @@ const migrations: IMigracion[] = [{
       CREATE POLICY aislamiento_empresa ON turnos_empleados
         USING (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER)
         WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
+    `,
+  },
+  {
+    id: '048_turnos_config',
+    sql: `
+      -- Horarios configurables de Turno 1 y Turno 2 (JSON {turno1:{inicio,fin}, turno2:{inicio,fin}, tolerancia_min, anticipacion_min}).
+      -- NULL = horarios por defecto (10:00-17:00 y 17:00-24:00). El módulo de turnos viene incluido con la licencia del sistema completo.
+      ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS turnos_config JSONB;
     `,
   },
 ];

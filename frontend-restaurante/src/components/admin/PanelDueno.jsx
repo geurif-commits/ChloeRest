@@ -430,7 +430,9 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   // Longitud efectiva: en modo login se auto-acepta al completarla (6 por
   // defecto si aún se desconoce); en modo setup (crear PIN) el mínimo es 4
   // y la confirmación siempre es manual.
-  const longitudPinEfectiva = pinNoConfigurado ? 4 : (pinLongitud > 0 ? pinLongitud : 6);
+  // La longitud real del PIN del propietario puede ser cualquiera entre 4 y 12 (p. ej. si viene de OWNER_PIN),
+  // así que nunca se envía solo: se confirma con la tecla ➜ o Enter.
+  const longitudPinEfectiva = 4;
 
   const agregarNumeroPin = (num) => {
     if (cargando) return;
@@ -446,11 +448,6 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const borrarNumeroPin = () => setPin((prev) => prev.slice(0, -1));
 
   useEffect(() => {
-    if (!token && !pinNoConfigurado && pin.length === longitudPinEfectiva) login();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, pinLongitud, pinNoConfigurado]);
-
-  useEffect(() => {
     if (token) return;
     const manejarTeclado = (evento) => {
       if (evento.key >= '0' && evento.key <= '9') {
@@ -461,7 +458,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         if (pinNoConfigurado) {
           if (pin.length >= 4) establecerPin();
         } else {
-          if (pin.length === longitudPinEfectiva) login();
+          if (pin.length >= longitudPinEfectiva) login();
         }
       }
     };

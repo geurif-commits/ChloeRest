@@ -492,6 +492,14 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     };
   }, [apiUrl]);
 
+  // Un equipo sin activar siempre carga el LandingScreen (aunque la URL sea /login);
+  // un equipo con licencia activa entra directo al LoginScreen.
+  useEffect(() => {
+    if (verificandoDispositivo || dispositivoActivado !== false || usuario) return;
+    if (['login', 'app', 'admin', 'caja', 'kds'].includes(vistaActiva)) navegarRuta('/landingscreen');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verificandoDispositivo, dispositivoActivado, vistaActiva, usuario]);
+
   // ==========================================================
   // VERIFICAR LICENCIA (FONDO NO BLOQUEANTE)
   // ==========================================================
@@ -967,7 +975,7 @@ if (usuario) {
   // ==========================================================
 
   if (
-    (dispositivoActivado === true || vistaActiva === 'login') &&
+    dispositivoActivado === true &&
     vistaActiva !== 'landingscreen' &&
     vistaActiva !== 'activacion' &&
     vistaActiva !== 'paneldueno' &&

@@ -9,6 +9,12 @@ import {
   turnoOlvidado,
   salidaProgramada,
   etiquetaTurno,
+  validarConfigTurnos,
+  configTurnosDesdeBd,
+  configTurnosAJson,
+  construirTurnos,
+  formatoHora,
+  CONFIG_TURNOS_DEFECTO,
 } from '../../../src/services/asistenciaService.js';
 
 /** Construye un instante a partir de hora local de RD (UTC-4). */
@@ -101,5 +107,60 @@ describe('minutosTrabajados / turnoOlvidado / salidaProgramada', () => {
     expect(etiquetaTurno('Turno 1')).toContain('10:00');
     expect(etiquetaTurno('Turno 2')).toContain('12:00');
     expect(etiquetaTurno('Fuera de turno')).toContain('Fuera');
+  });
+});
+
+describe('horarios de turno configurables', () => {
+  const custom = validarConfigTurnos({
+    turno1: { inicio: '08:00', fin: '15:00' },
+    turno2: { inicio: '15:00', fin: '23:00' },
+    tolerancia_min: 5,
+    anticipacion_min: 15,
+  });
+  if (!('config' in custom)) {throw new Error('la configuración de prueba debe ser válida');}
+  const cfg = custom.config;
+
+  it('acepta horarios válidos y los serializa en formato HH:MM', () => {
+    expect(configTurnosAJson(cfg)).toEqual({
+      turno1: { inicio: '08:00', fin: '15:00' },
+      turno2: { inicio: '15:00', fin: '23:00' },
+      tolerancia_min: 5,
+      anticipacion_min: 15,
+    });
+  });
+
+  it('asigna la entrada al turno según los horarios propios', () => {
+    expect(turnoParaEntrada(rd('2026-09-20T07:50:00'), cfg)).toBe('Turno 1');
+    expect(turnoParaEntrada(rd('2026-09-20T14:50:00'), cfg)).toBe('Turno 2');
+    expect(turnoParaEntrada(rd('2026-09-20T07:30:00'), cfg)).toBe('Fuera de turno');
+    expect(turnoParaEntrada(rd('2026-09-20T23:30:00'), cfg)).toBe('Fuera de turno');
+  });
+
+  it('usa la tolerancia configurada para tardanza y salida anticipada', () => {
+    expect(minutosTarde('Turno 1', rd('2026-09-20T08:06:00'), cfg)).toBe(6);
+    expect(minutosTarde('Turno 1', rd('2026-09-20T08:05:00'), cfg)).toBe(0);
+    expect(minutosSalidaAnticipada('Turno 1', rd('2026-09-20T08:00:00'), rd('2026-09-20T14:50:00'), cfg)).toBe(10);
+  });
+
+  it('etiqueta y salida programada siguen el horario configurado', () => {
+    expect(etiquetaTurno('Turno 2', cfg)).toBe('3:00 p. m. – 11:00 p. m.');
+    expect(salidaProgramada('Turno 1', rd('2026-09-20T08:00:00'), cfg).toISOString()).toBe(rd('2026-09-20T15:00:00').toISOString());
+  });
+
+  it('sin configuración usa los horarios por defecto', () => {
+    expect(configTurnosDesdeBd(null)).toEqual(CONFIG_TURNOS_DEFECTO);
+    expect(configTurnosDesdeBd({ turno1: { inicio: 'x' } })).toEqual(CONFIG_TURNOS_DEFECTO);
+    expect(construirTurnos()[0].etiqueta).toBe('10:00 a. m. – 5:00 p. m.');
+    expect(formatoHora(1440)).toBe('12:00 a. m.');
+  });
+
+  it('rechaza horarios inválidos', () => {
+    const base = { turno1: { inicio: '10:00', fin: '17:00' }, turno2: { inicio: '17:00', fin: '24:00' } };
+    expect('error' in validarConfigTurnos({ ...base, turno1: { inicio: '17:00', fin: '10:00' } })).toBe(true);
+    expect('error' in validarConfigTurnos({ ...base, turno2: { inicio: '09:00', fin: '20:00' } })).toBe(true);
+    expect('error' in validarConfigTurnos({ ...base, turno1: { inicio: '10:00', fin: '25:00' } })).toBe(true);
+    expect('error' in validarConfigTurnos({ ...base, tolerancia_min: 90 })).toBe(true);
+    expect('error' in validarConfigTurnos({ ...base, anticipacion_min: 700 })).toBe(true);
+    expect('config' in validarConfigTurnos(base)).toBe(true);
   });
 });

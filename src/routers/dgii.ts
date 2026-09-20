@@ -34,6 +34,9 @@ interface IDgiiConfigFila {
   client_secret_configurado: boolean;
   certificado_configurado: boolean;
   algoback_api_key_configurada: boolean;
+  email_mseller_configurado: boolean;
+  password_mseller_configurada: boolean;
+  api_key_mseller_configurada: boolean;
 }
 
 /** Fila de dgii_secuencias (SELECT *, valores crudos de pg). */
@@ -80,7 +83,10 @@ router.get('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route(
             client_id, estado_ecf, proveedor_ecf, algoback_url, algoback_ambiente,
             (client_secret IS NOT NULL AND client_secret <> '') AS client_secret_configurado,
             (clave_certificado IS NOT NULL AND clave_certificado <> '') AS certificado_configurado,
-            (algoback_api_key IS NOT NULL AND algoback_api_key <> '') AS algoback_api_key_configurada
+            (algoback_api_key IS NOT NULL AND algoback_api_key <> '') AS algoback_api_key_configurada,
+            (email_mseller IS NOT NULL AND email_mseller <> '') AS email_mseller_configurado,
+            (password_mseller IS NOT NULL AND password_mseller <> '') AS password_mseller_configurada,
+            (api_key_mseller IS NOT NULL AND api_key_mseller <> '') AS api_key_mseller_configurada
        FROM dgii_config ORDER BY id LIMIT 1`
   );
   if (!result.rowCount) {
@@ -95,6 +101,9 @@ router.get('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route(
       client_secret_configurado: false,
       certificado_configurado: false,
       algoback_api_key_configurada: false,
+      email_mseller_configurado: false,
+      password_mseller_configurada: false,
+      api_key_mseller_configurada: false,
       estado_ecf: 'Pendiente de Certificación',
       proveedor_ecf: 'algoback',
       algoback_api_key: '',
@@ -113,6 +122,7 @@ router.post('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route
     rnc_emisor, razon_social_emisor, ambiente, url_servicio_dgii, client_id,
     client_secret, clave_certificado, estado_ecf, proveedor_ecf,
     algoback_api_key, algoback_url, algoback_ambiente,
+    email_mseller, password_mseller, api_key_mseller,
   } = req.body;
   const current = await db.query<{ id: number }>('SELECT id FROM dgii_config ORDER BY id LIMIT 1');
   if (current.rowCount) {
@@ -121,21 +131,27 @@ router.post('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route
        SET rnc_emisor=$1, razon_social_emisor=$2, ambiente=$3, url_servicio_dgii=$4,
            client_id=$5, client_secret=COALESCE(NULLIF($6, ''), client_secret),
            clave_certificado=COALESCE(NULLIF($7, ''), clave_certificado), estado_ecf=$8, actualizado_en=CURRENT_TIMESTAMP,
-           proveedor_ecf=$10, algoback_api_key=$11, algoback_url=$12, algoback_ambiente=$13
+           proveedor_ecf=$10, algoback_api_key=$11, algoback_url=$12, algoback_ambiente=$13,
+           email_mseller=COALESCE(NULLIF($14, ''), email_mseller),
+           password_mseller=COALESCE(NULLIF($15, ''), password_mseller),
+           api_key_mseller=COALESCE(NULLIF($16, ''), api_key_mseller)
        WHERE id=$9`,
       [rnc_emisor, razon_social_emisor, ambiente || 'Pruebas', url_servicio_dgii, client_id,
         client_secret, clave_certificado, estado_ecf || 'Pendiente de Certificación', current.rows[0].id,
-        proveedor_ecf || 'algoback', algoback_api_key || '', algoback_url || URL_ALGOBACK, algoback_ambiente || 'TEST']
+        proveedor_ecf || 'algoback', algoback_api_key || '', algoback_url || URL_ALGOBACK, algoback_ambiente || 'TEST',
+        email_mseller || '', password_mseller || '', api_key_mseller || '']
     );
   } else {
     await db.query(
       `INSERT INTO dgii_config
        (rnc_emisor, razon_social_emisor, ambiente, url_servicio_dgii, client_id, client_secret, clave_certificado, estado_ecf,
-        proveedor_ecf, algoback_api_key, algoback_url, algoback_ambiente)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        proveedor_ecf, algoback_api_key, algoback_url, algoback_ambiente,
+        email_mseller, password_mseller, api_key_mseller)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [rnc_emisor, razon_social_emisor, ambiente || 'Pruebas', url_servicio_dgii, client_id,
         client_secret, clave_certificado, estado_ecf || 'Pendiente de Certificación',
-        proveedor_ecf || 'algoback', algoback_api_key || '', algoback_url || URL_ALGOBACK, algoback_ambiente || 'TEST']
+        proveedor_ecf || 'algoback', algoback_api_key || '', algoback_url || URL_ALGOBACK, algoback_ambiente || 'TEST',
+        email_mseller || '', password_mseller || '', api_key_mseller || '']
     );
   }
   await registrarAuditoria(db, {

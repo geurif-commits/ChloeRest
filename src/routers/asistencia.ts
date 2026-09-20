@@ -16,7 +16,11 @@ import { verificarBloqueo, registrarFallo, registrarExito } from '../services/se
 import { ROLES_ADMIN } from '../lib/roles.js';
 import {
   SEGUNDOS_MIN_ENTRE_MARCAS,
-  TURNOS,
+  configTurnosAJson,
+  configTurnosDesdeBd,
+  construirTurnos,
+  validarConfigTurnos,
+  type IConfigTurnos,
   etiquetaTurno,
   minutosSalidaAnticipada,
   minutosTarde,
@@ -54,16 +58,23 @@ interface IRegistroFila {
   notas: string | null;
 }
 
+/** Horarios de turno del negocio (tenant del contexto actual); por defecto Turno 1 10-17 y Turno 2 17-24. */
+async function cargarConfigTurnos(): Promise<IConfigTurnos> {
+  const db = getDatabase();
+  const r = await db.query<{ turnos_config: unknown }>('SELECT turnos_config FROM configuracion_sistema ORDER BY id LIMIT 1');
+  return configTurnosDesdeBd(r.rows[0]?.turnos_config);
+}
+
 /** Enriquece una fila con horas trabajadas y alertas de puntualidad. */
-function enriquecer(fila: IRegistroFila): Record<string, unknown> {
+function enriquecer(fila: IRegistroFila, cfg: IConfigTurnos): Record<string, unknown> {
   const entrada = new Date(fila.entrada);
   const salida = fila.salida ? new Date(fila.salida) : null;
   return {
     ...fila,
-    turno_etiqueta: etiquetaTurno(fila.turno),
+    turno_etiqueta: etiquetaTurno(fila.turno, cfg),
     minutos_trabajados: salida ? minutosTrabajados(entrada, salida) : null,
-    minutos_tarde: minutosTarde(fila.turno, entrada),
-    minutos_salida_anticipada: salida ? minutosSalidaAnticipada(fila.turno, entrada, salida) : 0,
+    minutos_tarde: minutosTarde(fila.turno, entrada, cfg),
+    minutos_salida_anticipada: salida ? minutosSalidaAnticipada(fila.turno, entrada, salida, cfg) : 0,
   };
 }
 
@@ -115,6 +126,7 @@ router.post('/api/asistencia/marcar', route(async (req: Request, res: Response) 
 
   await runWithRequestContext({ empresaId }, async () => {
     const db = getDatabase();
+    const cfg = await cargarConfigTurnos();
     const abierto = await db.query<ITurnoAbiertoFila>(
       'SELECT id, turno, entrada FROM turnos_empleados WHERE usuario_id = $1 AND salida IS NULL ORDER BY id DESC LIMIT 1',
       [usuario.id]
@@ -140,10 +152,10 @@ router.post('/api/asistencia/marcar', route(async (req: Request, res: Response) 
       const detalle = {
         accion: 'salida',
         turno: previo.turno,
-        turnoEtiqueta: etiquetaTurno(previo.turno),
+        turnoEtiqueta: etiquetaTurno(previo.turno, cfg),
         entrada: entrada.toISOString(),
         minutosTrabajados: minutosTrabajados(entrada, ahora),
-        salidaAnticipadaMin: minutosSalidaAnticipada(previo.turno, entrada, ahora),
+        salidaAnticipadaMin: minutosSalidaAnticipada(previo.turno, entrada, ahora, cfg),
       };
       if (!confirmar) {
         res.json({ ...base, ...detalle, preview: true });
@@ -156,12 +168,12 @@ router.post('/api/asistencia/marcar', route(async (req: Request, res: Response) 
     }
 
     // ── ENTRADA ──
-    const turno = turnoParaEntrada(ahora);
+    const turno = turnoParaEntrada(ahora, cfg);
     const detalle = {
       accion: 'entrada',
       turno,
-      turnoEtiqueta: etiquetaTurno(turno),
-      tardeMin: minutosTarde(turno, ahora),
+      turnoEtiqueta: etiquetaTurno(turno, cfg),
+      tardeMin: minutosTarde(turno, ahora, cfg),
       turnoAnteriorOlvidado: autocerrar,
     };
     if (!confirmar) {
@@ -172,7 +184,7 @@ router.post('/api/asistencia/marcar', route(async (req: Request, res: Response) 
       const olvidado = abierto.rows[0];
       await db.query(
         'UPDATE turnos_empleados SET salida = $2, cerrado_auto = TRUE WHERE id = $1 AND salida IS NULL',
-        [olvidado.id, salidaProgramada(olvidado.turno, new Date(olvidado.entrada))]
+        [olvidado.id, salidaProgramada(olvidado.turno, new Date(olvidado.entrada), cfg)]
       );
     }
     const insertado = await db.query<{ id: number }>(
@@ -184,16 +196,41 @@ router.post('/api/asistencia/marcar', route(async (req: Request, res: Response) 
   });
 }));
 
-// GET /api/asistencia/turnos (Administrador): definición de turnos
+// GET /api/asistencia/turnos (Administrador): definición de turnos vigente
 router.get('/api/asistencia/turnos', requireAuth, requireRoles(...ROLES_ADMIN), route(async (_req: Request, res: Response) => {
-  res.json(TURNOS.map((t) => ({ id: t.id, etiqueta: t.etiqueta })));
+  res.json(construirTurnos(await cargarConfigTurnos()).map((t) => ({ id: t.id, etiqueta: t.etiqueta })));
+}));
+
+// GET /api/asistencia/config (Administrador): horarios configurados
+router.get('/api/asistencia/config', requireAuth, requireRoles(...ROLES_ADMIN), route(async (_req: Request, res: Response) => {
+  res.json(configTurnosAJson(await cargarConfigTurnos()));
+}));
+
+// PUT /api/asistencia/config (Administrador): { turno1: {inicio, fin}, turno2: {inicio, fin}, tolerancia_min, anticipacion_min }
+router.put('/api/asistencia/config', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
+  const db = getDatabase();
+  const validada = validarConfigTurnos(req.body);
+  if ('error' in validada) {throw httpError(400, validada.error);}
+  const anterior = await cargarConfigTurnos();
+  const json = configTurnosAJson(validada.config);
+  const r = await db.query('UPDATE configuracion_sistema SET turnos_config = $1::jsonb WHERE id = (SELECT id FROM configuracion_sistema ORDER BY id LIMIT 1)', [JSON.stringify(json)]);
+  if (!r.rowCount) {throw httpError(404, 'Configuración del sistema no encontrada.');}
+  await registrarAuditoria(db, {
+    usuarioId: req.auth!.userId,
+    accion: 'TURNOS_CONFIG',
+    entidad: 'configuracion_sistema',
+    detalle: { antes: configTurnosAJson(anterior), despues: json },
+    ip: clientIp(req),
+  });
+  res.json({ ...json, mensaje: 'Horarios de turno guardados.' });
 }));
 
 // GET /api/asistencia/en-turno (Administrador): personal con turno abierto
 router.get('/api/asistencia/en-turno', requireAuth, requireRoles(...ROLES_ADMIN), route(async (_req: Request, res: Response) => {
   const db = getDatabase();
+  const cfg = await cargarConfigTurnos();
   const result = await db.query<IRegistroFila>(`${SQL_REGISTROS} WHERE t.salida IS NULL ORDER BY t.entrada`);
-  res.json(result.rows.map(enriquecer));
+  res.json(result.rows.map((f) => enriquecer(f, cfg)));
 }));
 
 // GET /api/asistencia?desde=YYYY-MM-DD&hasta=YYYY-MM-DD&usuario_id= (Administrador)
@@ -223,7 +260,8 @@ router.get('/api/asistencia', requireAuth, requireRoles(...ROLES_ADMIN), route(a
       LIMIT 2000`,
     valores
   );
-  res.json({ desde, hasta, registros: result.rows.map(enriquecer) });
+  const cfg = await cargarConfigTurnos();
+  res.json({ desde, hasta, registros: result.rows.map((f) => enriquecer(f, cfg)) });
 }));
 
 /** Valida y normaliza un instante recibido del cliente. */
@@ -245,7 +283,7 @@ router.post('/api/asistencia/manual', requireAuth, requireRoles(...ROLES_ADMIN),
   if (!notas) {throw httpError(400, 'Indica el motivo del registro manual.');}
   const usuario = await db.query<{ id: number }>('SELECT id FROM usuarios WHERE id = $1', [usuarioId]);
   if (!usuario.rowCount) {throw httpError(404, 'Empleado no encontrado.');}
-  const turno = turnoParaEntrada(entrada);
+  const turno = turnoParaEntrada(entrada, await cargarConfigTurnos());
   const empresaId = req.auth!.empresaId || 1;
   const insertado = await db.query<{ id: number }>(
     'INSERT INTO turnos_empleados (empresa_id, usuario_id, turno, entrada, salida, editado, notas) VALUES ($1, $2, $3, $4, $5, TRUE, $6) RETURNING id',
@@ -279,7 +317,7 @@ router.put('/api/asistencia/:id', requireAuth, requireRoles(...ROLES_ADMIN), rou
   if (salida && salida <= entrada) {throw httpError(400, 'La salida debe ser posterior a la entrada.');}
   const notas = String(req.body.notas || '').trim().slice(0, 300);
   if (!notas) {throw httpError(400, 'Indica el motivo de la corrección.');}
-  const turno = turnoParaEntrada(entrada);
+  const turno = turnoParaEntrada(entrada, await cargarConfigTurnos());
   await db.query(
     'UPDATE turnos_empleados SET entrada = $2, salida = $3, turno = $4, editado = TRUE, cerrado_auto = FALSE, notas = $5 WHERE id = $1',
     [id, entrada, salida, turno, notas]

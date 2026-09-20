@@ -14,6 +14,7 @@ import { upload, uploadImagenesSistema, validarImagenSubida, validarImagenesSubi
 import { ROLES_ADMIN, ROLES_CAJA } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
 import { config } from '../lib/config.js';
+import { configTurnosAJson, configTurnosDesdeBd } from '../services/asistenciaService.js';
 
 const router = Router();
 const logger = createLogger('sistemaRouter');
@@ -125,6 +126,7 @@ async function jsonConfiguracion(
     setup_completado: !!row.setup_completado,
     tiene_administrador: (await contarAdminsActivos(empresaId)) > 0,
     owner_pin_longitud: Number(row.owner_pin_longitud || 6),
+    turnos_config: configTurnosAJson(configTurnosDesdeBd(row.turnos_config)),
   };
 }
 

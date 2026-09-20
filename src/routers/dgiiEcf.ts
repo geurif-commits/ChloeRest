@@ -17,6 +17,13 @@ import { registrarAuditoria } from '../services/auditoriaService.js';
 import { construirECF } from '../lib/ecf.js';
 import type { IDetalleECF } from '../lib/ecf.js';
 import { normalizarRNC, validarRNC } from '../lib/rnc.js';
+import {
+  autenticarMseller,
+  enviarDocumentoMseller,
+  consultarEstadoMseller,
+  mapearEstadoMsellerAEstadoLocal,
+  type IMsellerConfig,
+} from '../services/msellerEcfService.js';
 
 const router = Router();
 
@@ -29,9 +36,15 @@ interface IConfigECFFila {
   rnc_emisor: string | null;
   razon_social_emisor: string | null;
   direccion_emisor: string | null;
+  proveedor_ecf: string | null;
+  ambiente: string | null;
+  estado_ecf: string | null;
   algoback_api_key: string | null;
   algoback_url: string | null;
   algoback_ambiente: string | null;
+  email_mseller: string | null;
+  password_mseller: string | null;
+  api_key_mseller: string | null;
 }
 
 /** Fila de cuentas cerradas candidatas a e-CF (SELECT c.* + alias ncf). */
@@ -106,8 +119,16 @@ router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), r
   const configResult = await db.query<IConfigECFFila>('SELECT * FROM dgii_config ORDER BY id LIMIT 1');
   const cfg = configResult.rows[0];
   const apiKey = cfg?.algoback_api_key || '';
-  if (!cfg || !apiKey) {
-    throw httpError(400, 'No hay API Key de AlgoBack configurada. Ve a DGII > e-CF y guarda tus credenciales.');
+  const proveedorActivo = (cfg?.proveedor_ecf || 'algoback').toLowerCase();
+  const tieneMsellerCfg = Boolean(cfg?.email_mseller && cfg?.password_mseller && cfg?.api_key_mseller);
+  if (!cfg || (proveedorActivo === 'mseller' ? !tieneMsellerCfg : !apiKey)) {
+    throw httpError(
+      400,
+      proveedorActivo === 'mseller'
+        ? 'No hay credenciales de MSeller ECF configuradas. Ve a DGII > e-CF y guarda email/password/API Key.'
+        : 'No hay API Key de AlgoBack configurada. Ve a DGII > e-CF y guarda tus credenciales.',
+      proveedorActivo === 'mseller' ? 'MSELLER_SIN_CONFIG' : 'ALGOBACK_SIN_CONFIG'
+    );
   }
 
   const cuenta = await db.query<ICuentaCerradaFila>(
@@ -165,28 +186,72 @@ router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), r
     tipoPago,
   });
 
-  const algoUrl = cfg.algoback_url || URL_ALGOBACK;
-  const algoAmbiente = cfg.algoback_ambiente || 'TEST';
+  // Proveedor seleccionado: 'mseller' (MSeller ECF) o 'algoback' (default)
+  const proveedor = (cfg?.proveedor_ecf || 'algoback').toLowerCase();
+  let resultadoEnvio: {
+    trackId: string | null;
+    estado: string;
+    codigoSeguridad: string | null;
+    qrUrl: string | null;
+    xmlFirmado: string | null;
+    ambiente: string;
+    respuestaJson: unknown;
+  };
 
-  const response = await fetch(algoUrl, {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': apiKey,
-      'X-Entorno': algoAmbiente,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(eCFPayload),
-  });
+  if (proveedor === 'mseller') {
+    const msellerConfig: IMsellerConfig = {
+      email: cfg.email_mseller,
+      password: cfg.password_mseller,
+      apiKey: cfg.api_key_mseller,
+      ambiente: cfg.ambiente,
+      estadoEcf: cfg.estado_ecf,
+    };
+    if (!msellerConfig.email || !msellerConfig.password || !msellerConfig.apiKey) {
+      throw httpError(400, 'No hay credenciales de MSeller ECF configuradas. Ve a DGII > e-CF y guarda email/password/API Key.', 'MSELLER_SIN_CONFIG');
+    }
+    const sesion = await autenticarMseller(msellerConfig);
+    const resultado = await enviarDocumentoMseller(msellerConfig, sesion, eCFPayload);
+    resultadoEnvio = {
+      trackId: resultado.internalTrackId || resultado.ecf || null,
+      estado: 'Enviado',
+      codigoSeguridad: resultado.codigoSeguridad || null,
+      qrUrl: resultado.qrUrl || null,
+      xmlFirmado: resultado.signedXml || null,
+      ambiente: resultado.environment,
+      respuestaJson: resultado.raw,
+    };
+  } else {
+    const algoUrl = cfg.algoback_url || URL_ALGOBACK;
+    const algoAmbiente = cfg.algoback_ambiente || 'TEST';
 
-  const responseData = (await response.json().catch(() => null)) as IAlgoBackRespuesta | null;
-  if (!response.ok) {
-    const errMsg = responseData?.error || responseData?.mensaje || `Error HTTP ${response.status}`;
-    throw httpError(response.status || 502, `AlgoBack: ${String(errMsg)}`);
+    const response = await fetch(algoUrl, {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': apiKey,
+        'X-Entorno': algoAmbiente,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(eCFPayload),
+    });
+
+    const responseData = (await response.json().catch(() => null)) as IAlgoBackRespuesta | null;
+    if (!response.ok) {
+      const errMsg = responseData?.error || responseData?.mensaje || `Error HTTP ${response.status}`;
+      throw httpError(response.status || 502, `AlgoBack: ${String(errMsg)}`);
+    }
+
+    resultadoEnvio = {
+      trackId: (responseData?.trackId || responseData?.track_id || null) as string | null,
+      estado: String(responseData?.estado || 'Enviado'),
+      codigoSeguridad: (responseData?.codigoSeguridad || responseData?.codigo_seguridad || null) as string | null,
+      qrUrl: null,
+      xmlFirmado: null,
+      ambiente: algoAmbiente,
+      respuestaJson: responseData,
+    };
   }
 
-  const trackId = responseData?.trackId || responseData?.track_id || null;
-  const estado = responseData?.estado || 'Enviado';
-  const codigoSeguridad = responseData?.codigoSeguridad || responseData?.codigo_seguridad || null;
+  const { trackId, estado, codigoSeguridad, qrUrl, xmlFirmado, ambiente: ambienteAlmacenado, respuestaJson } = resultadoEnvio;
 
   // Calcular totales para almacenar
   let montoGravado = 0;
@@ -208,11 +273,12 @@ router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), r
     `INSERT INTO e_cf_comprobantes
      (cuenta_id, tipo_cf, ncf, track_id, estado, rnc_emisor, rnc_receptor, monto_total,
       enviado_en, respuesta_json, ambiente, tipo_emision, codigo_seguridad,
-      tipo_pago, monto_exento, monto_gravado, total_itbis)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, $10, 1, $11, $12, $13, $14, $15)`,
+      tipo_pago, monto_exento, monto_gravado, total_itbis, proveedor_ecf,
+      qr_url, xml_firmado)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, $10, 1, $11, $12, $13, $14, $15, $16, $17, $18)`,
     [cuentaId, tipoCF, cta.ncf, trackId, estado, normalizarRNC(cfg.rnc_emisor), cta.rnc_cedula_cliente || null,
-      cta.total, JSON.stringify(responseData), algoAmbiente, codigoSeguridad, tipoPago,
-      montoExento, montoGravado, totalItbis]
+      cta.total, JSON.stringify(respuestaJson), ambienteAlmacenado, codigoSeguridad, tipoPago,
+      montoExento, montoGravado, totalItbis, proveedor, qrUrl, xmlFirmado]
   );
 
   await registrarAuditoria(db, {
@@ -220,10 +286,10 @@ router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), r
     accion: 'ENVIAR_ECF',
     entidad: 'e_cf_comprobantes',
     entidadId: cuentaId,
-    detalle: { trackId, estado, tipoCF: tipoECF },
+    detalle: { trackId, estado, tipoCF: tipoECF, proveedor },
     ip: clientIp(req),
   });
-  res.json({ mensaje: `e-CF enviado exitosamente. Track ID: ${String(trackId)}`, trackId, estado, codigoSeguridad });
+  res.json({ mensaje: `e-CF enviado exitosamente. Track ID: ${String(trackId)}`, trackId, estado, codigoSeguridad, proveedor });
 }));
 
 // GET /api/dgii/ecf/consultar/:trackId (Administrador): estado desde DB + polling AlgoBack.
@@ -237,12 +303,46 @@ router.get('/api/dgii/ecf/consultar/:trackId', requireAuth, requireRoles(...ROLE
 
   const ecf = result.rows[0];
 
-  // Intentar actualizar estado desde AlgoBack si está en estado intermedio
+  // Intentar actualizar estado desde el proveedor activo si está en estado intermedio
   if (['Pendiente', 'Enviado', 'Procesando'].includes(ecf.estado)) {
     try {
       const configResult = await db.query<IConfigECFFila>('SELECT * FROM dgii_config ORDER BY id LIMIT 1');
       const cfg = configResult.rows[0];
-      if (cfg?.algoback_api_key) {
+      if (!cfg) {
+        return;
+      }
+      const proveedor = (cfg.proveedor_ecf || 'algoback').toLowerCase();
+
+      if (proveedor === 'mseller' && cfg.email_mseller && cfg.password_mseller && cfg.api_key_mseller) {
+        const msellerConfig: IMsellerConfig = {
+          email: cfg.email_mseller,
+          password: cfg.password_mseller,
+          apiKey: cfg.api_key_mseller,
+          ambiente: cfg.ambiente,
+          estadoEcf: cfg.estado_ecf,
+        };
+        const sesion = await autenticarMseller(msellerConfig);
+        const consulta = await consultarEstadoMseller(msellerConfig, sesion, ecf.ncf);
+        const estadoNuevo = mapearEstadoMsellerAEstadoLocal(consulta.estado);
+        if (consulta.estado && estadoNuevo && estadoNuevo !== ecf.estado) {
+          await db.query(
+            `UPDATE e_cf_comprobantes
+             SET estado = $1, respuesta_json = $2,
+                 codigo_seguridad = COALESCE($3, codigo_seguridad),
+                 qr_url = COALESCE($4, qr_url),
+                 xml_firmado = COALESCE($5, xml_firmado)
+             WHERE track_id = $6`,
+            [estadoNuevo, JSON.stringify(consulta.raw),
+              consulta.securityCode || null, consulta.qrUrl || null, consulta.signedXml || null,
+              trackId]
+          );
+          ecf.estado = estadoNuevo;
+          ecf.respuesta_json = consulta.raw as Record<string, unknown> | null;
+          if (consulta.securityCode) { ecf.codigo_seguridad = consulta.securityCode; }
+          if (consulta.qrUrl) { ecf.qr_url = consulta.qrUrl; }
+          if (consulta.signedXml) { ecf.xml_firmado = consulta.signedXml; }
+        }
+      } else if (cfg.algoback_api_key) {
         const pollUrl = `${cfg.algoback_url || URL_ALGOBACK}/consultar/${trackId}`;
         const pollRes = await fetch(pollUrl, {
           headers: {

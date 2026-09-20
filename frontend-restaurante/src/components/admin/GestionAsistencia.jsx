@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  CalendarClock, Users, Clock, AlarmClockOff, Download, RefreshCw, Plus, Pencil, X, Search, LogIn, LogOut, Save
+  CalendarClock, Users, Clock, AlarmClockOff, Download, RefreshCw, Plus, Pencil, X, Search, LogIn, LogOut, Save, Settings2
 } from 'lucide-react';
 import { obtenerSesion } from '../../api.js';
 import { toastAviso, toastError, toastExito } from '../Toast.jsx';
+import { HORARIOS_DEFECTO, rango } from '../../utils/turnos.js';
 import './asistencia.css';
 
 const TZ = 'America/Santo_Domingo';
@@ -14,6 +15,10 @@ const haceDias = (n) => new Date(Date.now() - OFFSET_MS - n * 86400_000).toISOSt
 
 const fmtHora = (iso) => (iso ? new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: TZ }) : '—');
 const fmtFecha = (iso) => new Date(iso).toLocaleDateString('es-DO', { weekday: 'short', day: '2-digit', month: 'short', timeZone: TZ });
+/** El campo <input type="time"> no admite 24:00: la medianoche de cierre se muestra como 00:00. */
+const paraInput = (v) => (v === '24:00' ? '00:00' : v);
+const desdeInput = (v, esFin) => (esFin && v === '00:00' ? '24:00' : v);
+
 const fmtDur = (min) => {
   if (min === null || min === undefined) return '—';
   const m = Math.max(0, Math.round(min));
@@ -41,6 +46,9 @@ export default function GestionAsistencia({ apiUrl }) {
   const [ahora, setAhora] = useState(() => Date.now());
   const [edicion, setEdicion] = useState(null); // { id?, usuario_id, entrada, salida, notas }
   const [guardando, setGuardando] = useState(false);
+  const [horarios, setHorarios] = useState(HORARIOS_DEFECTO);
+  const [horariosEdit, setHorariosEdit] = useState(null); // null = panel cerrado
+  const [guardandoHorarios, setGuardandoHorarios] = useState(false);
 
   const headers = useCallback(() => ({ Authorization: `Bearer ${obtenerSesion()}`, 'Content-Type': 'application/json' }), []);
 
@@ -65,6 +73,47 @@ export default function GestionAsistencia({ apiUrl }) {
   }, [apiUrl, desde, hasta, empleadoId, headers]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  useEffect(() => {
+    fetch(`${apiUrl}/api/asistencia/config`, { headers: headers() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.turno1) setHorarios(d); })
+      .catch(() => {});
+  }, [apiUrl, headers]);
+
+  const abrirHorarios = () => setHorariosEdit({
+    t1i: paraInput(horarios.turno1.inicio), t1f: paraInput(horarios.turno1.fin),
+    t2i: paraInput(horarios.turno2.inicio), t2f: paraInput(horarios.turno2.fin),
+    tolerancia: horarios.tolerancia_min, anticipacion: horarios.anticipacion_min,
+  });
+
+  const guardarHorarios = async (e) => {
+    e.preventDefault();
+    const h = horariosEdit;
+    setGuardandoHorarios(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/asistencia/config`, {
+        method: 'PUT',
+        headers: headers(),
+        body: JSON.stringify({
+          turno1: { inicio: h.t1i, fin: desdeInput(h.t1f, true) },
+          turno2: { inicio: h.t2i, fin: desdeInput(h.t2f, true) },
+          tolerancia_min: Number(h.tolerancia),
+          anticipacion_min: Number(h.anticipacion),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'No se pudieron guardar los horarios.');
+      setHorarios(d);
+      setHorariosEdit(null);
+      toastExito('Horarios de turno guardados.');
+      cargar();
+    } catch (err) {
+      toastError(err.message || 'Error de conexión.');
+    } finally {
+      setGuardandoHorarios(false);
+    }
+  };
 
   useEffect(() => {
     fetch(`${apiUrl}/api/usuarios`, { headers: headers() })
@@ -160,8 +209,32 @@ export default function GestionAsistencia({ apiUrl }) {
       <section className="as-card">
         <div className="as-card__head">
           <div><span className="px-eyebrow">Tiempo real</span><h3>En turno ahora</h3></div>
-          <span className="as-legend">Turno 1 · 10:00 a. m. – 5:00 p. m. &nbsp;|&nbsp; Turno 2 · 5:00 p. m. – 12:00 a. m.</span>
+          <span className="as-legend">Turno 1 · {rango(horarios.turno1)} &nbsp;|&nbsp; Turno 2 · {rango(horarios.turno2)}</span>
+          <button type="button" className="px-btn px-btn--sm" onClick={horariosEdit ? () => setHorariosEdit(null) : abrirHorarios}><Settings2 size={15} /> Horarios</button>
         </div>
+        {horariosEdit && (
+          <form className="as-horarios" onSubmit={guardarHorarios}>
+            <p className="as-horarios__note">Configura el horario de cada turno. Este módulo viene incluido con la licencia del sistema completo y aplica a todos los equipos activados del negocio.</p>
+            <div className="as-horarios__grid">
+              <fieldset><legend>Turno 1</legend>
+                <label><span>Entrada</span><input className="po-input" type="time" required value={horariosEdit.t1i} onChange={(e) => setHorariosEdit({ ...horariosEdit, t1i: e.target.value })} /></label>
+                <label><span>Salida</span><input className="po-input" type="time" required value={horariosEdit.t1f} onChange={(e) => setHorariosEdit({ ...horariosEdit, t1f: e.target.value })} /></label>
+              </fieldset>
+              <fieldset><legend>Turno 2</legend>
+                <label><span>Entrada</span><input className="po-input" type="time" required value={horariosEdit.t2i} onChange={(e) => setHorariosEdit({ ...horariosEdit, t2i: e.target.value })} /></label>
+                <label><span>Salida <small>(00:00 = medianoche)</small></span><input className="po-input" type="time" required value={horariosEdit.t2f} onChange={(e) => setHorariosEdit({ ...horariosEdit, t2f: e.target.value })} /></label>
+              </fieldset>
+              <fieldset><legend>Reglas</legend>
+                <label><span>Tolerancia (min)</span><input className="po-input" type="number" min="0" max="60" required value={horariosEdit.tolerancia} onChange={(e) => setHorariosEdit({ ...horariosEdit, tolerancia: e.target.value })} /></label>
+                <label><span>Entrada anticipada (min)</span><input className="po-input" type="number" min="0" max="120" required value={horariosEdit.anticipacion} onChange={(e) => setHorariosEdit({ ...horariosEdit, anticipacion: e.target.value })} /></label>
+              </fieldset>
+            </div>
+            <div className="as-actions">
+              <button type="button" className="px-btn" onClick={() => setHorariosEdit(null)}>Cancelar</button>
+              <button type="submit" className="px-btn px-btn--gold" disabled={guardandoHorarios}><Save size={16} /> {guardandoHorarios ? 'Guardando…' : 'Guardar horarios'}</button>
+            </div>
+          </form>
+        )}
         {enTurno.length === 0 ? (
           <p className="as-empty">Nadie ha marcado entrada todavía. Los empleados registran su turno desde la pantalla de ingreso, en “Marcar turno”.</p>
         ) : (
@@ -195,8 +268,8 @@ export default function GestionAsistencia({ apiUrl }) {
           <label><span>Turno</span>
             <select className="po-input" value={turnoFiltro} onChange={(e) => setTurnoFiltro(e.target.value)}>
               <option value="todos">Todos</option>
-              <option value="Turno 1">Turno 1 (10–5)</option>
-              <option value="Turno 2">Turno 2 (5–12)</option>
+              <option value="Turno 1">Turno 1 ({rango(horarios.turno1)})</option>
+              <option value="Turno 2">Turno 2 ({rango(horarios.turno2)})</option>
               <option value="Fuera de turno">Fuera de turno</option>
             </select>
           </label>
