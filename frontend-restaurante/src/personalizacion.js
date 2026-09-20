@@ -66,7 +66,7 @@ export function aplicarPersonalizacion(config, negocioConfig) {
   }
 
   if (config.nombre_negocio) {
-    document.title = `${config.nombre_negocio} — POS`;
+    document.title = `${config.nombre_negocio} - Sistema de Gestión`;
   }
 
   // Favicon / ícono del sistema: usa el logo del negocio si está asignado
