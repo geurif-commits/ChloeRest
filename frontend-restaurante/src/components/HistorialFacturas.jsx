@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import TicketTermico from './TicketTermico';
-import { toastError, toastAviso } from './Toast.jsx';
+import { toastError } from './Toast.jsx';
 import { obtenerSesion } from '../api.js';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 import { FileText, Search, Printer, Clock, Filter, LayoutList, LayoutGrid, Receipt, TrendingUp, Hash } from 'lucide-react';
@@ -9,7 +9,7 @@ const formatearRD = (val) => {
   return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-function HistorialFacturas({ alVolver, apiUrl }) {
+function HistorialFacturas({ apiUrl }) {
   const [facturas, setFacturas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [facturaSeleccionada, setFacturaSeleccionada] = useState(null);

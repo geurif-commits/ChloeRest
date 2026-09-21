@@ -81,7 +81,7 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
         };
         sseMesas.onerror = manejarError;
         sseKDS.onerror = manejarError;
-      } catch (e) { console.warn('SSE no disponible, usando polling.'); }
+      } catch { console.warn('SSE no disponible, usando polling.'); }
     };
 
     cargarMesas();

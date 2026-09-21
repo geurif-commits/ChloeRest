@@ -5,6 +5,7 @@ import {
   cuentaAbiertaParaMesa,
   descontarInventario,
   siguienteComprobante,
+  validarPagoMixto,
   type ITotalesDetalleFila,
 } from '../../../src/services/cuentasService.js';
 import type { IQueryable } from '../../../src/services/auditoriaService.js';
@@ -124,6 +125,50 @@ describe('calcularTotales', () => {
     expect(totales.total).toBe(125.24);
   });
 
+  it('aplica el porcentaje de propina configurado por el negocio', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] },
+      { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: false, cobrar_propina: true, propina_porcentaje: '15.00' }] },
+    ]);
+    const totales = await calcularTotales(cliente, 10);
+    expect(totales.subtotal).toBe(200);
+    expect(totales.propina).toBe(30);
+    expect(totales.total).toBe(230);
+  });
+
+  it('acepta los límites del rango de propina (2 % y 30 %)', async () => {
+    for (const [porcentaje, propina] of [['2', 4], ['30', 60]] as const) {
+      const { cliente } = crearCliente([
+        { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] },
+        { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: false, cobrar_propina: true, propina_porcentaje: porcentaje }] },
+      ]);
+      expect((await calcularTotales(cliente, 10)).propina).toBe(propina);
+    }
+  });
+
+  it('usa 10 % si el porcentaje guardado es inválido o falta', async () => {
+    for (const guardado of [null, undefined, '1', '31', 'abc']) {
+      const { cliente } = crearCliente([
+        { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] },
+        { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: false, cobrar_propina: true, propina_porcentaje: guardado }] },
+      ]);
+      expect((await calcularTotales(cliente, 10)).propina).toBe(20);
+    }
+  });
+
+  it('no cobra ITBIS ni propina si el negocio no los activó o no hay configuración', async () => {
+    for (const filas of [[{ cobrar_itbis: false, cobrar_propina: false, propina_porcentaje: '10' }], [{ cobrar_itbis: null, cobrar_propina: null }], []]) {
+      const { cliente } = crearCliente([
+        { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '18')] },
+        { match: NEGOCIO_SQL, rows: filas },
+      ]);
+      const totales = await calcularTotales(cliente, 10);
+      expect(totales.itbis).toBe(0);
+      expect(totales.propina).toBe(0);
+      expect(totales.total).toBe(200);
+    }
+  });
+
   it('rechaza cobrar una cuenta sin productos activos', async () => {
     const { cliente } = crearCliente([
       { match: DETALLES_SQL, rows: [] },
@@ -196,5 +241,25 @@ describe('cuentaAbiertaParaMesa', () => {
     const { cliente, llamadas } = crearCliente([{ match: CUENTA_SQL, rows: [] }]);
     await cuentaAbiertaParaMesa(cliente, 4);
     expect(llamadas[0].sql).not.toContain('FOR UPDATE');
+  });
+});
+
+describe('validarPagoMixto', () => {
+  it('no valida nada si el pago no es mixto', () => {
+    expect(() => validarPagoMixto(null, -500, 100)).not.toThrow();
+  });
+
+  it('acepta un segundo monto entre 0 y el total', () => {
+    expect(() => validarPagoMixto('Tarjeta', 40, 100)).not.toThrow();
+    expect(() => validarPagoMixto('Tarjeta', 100, 100)).not.toThrow();
+  });
+
+  it('rechaza un monto negativo o no numérico', () => {
+    expect(() => validarPagoMixto('Tarjeta', -500, 100)).toThrow(/no es válido/);
+    expect(() => validarPagoMixto('Efectivo', Number.NaN, 100)).toThrow(/no es válido/);
+  });
+
+  it('rechaza un monto mayor al total de la cuenta', () => {
+    expect(() => validarPagoMixto('Transferencia', 100.01, 100)).toThrow(/no puede superar/);
   });
 });

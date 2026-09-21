@@ -5,6 +5,7 @@ import { toastAviso, toastError } from '../Toast.jsx';
 import ConfirmModal from '../ConfirmModal';
 import { Package, Plus, Tag, Upload, Pencil, Trash2, X, Check, Search, Download } from 'lucide-react';
 import './admin.css';
+import { destinoDeCategoria, esCategoriaBebida } from '../../utils/destinoMenu.js';
 
 const TABS = [
   { id: 'productos', etiqueta: 'Productos', icono: Package },
@@ -44,9 +45,9 @@ const EMPTY_PRODUCTO = {
   es_plato_fuerte: true,
   es_postre: false,
   es_guarnicion: false,
-  aplica_itbis: true,
+  aplica_itbis: false,
   tasa_itbis: 18,
-  aplica_propina: true,
+  aplica_propina: false,
   tasa_propina: 10,
   requiere_guarnicion: false,
   requiere_termino: false
@@ -79,12 +80,6 @@ function GestionProductos({ apiUrl }) {
   const [editandoOpcionNombre, setEditandoOpcionNombre] = useState('');
   const [editandoOpcionGrupo, setEditandoOpcionGrupo] = useState('alimentos');
 
-  const [catNombre, setCatNombre] = useState('');
-  const [catGrupo, setCatGrupo] = useState('alimentos');
-  const [editandoCatId, setEditandoCatId] = useState(null);
-  const [editandoCatNombre, setEditandoCatNombre] = useState('');
-  const [editandoCatGrupo, setEditandoCatGrupo] = useState('alimentos');
-
   const [archivoImportacion, setArchivoImportacion] = useState(null);
   const [archivoImportacionValido, setArchivoImportacionValido] = useState(true);
   const [importandoProductos, setImportandoProductos] = useState(false);
@@ -110,19 +105,24 @@ function GestionProductos({ apiUrl }) {
           setNuevoProducto(prev => (!prev.categoria || prev.categoria === 'Cocina' || prev.categoria === 'Bar') ? { ...prev, categoria: cats[0].nombre } : prev);
         }
       }
-    } catch (e) { console.error("Error categorías"); }
+    } catch { console.error("Error categorías"); }
   };
 
   const cargarProductos = async () => {
     try {
       const res = await fetch(`${apiUrl}/api/productos`, { headers: authHeaders() });
       setProductos(await res.json());
-    } catch (e) { console.error("Error productos"); }
+    } catch { console.error("Error productos"); }
   };
 
   useEffect(() => { cargarProductos(); cargarCategorias(); }, []);
 
-  const manejarCambioInput = (e) => setNuevoProducto({ ...nuevoProducto, [e.target.name]: e.target.value });
+  const manejarCambioInput = (e) => {
+    const { name, value } = e.target;
+    // El destino (alimento/bebida) sigue al grupo de la categoría elegida.
+    if (name === 'categoria') setNuevoProducto({ ...nuevoProducto, categoria: value, tipo_destino: destinoDeCategoria(value, categoriasMenu) });
+    else setNuevoProducto({ ...nuevoProducto, [name]: value });
+  };
 
   const manejarArchivo = (e) => {
     setArchivoImagen(e.target.files[0]);
@@ -166,7 +166,7 @@ function GestionProductos({ apiUrl }) {
         const data = await res.json();
         toastAviso(data.error || 'Error guardando producto.');
       }
-    } catch (e) { toastError("Error guardando producto."); }
+    } catch { toastError("Error guardando producto."); }
   };
 
   const abrirEdicion = (prod) => {
@@ -237,7 +237,7 @@ function GestionProductos({ apiUrl }) {
         const data = await res.json();
         toastAviso(data.error || 'Error actualizando producto.');
       }
-    } catch (e) { toastError("Error actualizando producto."); }
+    } catch { toastError("Error actualizando producto."); }
   };
 
   const eliminarProducto = (id, nombre) => {
@@ -248,38 +248,6 @@ function GestionProductos({ apiUrl }) {
         cargarProductos();
       }
     });
-  };
-
-  const crearCategoria = async () => {
-    if (!catNombre.trim()) return toastAviso('Escribe el nombre de la categoría.');
-    try {
-      const res = await fetch(`${apiUrl}/api/menu-configuracion/categorias`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: catNombre.trim(), grupo: catGrupo })
-      });
-      if (res.ok) {
-        toastAviso('✅ Categoría creada exitosamente.');
-        setCatNombre('');
-        cargarCategorias();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toastError(err.error || 'Error creando categoría.');
-      }
-    } catch (e) {
-      toastError('Error de conexión al crear categoría.');
-    }
-  };
-
-  const guardarEdicionCategoria = async (id) => {
-    if (!editandoCatNombre.trim()) return;
-    const res = await fetch(`${apiUrl}/api/menu-configuracion/categorias/${id}`, {
-      method: 'PUT',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: editandoCatNombre.trim(), grupo: editandoCatGrupo })
-    });
-    if (res.ok) { toastAviso('Categoría actualizada'); setEditandoCatId(null); cargarCategorias(); }
-    else { toastError('Error actualizando categoría'); }
   };
 
   const eliminarCategoria = (id, nombre) => {
@@ -482,7 +450,7 @@ function GestionProductos({ apiUrl }) {
                 ) : (
                   categoriasMenu.map((cat) => (
                     <option key={cat.id} value={cat.nombre}>
-                      {cat.nombre} {cat.grupo === 'bebidas' ? '(Bebidas)' : '(Alimentos)'}
+                      {cat.nombre} {esCategoriaBebida(cat.nombre, categoriasMenu) ? '(Bebidas)' : '(Alimentos)'}
                     </option>
                   ))
                 )}
@@ -626,7 +594,7 @@ function GestionProductos({ apiUrl }) {
                         />
                         <div>
                           <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>⚖️ Propina Legal (10%)</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_propina ? 'Ley 16-92 (10%)' : 'Exenta (0%)'}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_propina ? 'Aplica propina' : 'Sin propina'}</span>
                         </div>
                       </label>
                     </div>
@@ -797,7 +765,7 @@ function GestionProductos({ apiUrl }) {
                     const err = await res.json().catch(() => ({}));
                     toastError(err.error || 'Error al crear elemento');
                   }
-                } catch (e) {
+                } catch {
                   toastError('Error de conexión con el servidor.');
                 }
               }}
@@ -950,8 +918,8 @@ function GestionProductos({ apiUrl }) {
               <div><code style={{ color: 'var(--text-primary)' }}>nombre</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Nombre del producto.</div>
               <div><code style={{ color: 'var(--text-primary)' }}>precio</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Precio en RD$ (ej. 650.00).</div>
               <div><code style={{ color: 'var(--text-primary)' }}>categoria</code>: <span>(Opcional)</span> Alimentos, Bar, Postres...</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>tasa_itbis</code>: <span>(Opcional)</span> 18 (por defecto) o 0 (exento).</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> 10 (por defecto), 0 o NO.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>tasa_itbis</code>: <span>(Opcional)</span> 0 (exento, por defecto), 16 o 18.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> 0 o NO (por defecto), o 10 / SI para aplicarla.</div>
               <div><code style={{ color: 'var(--text-primary)' }}>imagen_url</code>: <span>(Opcional)</span> Enlace URL a la foto.</div>
             </div>
           </div>
@@ -1063,13 +1031,13 @@ function GestionProductos({ apiUrl }) {
 
               <div className="form-group">
                 <label>Categoría del Menú</label>
-                <select className={inputClass} value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value })}>
+                <select className={inputClass} value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value, tipo_destino: destinoDeCategoria(e.target.value, categoriasMenu) })}>
                   {categoriasMenu.length === 0 ? (
                     <option value="">-- No hay categorías registradas --</option>
                   ) : (
                     categoriasMenu.map((cat) => (
                       <option key={cat.id} value={cat.nombre}>
-                        {cat.nombre} {cat.grupo === 'bebidas' ? '(Bebidas)' : '(Alimentos)'}
+                        {cat.nombre} {esCategoriaBebida(cat.nombre, categoriasMenu) ? '(Bebidas)' : '(Alimentos)'}
                       </option>
                     ))
                   )}
@@ -1211,7 +1179,7 @@ function GestionProductos({ apiUrl }) {
                           />
                           <div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>⚖️ Propina (10%)</span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_propina ? 'Ley (10%)' : 'Exenta'}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_propina ? 'Aplica propina' : 'Sin propina'}</span>
                           </div>
                         </label>
                       </div>

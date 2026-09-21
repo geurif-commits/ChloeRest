@@ -61,8 +61,14 @@ interface IRegistroFila {
 /** Horarios de turno del negocio (tenant del contexto actual); por defecto Turno 1 10-17 y Turno 2 17-24. */
 async function cargarConfigTurnos(): Promise<IConfigTurnos> {
   const db = getDatabase();
-  const r = await db.query<{ turnos_config: unknown }>('SELECT turnos_config FROM configuracion_sistema ORDER BY id LIMIT 1');
-  return configTurnosDesdeBd(r.rows[0]?.turnos_config);
+  try {
+    const r = await db.query<{ turnos_config: unknown }>('SELECT turnos_config FROM configuracion_sistema ORDER BY id LIMIT 1');
+    return configTurnosDesdeBd(r.rows[0]?.turnos_config);
+  } catch (error) {
+    // Columna aún no migrada (048): se usan los horarios por defecto en lugar de fallar todo el módulo.
+    if ((error as { code?: string }).code === '42703') {return configTurnosDesdeBd(null);}
+    throw error;
+  }
 }
 
 /** Enriquece una fila con horas trabajadas y alertas de puntualidad. */

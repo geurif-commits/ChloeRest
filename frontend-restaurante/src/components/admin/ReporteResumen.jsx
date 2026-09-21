@@ -25,7 +25,7 @@ function ReporteResumen({ apiUrl }) {
             facturasDetalladas: []
           });
         }
-      } catch (e) { console.error("Error cargando reportes"); }
+      } catch { console.error("Error cargando reportes"); }
     };
     cargarReportes();
   }, [apiUrl]);

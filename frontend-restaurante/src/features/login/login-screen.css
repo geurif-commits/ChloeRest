@@ -19,9 +19,9 @@
 
 /* ───────── Panel de marca (izquierda) ───────── */
 .lg-brand {
-  --b-text: #e8f3ec;
-  --b-text-2: #a9c4b4;
-  --b-acc: #66d99b;
+  --b-text: #f6eddb;
+  --b-text-2: #d2bd93;
+  --b-acc: #e6bc5a;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -32,6 +32,10 @@
   background: var(--brand-ink, #0f2a1b);
   color: var(--b-text);
 }
+:root[data-theme="negro-brillante"] .lg-brand { --b-text: #e6ecff; --b-text-2: #9fb0d8; --b-acc: #8fb4ff; }
+:root[data-theme="negro-brillante"] .lg-saver { --s-text: #e6ecff; --s-text-2: #9fb0d8; }
+:root[data-theme="negro-brillante"][data-paleta="esmeralda"] .lg-brand { --b-text: #e8f3ec; --b-text-2: #a9c4b4; --b-acc: #66d99b; }
+:root[data-theme="negro-brillante"][data-paleta="esmeralda"] .lg-saver { --s-text: #eef4ef; --s-text-2: #a9c4b4; }
 .lg-brand__bg {
   position: absolute; inset: 0; background-size: cover; background-position: center; opacity: .28; mix-blend-mode: luminosity;
 }
@@ -59,8 +63,8 @@
 .lg-server__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--b-acc); animation: lg-ping 2.2s infinite; }
 .lg-server.is-off .lg-server__dot { background: #ff8f85; animation: none; }
 @keyframes lg-ping {
-  0% { box-shadow: 0 0 0 0 rgba(102, 217, 155, .55); }
-  70%, 100% { box-shadow: 0 0 0 8px rgba(102, 217, 155, 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--b-acc) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 8px transparent; }
 }
 
 .lg-clock__greeting { font-size: 16px; color: var(--b-text-2); }
@@ -195,12 +199,12 @@ html.is-electron .lg-pin__top { padding-right: var(--px-winctl-w, 0px); }
 .lg-chipbtn.is-on { background: var(--px-ink); border-color: var(--px-ink); color: var(--px-surface); }
 
 .lg-saver {
-  --s-text: #eef4ef; --s-text-2: #a9c4b4;
+  --s-text: #f6eddb; --s-text-2: #d2bd93;
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; overflow: hidden; cursor: pointer; text-align: center; padding: 24px;
   background: var(--brand-ink, #0f2a1b); color: var(--s-text); animation: lg-fade .6s ease;
 }
-:root[data-login-skin="marfil"] .lg-saver { --s-text: #f6eddb; --s-text-2: #d2bd93; }
 :root[data-login-skin="medianoche"] .lg-saver { --s-text: #e6ecff; --s-text-2: #97a8d6; }
+:root[data-login-skin="bosque"] .lg-saver { --s-text: #eef4ef; --s-text-2: #a9c4b4; }
 @keyframes lg-fade { from { opacity: 0; } }
 .lg-saver p { margin: 0; }
 .lg-saver__time { font-size: clamp(64px, 13vw, 168px); font-weight: 700; letter-spacing: -.045em; line-height: 1.14; font-variant-numeric: tabular-nums; }

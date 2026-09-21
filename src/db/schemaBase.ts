@@ -6,6 +6,8 @@
  */
 
 export const SCHEMA_BASE_SQL: string = `
+-- empresas debe existir antes de metodos_pago (que la referencia) en instalaciones frescas.
+CREATE TABLE IF NOT EXISTS empresas (   id SERIAL PRIMARY KEY,   nombre VARCHAR(200) NOT NULL,   slug VARCHAR(120) NOT NULL UNIQUE,   estado VARCHAR(20) NOT NULL DEFAULT 'Activa',   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS usuarios (   id SERIAL PRIMARY KEY,   nombre VARCHAR(200) NOT NULL,   rol VARCHAR(50) NOT NULL DEFAULT 'Cajero',   pin VARCHAR(10),   pin_hash TEXT,   estado VARCHAR(20) NOT NULL DEFAULT 'Activo',   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP );
 CREATE TABLE IF NOT EXISTS productos (   id SERIAL PRIMARY KEY,   nombre VARCHAR(200) NOT NULL,   descripcion TEXT,   precio NUMERIC(10,2) NOT NULL DEFAULT 0,   imagen_url TEXT,   categoria VARCHAR(50) DEFAULT 'Cocina',   estado VARCHAR(20) NOT NULL DEFAULT 'Activo' );
 CREATE TABLE IF NOT EXISTS ingredientes (   id SERIAL PRIMARY KEY,   numero_articulo VARCHAR(50),   nombre VARCHAR(200) NOT NULL,   categoria VARCHAR(100),   stock_actual NUMERIC(10,4) NOT NULL DEFAULT 0,   unidad_medida VARCHAR(30) DEFAULT 'Unidad' );

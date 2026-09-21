@@ -14,6 +14,7 @@ import { getDatabase } from '../db/index.js';
 import { registrarAuditoria, type IQueryable } from './auditoriaService.js';
 import { notificarMesas } from '../lib/sse.js';
 import { createLogger } from '../lib/logger.js';
+import { propinaPorcentajeOAlDefecto } from '../lib/propina.js';
 
 const logger = createLogger('cuentasService');
 
@@ -147,6 +148,7 @@ export async function siguienteComprobante(
 interface INegocioConfigFila {
   cobrar_itbis: boolean | null;
   cobrar_propina: boolean | null;
+  propina_porcentaje?: string | number | null;
 }
 
 /**
@@ -189,11 +191,14 @@ export async function calcularTotales(client: IQueryable, cuentaId: number): Pro
   totalGravado = money(totalGravado);
 
   const businessResult = await client.query<INegocioConfigFila>(
-    'SELECT cobrar_itbis, cobrar_propina FROM negocio_config ORDER BY id LIMIT 1 FOR UPDATE'
+    'SELECT cobrar_itbis, cobrar_propina, propina_porcentaje FROM negocio_config ORDER BY id LIMIT 1 FOR UPDATE'
   );
-  const business = businessResult.rows[0] || { cobrar_itbis: true, cobrar_propina: true };
-  const itbis = business.cobrar_itbis === false ? 0 : totalItbis;
-  const propina = business.cobrar_propina === false ? 0 : money(subtotal * 0.1);
+  // ITBIS y propina solo se cobran si el negocio los activó (por defecto están desactivados).
+  const business = businessResult.rows[0] || { cobrar_itbis: false, cobrar_propina: false };
+  const itbis = business.cobrar_itbis === true ? totalItbis : 0;
+  const propina = business.cobrar_propina === true
+    ? money((subtotal * propinaPorcentajeOAlDefecto(business.propina_porcentaje)) / 100)
+    : 0;
 
   return {
     detalles: detailResult.rows,
@@ -260,6 +265,20 @@ export interface ICobrarCuentaParams {
 }
 
 /**
+ * El monto del segundo método de un pago mixto no puede ser negativo ni superar el total de la
+ * cuenta: de lo contrario descuadra el cierre de caja y los reportes 607.
+ */
+export function validarPagoMixto(metodoPago2: string | null, montoPago2: number, total: number): void {
+  if (!metodoPago2) {return;}
+  if (!Number.isFinite(montoPago2) || montoPago2 < 0) {
+    throw httpError(400, 'El monto del segundo método de pago no es válido.');
+  }
+  if (money(montoPago2) > money(total)) {
+    throw httpError(400, 'El monto del segundo método de pago no puede superar el total de la cuenta.');
+  }
+}
+
+/**
  * Cobra (cierra) una cuenta abierta: valida el pago (Efectivo/Tarjeta/
  * Transferencia y mixto), calcula totales, descuenta inventario, toma el NCF,
  * actualiza la cuenta y libera su mesa. Puerto exacto de cobrarCuenta del
@@ -296,6 +315,7 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
     if (!account.rowCount) {throw httpError(404, 'La cuenta no está abierta o no existe.');}
 
     const totals = await calcularTotales(client, cuentaId);
+    validarPagoMixto(metodoPago2, montoPago2, totals.total);
     await descontarInventario(client, totals.detalles);
     const comprobante = await siguienteComprobante(client, tipoComprobante, cuentaId);
 

@@ -5,7 +5,8 @@ import TicketTermico from './TicketTermico';
 import CobroModal from './CobroModal';
 import AperturaModal from './AperturaModal';
 import ConfirmModal from './ConfirmModal';
-import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
+import { redondearMoneda } from '../utils/input.js';
+import { porcentajePropina } from '../utils/dinero.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
 import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote } from 'lucide-react';
 import './caja/caja.css';
@@ -42,8 +43,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
     direccion: 'República Dominicana',
     telefono: '',
     logo_url: '',
-    cobrar_itbis: true,
-    cobrar_propina: true,
+    cobrar_itbis: false,
+    cobrar_propina: false,
+    propina_porcentaje: 10,
     comanda_modo: 'kds',
     ticket_font_family: 'monospace',
     ticket_font_size: '12',
@@ -59,19 +61,13 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [tasaUsd, setTasaUsd] = useState(60.00);
   const [tasaEur, setTasaEur] = useState(65.00);
 
-  const [tipoComprobante, setTipoComprobante] = useState('B02');
+  const [tipoComprobante] = useState('B02');
   const [rncCliente, setRncCliente] = useState('');
   const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   const [tarjetaMarca, setTarjetaMarca] = useState('Visa');
 
-  const [pagoMixto, setPagoMixto] = useState(false);
-  const [metodoPago2, setMetodoPago2] = useState('');
-  const [montoPago2, setMontoPago2] = useState('');
-  const [bancoPago2, setBancoPago2] = useState('');
-
   const [ultimaFacturaEmitida, setUltimaFacturaEmitida] = useState(null);
   const [ticketPrechequeModal, setTicketPrechequeModal] = useState(null);
-  const [mostrandoTicket, setMostrandoTicket] = useState(false);
   const [montoEntregado, setMontoEntregado] = useState('');
 
   const [efectivoFisico, setEfectivoFisico] = useState('');
@@ -272,7 +268,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
             'Error al registrar la apertura de caja.'
         );
       }
-    } catch (err) {
+    } catch {
       toastError(
         'Error de conexion al registrar la apertura de caja.'
       );
@@ -333,10 +329,13 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           '',
 
         cobrar_itbis:
-          data.cobrar_itbis ?? true,
+          data.cobrar_itbis ?? false,
 
         cobrar_propina:
-          data.cobrar_propina ?? true,
+          data.cobrar_propina ?? false,
+
+        propina_porcentaje:
+          porcentajePropina(data),
 
         comanda_modo:
           data.comanda_modo || 'kds',
@@ -462,8 +461,6 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         }
       );
 
-      const data = await res.json();
-
       if (res.ok) {
         setMostrandoPinVerificacion(false);
         setPinVerificacion('');
@@ -578,7 +575,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           `Error al abrir la mesa: ${errData.error}`
         );
       }
-    } catch (error) {
+    } catch {
       toastError(
         'Error de conexion con el servidor de mesas.'
       );
@@ -603,7 +600,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
   const propina = redondearMoneda(
     configNegocio.cobrar_propina
-      ? subtotal * 0.10
+      ? (subtotal * porcentajePropina(configNegocio)) / 100
       : 0
   );
 
@@ -796,7 +793,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       } else {
         toastError(data.error);
       }
-    } catch (error) {
+    } catch {
       toastError(
         'Error de conexion al procesar el cobro.'
       );
@@ -860,7 +857,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       } else {
         toastError(data.error);
       }
-    } catch (err) {
+    } catch {
       toastError(
         'Error de red al guardar el arqueo de caja.'
       );
@@ -882,7 +879,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
       setCierreCajaData(data);
       setVistaActual('cierre');
-    } catch (error) {
+    } catch {
       toastError(
         'Error al generar el reporte de caja.'
       );
@@ -1546,8 +1543,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 }}
               >
                 <span>
-                  Propina Legal
-                  (10%):
+                  Propina ({porcentajePropina(configNegocio)}%):
                 </span>
 
                 <strong>

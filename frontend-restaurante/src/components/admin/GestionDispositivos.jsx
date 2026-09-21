@@ -5,7 +5,7 @@ import { toastAviso } from '../Toast.jsx';
 import {
   Monitor, CheckCircle2, Ban, Laptop, RefreshCw,
   Power, ShieldCheck, Clock, Wifi, Info, Trash2,
-  Smartphone, Tablet, Globe, Cpu
+  Smartphone, Tablet, Cpu
 } from 'lucide-react';
 import './admin.css';
 

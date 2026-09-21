@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
+import { porcentajePropina } from '../utils/dinero.js';
 import { toastAviso } from './Toast.jsx';
 import { Banknote, CreditCard, Landmark, UtensilsCrossed, ArrowLeft, ArrowRight, FileText, Check, Layers } from 'lucide-react';
 import './caja/caja.css';
@@ -76,8 +77,6 @@ export default function CobroModal({ config, onClose }) {
   if (monedaPago2 === 'USD') montoPago2DOP = redondearMoneda(montoPago2Num * tasaUsd);
   if (monedaPago2 === 'EUR') montoPago2DOP = redondearMoneda(montoPago2Num * tasaEur);
 
-  const totalPagadoMixto = (metodoPago === 'Efectivo' ? montoEntregadoDOP : metodoPago === 'Transferencia' ? montoPago2DOP : total) +
-    (pagoMixto && metodoPago2 === 'Transferencia' ? montoPago2DOP : 0);
   const cambioDevolver = pagoMixto ? 0 : (montoEntregado !== '' ? redondearMoneda(montoEntregadoDOP - total) : 0);
 
   const handleCobro = async () => {
@@ -153,7 +152,7 @@ export default function CobroModal({ config, onClose }) {
               <div className="cobro-totales">
                 <div className="cobro-totales__row"><span>Subtotal</span><strong>RD$ {formatearRD(subtotal)}</strong></div>
                 {configNegocio?.cobrar_itbis && <div className="cobro-totales__row"><span>ITBIS 18%</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
-                {configNegocio?.cobrar_propina && <div className="cobro-totales__row"><span>Propina legal 10%</span><strong>RD$ {formatearRD(propina)}</strong></div>}
+                {configNegocio?.cobrar_propina && <div className="cobro-totales__row"><span>Propina {porcentajePropina(configNegocio)}%</span><strong>RD$ {formatearRD(propina)}</strong></div>}
                 <div className="cobro-totales__row cobro-totales__row--total"><span>Total</span><strong>RD$ {formatearRD(total)}</strong></div>
               </div>
             </div>

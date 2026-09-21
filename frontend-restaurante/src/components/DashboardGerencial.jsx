@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  DollarSign, FileText, TrendingUp, TableProperties,
+  TrendingUp, TableProperties,
   UtensilsCrossed, AlertCircle, Loader2, Sparkles,
-  ChevronLeft, ChevronRight, BarChart2, Flame, Award, Coffee
+  ChevronLeft, ChevronRight, Flame, Award, Coffee
 } from 'lucide-react';
 
 function DashboardGerencial({ apiUrl }) {

@@ -1,5 +1,7 @@
 # AGENTS.md — Guía para Agentes de Código
 
+> **Estado actual del sistema y trabajo reciente: lee primero [ESTADO_DEL_SISTEMA.md](ESTADO_DEL_SISTEMA.md).**
+
 ## ChloeRestaurant POS v2.1.0+ (TypeScript/Elite)
 
 Sistema de POS especializado para restaurantes dominicanos con integración DGII, licenciamiento y gestión multi-empresa.

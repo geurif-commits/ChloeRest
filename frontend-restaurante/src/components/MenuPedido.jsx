@@ -4,7 +4,7 @@ import ProductoGrid from './pedido/ProductoGrid.jsx';
 import PedidoTicket from './pedido/PedidoTicket.jsx';
 import { obtenerSesion } from '../api.js';
 import { sanitizarDecimal } from '../utils/input.js';
-import { calcularTotales, formatearRD as formatearDinero } from '../utils/dinero.js';
+import { calcularTotales, porcentajePropina, formatearRD as formatearDinero } from '../utils/dinero.js';
 import { imprimirComanda } from '../utils/imprimirComanda.js';
 import { toastAviso } from './Toast.jsx';
 import { ArrowLeft, Search, Plus, Check, X, Banknote, CreditCard, Landmark, Receipt } from 'lucide-react';
@@ -41,8 +41,9 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
     direccion: 'República Dominicana',
     telefono: '',
     logo_url: '',
-    cobrar_itbis: true, 
-    cobrar_propina: true,
+    cobrar_itbis: false,
+    cobrar_propina: false,
+    propina_porcentaje: 10,
     comanda_modo: 'kds',
     ticket_font_family: 'Inter',
     ticket_font_size: '12',
@@ -117,7 +118,7 @@ const [mobileTab, setMobileTab] = useState('menu');
           setGuarnicionesDisponibles(guarnicionesList);
           setTerminosDisponibles(terminosList);
         }
-      } catch (err) {
+      } catch {
         setGuarnicionesDisponibles(['Tostones', 'Papas Fritas', 'Arroz Blanco', 'Vegetales Salteados', 'Puré de Papas']);
         setTerminosDisponibles(['Término Medio (Medium)', 'Tres Cuartos (3/4)', 'Bien Cocido (Well Done)']);
       }
@@ -140,8 +141,9 @@ const [mobileTab, setMobileTab] = useState('menu');
         direccion: data.direccion || 'República Dominicana',
         telefono: data.telefono || '',
         logo_url: data.logo_url || '',
-        cobrar_itbis: data.cobrar_itbis ?? true,
-        cobrar_propina: data.cobrar_propina ?? true,
+        cobrar_itbis: data.cobrar_itbis ?? false,
+        cobrar_propina: data.cobrar_propina ?? false,
+        propina_porcentaje: porcentajePropina(data),
         comanda_modo: data.comanda_modo || 'kds',
         ticket_font_family: data.ticket_font_family || 'Inter',
         ticket_font_size: data.ticket_font_size || '12',
@@ -294,7 +296,7 @@ const [mobileTab, setMobileTab] = useState('menu');
         const errorData = await res.json();
         toastAviso(`❌ Error al enviar comanda: ${errorData.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("⚠️ Error de conexión con el servidor.");
     } finally {
       setEnviandoComanda(false);
@@ -346,7 +348,7 @@ const [mobileTab, setMobileTab] = useState('menu');
       } else {
         toastAviso(`❌ Error al anular: ${data.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("No se pudo validar la autorización. El producto no fue eliminado.");
     } finally {
       setProcesandoAnulacion(false);
@@ -381,7 +383,7 @@ const [mobileTab, setMobileTab] = useState('menu');
       } else {
         toastAviso(`❌ Error: ${data.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("⚠️ Error de conexión al trasladar mesa.");
     }
   };
@@ -401,7 +403,7 @@ const [mobileTab, setMobileTab] = useState('menu');
       camarero: mesa.camarero || usuario.nombre,
       items: cuentaActual,
       subtotal: totalOriginal,
-       ...calcularTotales(cuentaActual, { cobrarItbis: configNegocio.cobrar_itbis, cobrarPropina: configNegocio.cobrar_propina }),
+       ...calcularTotales(cuentaActual, { cobrarItbis: configNegocio.cobrar_itbis, cobrarPropina: configNegocio.cobrar_propina, tasaPropina: porcentajePropina(configNegocio) / 100 }),
       fecha: new Date().toLocaleString(),
       ticketConfig: {
         font_family: configNegocio.ticket_font_family,
@@ -454,7 +456,7 @@ const [mobileTab, setMobileTab] = useState('menu');
       } else {
         toastAviso(`❌ ${data.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("⚠️ Error al procesar la factura.");
     } finally {
       setProcesandoFactura(false);
@@ -466,6 +468,7 @@ const [mobileTab, setMobileTab] = useState('menu');
   const totalesFactura = calcularTotales([...cuentaActual, ...comandaNueva], {
     cobrarItbis: configNegocio.cobrar_itbis,
     cobrarPropina: configNegocio.cobrar_propina,
+    tasaPropina: porcentajePropina(configNegocio) / 100,
   });
   const { subtotal: subtotalFactura, itbis, propina: propinaLey, total: totalAPagar } = totalesFactura;
   const granTotal = subtotalFactura;
@@ -528,6 +531,7 @@ const [mobileTab, setMobileTab] = useState('menu');
         subtotalFactura={subtotalFactura}
         itbis={itbis}
         propinaLey={propinaLey}
+        propinaPorcentaje={porcentajePropina(configNegocio)}
         totalAPagar={totalAPagar}
         esCajero={esCajero}
         onIncrementar={incrementarProducto}
@@ -626,7 +630,7 @@ const [mobileTab, setMobileTab] = useState('menu');
             <div className="po-sum">
               <div><span>Subtotal</span><strong>RD$ {formatearRD(subtotalFactura)}</strong></div>
               {configNegocio.cobrar_itbis && <div><span>ITBIS 18%</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
-              {configNegocio.cobrar_propina && <div><span>Propina legal 10%</span><strong>RD$ {formatearRD(propinaLey)}</strong></div>}
+              {configNegocio.cobrar_propina && <div><span>Propina {porcentajePropina(configNegocio)}%</span><strong>RD$ {formatearRD(propinaLey)}</strong></div>}
               <div className="po-sum__total"><span>Total a pagar</span><strong>RD$ {formatearRD(totalAPagar)}</strong></div>
             </div>
 

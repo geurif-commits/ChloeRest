@@ -3,7 +3,7 @@ import { Lock, Phone, KeyRound } from 'lucide-react';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 import PinPad from './PinPad.jsx';
 
-function BloqueoLicencia({ motivo, contacto, apiUrl, alIniciarSesionAdmin }) {
+function BloqueoLicencia({ motivo, apiUrl, alIniciarSesionAdmin }) {
   const [mostrandoLogin, setMostrandoLogin] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -43,7 +43,7 @@ function BloqueoLicencia({ motivo, contacto, apiUrl, alIniciarSesionAdmin }) {
       } else {
         alIniciarSesionAdmin(data);
       }
-    } catch (err) {
+    } catch {
       setError('Error al conectar con el servidor.');
       setPin('');
     } finally {

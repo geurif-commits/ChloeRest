@@ -15,6 +15,8 @@ import { ROLES_ADMIN, ROLES_CAJA } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
 import { config } from '../lib/config.js';
 import { configTurnosAJson, configTurnosDesdeBd } from '../services/asistenciaService.js';
+import { esEstiloLoginSolicitado, esTemaSolicitado, normalizarEstiloLogin, normalizarTema } from '../lib/temas.js';
+import { PROPINA_MAX, PROPINA_MIN, propinaPorcentajeOAlDefecto, propinaPorcentajeValido } from '../lib/propina.js';
 
 const router = Router();
 const logger = createLogger('sistemaRouter');
@@ -31,12 +33,6 @@ router.get('/api/app/version', route(async (_req: Request, res: Response) => {
   });
 }));
 
-/** Estilos de la pantalla de login / PinPad (tres opciones). */
-const LOGIN_THEMES_VALIDOS = ['esmeralda', 'marfil', 'medianoche'];
-const LOGIN_THEME_DEFECTO = 'esmeralda';
-
-/** Temas oficiales del sistema (tres). marfil-dorado es una paleta clara sobre la base claro-luxury-gold. */
-const TEMAS_SISTEMA_VALIDOS = ['claro-luxury-gold', 'negro-brillante', 'marfil-dorado'];
 
 /** true si el valor es un color hexadecimal #RRGGBB (esHex del legacy). */
 function esHex(value: unknown): boolean {
@@ -109,14 +105,12 @@ async function jsonConfiguracion(
     slogan: row.slogan || null,
     logo_url: row.logo_url || alternativos?.logo_url || null,
     fondo_login_url: row.fondo_login_url || null,
-    tema_activo: TEMAS_SISTEMA_VALIDOS.includes(String(row.tema_activo || ''))
-      ? row.tema_activo
-      : 'claro-luxury-gold',
+    tema_activo: normalizarTema(row.tema_activo),
     estilo_login: row.estilo_login || 'moderno',
     color_primario: row.color_primario || null,
     color_secundario: row.color_secundario || null,
     opacidad_fondo: Number(row.opacidad_fondo || 1),
-    login_theme: LOGIN_THEMES_VALIDOS.includes(String(row.login_theme || '')) ? row.login_theme : LOGIN_THEME_DEFECTO,
+    login_theme: normalizarEstiloLogin(row.login_theme),
     login_marca_tamano: row.login_marca_tamano || 'grande',
     color_acento: row.color_acento || null,
     fondo_tipo: row.fondo_tipo || 'imagen',
@@ -241,6 +235,7 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
       email: negocio.email || null,
       cobrar_itbis: !!negocio.cobrar_itbis,
       cobrar_propina: !!negocio.cobrar_propina,
+      propina_porcentaje: propinaPorcentajeOAlDefecto(negocio.propina_porcentaje),
       tasa_usd: Number(negocio.tasa_usd || 0),
       tasa_eur: Number(negocio.tasa_eur || 0),
       comanda_modo: negocio.comanda_modo || null,
@@ -259,13 +254,17 @@ router.get('/api/negocio/config', route(async (req: Request, res: Response) => {
   await runWithRequestContext({ empresaId }, async () => {
     const db = getDatabase();
     const result = await db.query<FilaConfiguracion>(
-      `SELECT nombre_comercial AS nombre, nombre_comercial, razon_social, rnc, telefono, direccion,
-              provincia, regimen_fiscal, nombre_cocina, nombre_bar, logo_url, cobrar_itbis,
-              cobrar_propina, tasa_usd, tasa_eur, comanda_modo, ticket_font_family,
-              ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin
+      `SELECT id, empresa_id, nombre_comercial AS nombre, nombre_comercial, razon_social, rnc, telefono, direccion,
+              provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, estado_licencia,
+              licencia_bloqueada, fecha_instalacion, logo_url, cobrar_itbis, cobrar_propina, propina_porcentaje,
+              mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada, tasa_usd, tasa_eur,
+              comanda_modo, ticket_font_family, ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin
          FROM negocio_config ORDER BY id LIMIT 1`
     );
-    res.json(result.rows[0] || { nombre_comercial: 'Mi Restaurante', cobrar_itbis: true, cobrar_propina: true });
+    const fila = result.rows[0];
+    res.json(fila
+      ? { ...fila, propina_porcentaje: propinaPorcentajeOAlDefecto(fila.propina_porcentaje) }
+      : { nombre_comercial: 'Mi Restaurante', cobrar_itbis: false, cobrar_propina: false, propina_porcentaje: propinaPorcentajeOAlDefecto(null) });
   });
 }));
 
@@ -287,13 +286,8 @@ router.put(
     const logoAnterior = typeof row.logo_url === 'string' ? row.logo_url : null;
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : (body.quitar_fondo ? null : fondoAnterior);
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : (body.quitar_logo ? null : logoAnterior);
-    // Solo los tres temas oficiales del sistema.
-    const temasValidos = TEMAS_SISTEMA_VALIDOS;
-    const temaRaw = String(body.tema_activo || '').trim();
-    const temaPrevio = String(row.tema_activo || '').trim();
-    const tema = temasValidos.includes(temaRaw)
-      ? temaRaw
-      : (temasValidos.includes(temaPrevio) ? temaPrevio : 'claro-luxury-gold');
+    // Solo los tres temas oficiales del sistema (lib/temas.ts).
+    const tema = esTemaSolicitado(body.tema_activo) ? normalizarTema(body.tema_activo) : normalizarTema(row.tema_activo);
     const primario = String(body.color_primario || '').trim() || null;
     const secundario = String(body.color_secundario || '').trim() || null;
     const opacidad = Number(body.opacidad_fondo);
@@ -302,9 +296,7 @@ router.put(
       : Number(row.opacidad_fondo || 1);
     const nombre = String(body.nombre_negocio || '').trim() || null;
     const slogan = String(body.slogan || '').trim() || null;
-    const loginTheme = LOGIN_THEMES_VALIDOS.includes(String(body.login_theme || '').trim())
-      ? String(body.login_theme).trim()
-      : (LOGIN_THEMES_VALIDOS.includes(String(row.login_theme || '')) ? String(row.login_theme) : LOGIN_THEME_DEFECTO);
+    const loginTheme = esEstiloLoginSolicitado(body.login_theme) ? normalizarEstiloLogin(body.login_theme) : normalizarEstiloLogin(row.login_theme);
     const marcaTamanosValidos = ['mediano', 'grande', 'gigante'];
     const marcaTamanoRaw = String(body.login_marca_tamano || '').trim();
     const loginMarcaTamano = marcaTamanosValidos.includes(marcaTamanoRaw)
@@ -447,6 +439,12 @@ router.post(
     const ticketLogoPosition = campoTexto(body.ticket_logo_position, 'top');
     const ticketShowQr = body.ticket_show_qr === 'true' || body.ticket_show_qr === true;
     const ticketMargin = campoTexto(body.ticket_margin, 'normal');
+    // Porcentaje de propina (2 % a 30 %). Si el cliente no lo envía se conserva el actual.
+    const propinaEnviada = body.propina_porcentaje !== undefined && String(body.propina_porcentaje).trim() !== '';
+    const propinaPorcentaje = propinaEnviada ? propinaPorcentajeValido(body.propina_porcentaje) : null;
+    if (propinaEnviada && propinaPorcentaje === null) {
+      throw httpError(400, `El porcentaje de propina debe estar entre ${PROPINA_MIN} % y ${PROPINA_MAX} %.`);
+    }
 
     if (values.slice(0, 5).some((value) => !value)) {
       throw httpError(400, 'Completa los datos obligatorios del negocio.');
@@ -463,19 +461,20 @@ router.post(
              cobrar_itbis = $12, cobrar_propina = $13,
              mesa_color_disponible = $15, mesa_color_ocupada = $16, mesa_color_reservada = $17,
              comanda_modo = $18, ticket_font_family = $19, ticket_font_size = $20,
-             ticket_logo_position = $21, ticket_show_qr = $22, ticket_margin = $23
+             ticket_logo_position = $21, ticket_show_qr = $22, ticket_margin = $23,
+             propina_porcentaje = COALESCE($24::numeric, propina_porcentaje)
              ${unblock ? ', licencia_bloqueada = FALSE, fecha_instalacion = CURRENT_TIMESTAMP' : ''}
          WHERE id = $14`,
         [...values, current.rows[0].id, mesaDisp, mesaOcup, mesaRes, comandaModo, ticketFontFamily,
-          ticketFontSize, ticketLogoPosition, ticketShowQr, ticketMargin]
+          ticketFontSize, ticketLogoPosition, ticketShowQr, ticketMargin, propinaPorcentaje]
       );
     } else {
       await db.query(
         `INSERT INTO negocio_config
-         (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis, cobrar_propina, licencia_bloqueada, fecha_instalacion, mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada, comanda_modo, ticket_font_family, ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Activa', $12, $13, FALSE, CURRENT_TIMESTAMP, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+         (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis, cobrar_propina, licencia_bloqueada, fecha_instalacion, mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada, comanda_modo, ticket_font_family, ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin, propina_porcentaje)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Activa', $12, $13, FALSE, CURRENT_TIMESTAMP, $14, $15, $16, $17, $18, $19, $20, $21, $22, COALESCE($23::numeric, 10))`,
         [...values, mesaDisp, mesaOcup, mesaRes, comandaModo, ticketFontFamily, ticketFontSize,
-          ticketLogoPosition, ticketShowQr, ticketMargin]
+          ticketLogoPosition, ticketShowQr, ticketMargin, propinaPorcentaje]
       );
     }
     // Fuente única de logotipo: lo que se suba aquí (Datos de Empresa) se replica

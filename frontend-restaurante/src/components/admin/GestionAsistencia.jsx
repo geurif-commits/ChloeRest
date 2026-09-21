@@ -61,7 +61,10 @@ export default function GestionAsistencia({ apiUrl }) {
         fetch(`${apiUrl}/api/asistencia?${params}`, { headers: headers() }),
         fetch(`${apiUrl}/api/asistencia/en-turno`, { headers: headers() }),
       ]);
-      if (!rReg.ok) throw new Error('No se pudo cargar la asistencia.');
+      if (!rReg.ok) {
+        const d = await rReg.json().catch(() => ({}));
+        throw new Error(d.error ? `No se pudo cargar la asistencia: ${d.error}` : `No se pudo cargar la asistencia (error ${rReg.status}).`);
+      }
       const dReg = await rReg.json();
       setRegistros(dReg.registros || []);
       setEnTurno(rTurno.ok ? await rTurno.json() : []);

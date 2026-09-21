@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { obtenerSesion } from '../../api.js';
-import { toastAviso, toastError } from '../Toast.jsx';
+import { toastAviso } from '../Toast.jsx';
 import ConfirmModal from '../ConfirmModal';
 import {
-  Users, UserPlus, Shield, KeyRound, Search, Pencil, Trash2,
+  Users, UserPlus, Shield, Search, Pencil, Trash2,
   Save, X, CheckCircle2, UserCheck, UtensilsCrossed, Wine,
   CreditCard, Crown, Eye, EyeOff, Lock
 } from 'lucide-react';
@@ -104,7 +104,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
       toastAviso(modoEdicion ? '✅ Usuario actualizado con éxito.' : '✨ Nuevo usuario registrado correctamente.');
       cancelarEdicion();
       cargarUsuarios();
-    } catch (err) {
+    } catch {
       toastAviso('Error de conexión al guardar el usuario.');
     } finally {
       setGuardando(false);

@@ -65,8 +65,16 @@ function resolverFrontendDist(): string | null {
 export const createApp = (): Express => {
   const app = express();
 
-  // Security middleware
-  app.use(helmet());
+  // Security middleware. Las instalaciones locales (Electron/LAN) consultan planes y métodos de pago
+  // al servidor central, así que connect-src permite además ese origen.
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'connect-src': ["'self'", 'https://chloerestaurant.lat'],
+      },
+    },
+  }));
 
   // Detrás de Passenger/cPanel el cliente real viene en el header X-Forwarded-For
   app.set('trust proxy', 1);

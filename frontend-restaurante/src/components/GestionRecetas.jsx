@@ -3,8 +3,7 @@ import { sanitizarDecimal } from '../utils/input.js';
 import { toastAviso } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
 import {
-  ChefHat, Plus, Trash2, Search, ArrowLeft, UtensilsCrossed,
-  Package, Layers, AlertCircle, Save, CheckCircle
+  ChefHat, Plus, Trash2, Search, ArrowLeft, UtensilsCrossed
 } from 'lucide-react';
 
 function GestionRecetas({ alVolver, apiUrl }) {
@@ -82,7 +81,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al guardar insumo en receta.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error al guardar ingrediente en receta.");
     }
   };
@@ -97,7 +96,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
             toastAviso('Insumo removido de la receta.');
             seleccionarProducto(productoSeleccionado);
           }
-        } catch (error) {
+        } catch {
           toastAviso("Error al eliminar ingrediente de receta.");
         }
       }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, TableProperties, Package, ChefHat, Warehouse,
   BarChart3, FileText, CreditCard, Users, Building2, Receipt,
@@ -150,15 +150,6 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
   const [grupoAbierto, setGrupoAbierto] = useState(() => grupoDeModulo(pestana));
   useEffect(() => { setGrupoAbierto(grupoDeModulo(pestana)); }, [pestana]);
 
-  const listaTodosModulos = useMemo(() => {
-    const arr = [];
-    GRUPOS_NAVEGACION.forEach(g => {
-      g.items.forEach(it => {
-        arr.push({ ...it, grupoTitulo: g.titulo });
-      });
-    });
-    return arr;
-  }, []);
 
   return (
     <div className="adm admin-layout">

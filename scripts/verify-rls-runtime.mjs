@@ -8,7 +8,7 @@ for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
   if (match) env[match[1]] = match[2].trim();
 }
 
-const database = process.env.TEST_DATABASE_NAME || 'chlooggp_chloerest';
+const database = process.env.TEST_DATABASE_NAME || env.DB_NAME || 'chlooggp_chloerest';
 const roleName = 'chloerest_rls_probe';
 const password = crypto.randomBytes(18).toString('base64url');
 const quoteIdent = (value) => `"${value.replaceAll('"', '""')}"`;

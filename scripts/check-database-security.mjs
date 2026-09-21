@@ -7,7 +7,7 @@ for (const line of fs.readFileSync('.env', 'utf8').split(/\r?\n/)) {
   if (match) env[match[1]] = match[2].trim();
 }
 
-const database = process.env.TEST_DATABASE_NAME || 'chlooggp_chloerest';
+const database = process.env.TEST_DATABASE_NAME || env.DB_NAME || 'chlooggp_chloerest';
 const client = new pg.Client({
   host: env.DB_HOST || 'localhost',
   port: Number(env.DB_PORT || 5432),

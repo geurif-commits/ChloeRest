@@ -9,6 +9,7 @@
 
 import crypto from 'node:crypto';
 import { hashPin } from '../services/authService.js';
+import { sqlNombreBebida } from '../services/destinoProducto.js';
 import { config } from '../lib/config.js';
 import { createLogger } from '../lib/logger.js';
 import { SCHEMA_BASE_SQL } from './schemaBase.js';
@@ -838,6 +839,56 @@ const migrations: IMigracion[] = [{
       -- Horarios configurables de Turno 1 y Turno 2 (JSON {turno1:{inicio,fin}, turno2:{inicio,fin}, tolerancia_min, anticipacion_min}).
       -- NULL = horarios por defecto (10:00-17:00 y 17:00-24:00). El módulo de turnos viene incluido con la licencia del sistema completo.
       ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS turnos_config JSONB;
+    `,
+  },
+  {
+    id: '049_destino_alimentos_bebidas',
+    sql: `
+      -- Alimentos → Cocina y bebidas → Bar, según el grupo de la categoría (fuente de verdad).
+      -- 1) Categorías: normaliza grupos legacy ('Cocina'/'Bar') y marca como bebidas las de nombre inequívoco (Cervezas, Vinos…).
+      UPDATE menu_categorias SET grupo = CASE WHEN lower(trim(grupo)) IN ('bar', 'bebidas') THEN 'bebidas' ELSE 'alimentos' END;
+      UPDATE menu_categorias SET grupo = 'bebidas'
+       WHERE ${sqlNombreBebida('nombre')};
+      -- 2) Productos: el destino sigue a su categoría.
+      UPDATE productos p SET tipo_destino = CASE WHEN mc.grupo = 'bebidas' THEN 'bar' ELSE 'cocina' END
+        FROM menu_categorias mc
+       WHERE lower(trim(mc.nombre)) = lower(trim(p.categoria))
+         AND mc.empresa_id = p.empresa_id;
+      -- 3) Productos sin categoría en el menú pero con nombre de categoría de bebidas.
+      UPDATE productos SET tipo_destino = 'bar'
+       WHERE ${sqlNombreBebida('categoria')};
+    `,
+  },
+  {
+    id: '050_temas_y_estilos_login',
+    sql: `
+      -- Tres temas (marfil-dorado, negro-brillante, esmeralda-oscuro) y tres estilos de login (sistema, medianoche, bosque).
+      -- El tema claro histórico 'claro-luxury-gold' pasa a 'marfil-dorado'.
+      UPDATE configuracion_sistema SET tema_activo = 'marfil-dorado'
+       WHERE tema_activo IS NULL OR tema_activo NOT IN ('marfil-dorado', 'negro-brillante', 'esmeralda-oscuro');
+      UPDATE configuracion_sistema SET login_theme = 'sistema'
+       WHERE login_theme IS NULL OR login_theme NOT IN ('sistema', 'medianoche', 'bosque');
+      ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'marfil-dorado';
+      ALTER TABLE configuracion_sistema ALTER COLUMN login_theme SET DEFAULT 'sistema';
+    `,
+  },
+  {
+    id: '051_itbis_propina_desactivados',
+    sql: `
+      -- ITBIS y propina quedan desactivados por ahora: se pueden activar desde Datos de la Empresa.
+      -- La propina pasa a ser un porcentaje configurable por negocio (2 % a 30 %; 10 % por defecto).
+      ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS propina_porcentaje NUMERIC(5,2) NOT NULL DEFAULT 10;
+      ALTER TABLE negocio_config DROP CONSTRAINT IF EXISTS chk_negocio_propina_porcentaje;
+      ALTER TABLE negocio_config ADD CONSTRAINT chk_negocio_propina_porcentaje CHECK (propina_porcentaje >= 2 AND propina_porcentaje <= 30);
+      ALTER TABLE negocio_config ALTER COLUMN cobrar_itbis SET DEFAULT FALSE;
+      ALTER TABLE negocio_config ALTER COLUMN cobrar_propina SET DEFAULT FALSE;
+      UPDATE negocio_config SET cobrar_itbis = FALSE, cobrar_propina = FALSE;
+      -- Productos sin ITBIS ni propina (los precios del menú no los incluyen).
+      ALTER TABLE productos ALTER COLUMN aplica_itbis SET DEFAULT FALSE;
+      ALTER TABLE productos ALTER COLUMN tasa_itbis SET DEFAULT 0;
+      ALTER TABLE productos ALTER COLUMN aplica_propina SET DEFAULT FALSE;
+      ALTER TABLE productos ALTER COLUMN tasa_propina SET DEFAULT 0;
+      UPDATE productos SET aplica_itbis = FALSE, tasa_itbis = 0, aplica_propina = FALSE, tasa_propina = 0;
     `,
   },
 ];

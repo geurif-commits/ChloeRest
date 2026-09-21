@@ -2,10 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, X, Plus, Utensils, Sun, Moon } from 'lucide-react';
 import { obtenerSesion } from '../../api.js';
 import { useTemaLocal } from '../../utils/tema.js';
+import { esCategoriaBebida } from '../../utils/destinoMenu.js';
 import SafeImage from '../SafeImage.jsx';
 import './pedido.css';
-
-const bebidasClave = ['bar', 'bebida', 'cerveza', 'ron', 'whiskey', 'vino', 'vodka', 'jugo', 'coctel', 'refresco', 'agua', 'licor'];
 
 const normalizar = (valor) => String(valor || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -45,14 +44,8 @@ function ProductoGrid({
       ...categoriasMenu.map((c) => c.nombre),
       ...productos.map((p) => p.categoria)
     ].filter(Boolean))];
-    const tipos = new Map(categoriasMenu.map((c) => [c.nombre, normalizar(c.tipo || c.tipo_destino)]));
-    const esBebida = (cat) => {
-      const t = tipos.get(cat);
-      if (t) return t === 'bar' || t === 'bebida' || t === 'bebidas';
-      const nombre = normalizar(cat);
-      if (/ceviche|sopa|ensalada|entrada|principal|pasta|pizza|criollo|mofongo|postre/.test(nombre)) return false;
-      return bebidasClave.some((k) => new RegExp(`\\b${k}\\b`).test(nombre));
-    };
+    // El grupo de la categoría (alimentos/bebidas) decide la pestaña; un nombre de bebida (Cervezas…) siempre es bebida.
+    const esBebida = (cat) => esCategoriaBebida(cat, categoriasMenu);
     return { alimentos: todas.filter((c) => !esBebida(c)), bebidas: todas.filter(esBebida) };
   }, [categoriasMenu, productos]);
 

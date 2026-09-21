@@ -19,7 +19,7 @@ export function VistaPreviaProtector({ tipo }) {
 
 /**
  * Protector de pantalla. Los colores salen de --brand-ink y --gold, así que respeta el estilo
- * del login (esmeralda, marfil o medianoche). Se cierra al tocar o con cualquier tecla.
+ * del login y del tema activo. Se cierra al tocar o con cualquier tecla.
  */
 export default function Screensaver({ tipo = 'reloj', hora, fecha, logo, nombre, onClose, onLogoError }) {
   return (

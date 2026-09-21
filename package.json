@@ -8,6 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc --build",
+    "migrate": "tsx scripts/run-migrations.ts",
     "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",

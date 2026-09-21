@@ -3,21 +3,16 @@ import { URL_CENTRAL } from '../configApi.js';
 import {
   Building2,
   CheckCircle2,
-  CreditCard,
   KeyRound,
-  Landmark,
   Mail,
   MapPin,
   Phone,
-  Send,
   ShieldCheck,
-  Utensils,
   Wallet,
   ChevronRight,
   Loader2,
   User,
-  ArrowLeft,
-  Sparkles
+  ArrowLeft
 } from 'lucide-react';
 import './WelcomeScreen.css';
 
@@ -56,7 +51,7 @@ const formatearPrecio = (plan) => {
   return `${plan?.moneda || 'RD$'} ${cifra}`;
 };
 
-function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado }) {
+function WelcomeScreen({ apiUrl, alVolver, planSeleccionado }) {
   const [form, setForm] = useState({ propietario: '', negocio: '', telefono: '', email: '', provincia: 'La Romana' });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');

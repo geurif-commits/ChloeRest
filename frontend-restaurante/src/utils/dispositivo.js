@@ -76,3 +76,22 @@ export function obtenerInfoDispositivo() {
     resolucion: parsed.resolucion
   };
 }
+
+const ACTIVADO_KEY = 'POS_DEVICE_ACTIVADO';
+
+/** Guarda el último estado de activación confirmado por el servidor de este equipo. */
+export function recordarActivacion(activado) {
+  try {
+    if (activado) localStorage.setItem(ACTIVADO_KEY, '1');
+    else localStorage.removeItem(ACTIVADO_KEY);
+  } catch { /* sin almacenamiento local */ }
+}
+
+/** true si el servidor confirmó antes que este equipo está activado (sirve cuando no responde). */
+export function activacionRecordada() {
+  try {
+    return localStorage.getItem(ACTIVADO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}

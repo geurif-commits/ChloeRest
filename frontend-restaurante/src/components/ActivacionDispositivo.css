@@ -88,7 +88,7 @@
 }
 
 .activacion-title {
-  color: #f3d489;
+  color: var(--gold-bright);
   font-size: 1.3rem;
   font-weight: 700;
   margin: 0 0 4px 0;
@@ -124,7 +124,7 @@
 }
 
 .activacion-input:focus {
-  border-color: #f3d489;
+  border-color: var(--gold-bright);
   box-shadow: 0 0 14px color-mix(in srgb, var(--gold) 25%, transparent);
 }
 
@@ -143,7 +143,7 @@
 }
 
 .activacion-submit-btn:not(:disabled) {
-  background: linear-gradient(135deg, #f3d489 0%, #0088ff 100%);
+  background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold) 100%);
   color: #050b14;
   cursor: pointer;
   box-shadow: 0 6px 16px color-mix(in srgb, var(--gold) 30%, transparent);
@@ -171,7 +171,7 @@
   background: rgba(255, 255, 255, 0.08);
   padding: 2px 5px;
   border-radius: 4px;
-  color: #f3d489;
+  color: var(--gold-bright);
   font-size: 0.72rem;
 }
 
@@ -208,7 +208,7 @@
 }
 
 .activacion-contact-title {
-  color: #f3d489;
+  color: var(--gold-bright);
   margin: 0 0 4px 0;
   font-size: 0.78rem;
   font-weight: 600;

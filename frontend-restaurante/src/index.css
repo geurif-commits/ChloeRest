@@ -35,7 +35,6 @@
   }
   /* Tickets térmicos mantienen Courier explícitamente */
   .ticket-termico-impresion,
-  .factura-termico-impresion,
   #area-impresion,
   .ticket-papel {
     font-family: 'Courier New', Courier, monospace !important;

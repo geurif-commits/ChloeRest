@@ -38,6 +38,9 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  // Porcentaje efectivo de la propina de esta cuenta (sirve también al reimprimir facturas antiguas).
+  const porcentajePropinaTicket = subtotal > 0 ? Math.round((Number(propina) / Number(subtotal)) * 1000) / 10 : 0;
+
   // Función para agrupar automáticamente artículos idénticos modificando la cantidad
   const agruparArticulos = (listaItems = []) => {
     const mapa = new Map();
@@ -211,10 +214,12 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
               <span>ITBIS (18%):</span>
               <strong>RD$ {formatearRD(itbis)}</strong>
             </div>
-            <div style={{display: 'flex', justifyContent: 'space-between'}}>
-              <span>Propina Legal (10%):</span>
-              <strong>RD$ {formatearRD(propina)}</strong>
-            </div>
+            {propina > 0 && (
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span>Propina ({porcentajePropinaTicket}%):</span>
+                <strong>RD$ {formatearRD(propina)}</strong>
+              </div>
+            )}
             
             <div style={{borderTop: '2px solid #000', marginTop: '4px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold'}}>
               <span>TOTAL A PAGAR:</span>

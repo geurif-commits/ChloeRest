@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import { alternarTemaLocal, temaActualId } from '../personalizacion.js';
-
-export const TEMA_CLARO = 'claro-luxury-gold';
-export const TEMA_OSCURO = 'negro-brillante';
+import { alternarTemaLocal, esTemaOscuro, temaActualId } from '../personalizacion.js';
 
 /**
  * Tema claro/oscuro del terminal. Se sincroniza con cualquier cambio de tema en <html>
@@ -17,5 +14,5 @@ export function useTemaLocal() {
     return () => obs.disconnect();
   }, []);
 
-  return { tema, esOscuro: tema === TEMA_OSCURO, alternar: alternarTemaLocal };
+  return { tema, esOscuro: esTemaOscuro(tema), alternar: alternarTemaLocal };
 }

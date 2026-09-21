@@ -1,5 +1,15 @@
 const CENTAVOS = 100;
 
+export const PROPINA_MIN = 2;
+export const PROPINA_MAX = 30;
+export const PROPINA_DEFECTO = 10;
+
+/** Porcentaje de propina del negocio (2 % a 30 %); 10 % si no hay un valor válido. */
+export function porcentajePropina(config) {
+  const n = Number(config?.propina_porcentaje);
+  return Number.isFinite(n) && n >= PROPINA_MIN && n <= PROPINA_MAX ? n : PROPINA_DEFECTO;
+}
+
 export function aCentavos(valor) {
   return Math.round((Number(valor || 0) + Number.EPSILON) * CENTAVOS);
 }

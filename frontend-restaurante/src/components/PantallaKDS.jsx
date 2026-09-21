@@ -34,6 +34,7 @@ function reproducirAlertaComanda() {
 function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
   const [pedidosPorMesa, setPedidosPorMesa] = useState({});
   const [actualizadoEn, setActualizadoEn] = useState(null);
+  const [errorCarga, setErrorCarga] = useState('');
   const [confirmData, setConfirmData] = useState(null);
   const conteoPrevio = useRef(0);
   const idsPrevios = useRef(new Set());
@@ -50,7 +51,11 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
       const res = await fetch(`${apiUrl}/api/kds/${tipo}/pedidos`, {
         headers,
       });
-      if (!res.ok) throw new Error('No se pudieron cargar los pedidos.');
+      if (res.status === 401) {
+        window.dispatchEvent(new CustomEvent('pos-sesion-vencida'));
+        return;
+      }
+      if (!res.ok) throw new Error(`No se pudieron cargar los pedidos (error ${res.status}).`);
       const data = await res.json();
       const agrupados = data.reduce((acc, item) => {
         if (!acc[item.mesa]) acc[item.mesa] = [];
@@ -70,8 +75,10 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
 
       setPedidosPorMesa(agrupados);
       setActualizadoEn(new Date());
+      setErrorCarga('');
     } catch (error) {
       console.error('Error cargando pedidos KDS', error);
+      setErrorCarga(error instanceof Error && error.message !== 'Failed to fetch' ? error.message : 'Sin conexión con el servidor. Reintentando…');
     }
   }, [apiUrl, tipo]);
 
@@ -90,7 +97,7 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
         const sseUrl = `${apiUrl}/api/kds/stream?ticket=${encodeURIComponent(ticket)}`;
         eventSource = new EventSource(sseUrl);
 
-        eventSource.onmessage = (e) => {
+        eventSource.onmessage = () => {
           cargarPedidos();
         };
 
@@ -198,6 +205,8 @@ function PantallaKDS({ tipo = 'Cocina', alSalir, apiUrl }) {
           <span>Pedidos ordenados por tiempo de espera</span>
           <span>{actualizadoEn ? `Actualizado ${actualizadoEn.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Actualizando…'}</span>
         </div>
+
+        {errorCarga && <div className="kd-alert" role="alert">{errorCarga}</div>}
 
         <section className="kd-body">
           {pedidos.length === 0 ? (

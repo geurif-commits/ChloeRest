@@ -10,6 +10,7 @@ import { route, httpError } from '../lib/core.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { uploadImagenesSistema, validarImagenesSubidas, uploadUrl } from '../lib/uploads.js';
 import { assertSixDigitPin, hashPin } from '../services/authService.js';
+import { normalizarTema } from '../lib/temas.js';
 
 const router = Router();
 
@@ -71,7 +72,7 @@ router.post('/api/setup/registro', route(async (req: Request, res: Response) => 
           nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis,
           cobrar_propina, licencia_bloqueada, fecha_instalacion, propietario, email, fecha_registro)
          VALUES ($1, $1, '', $3, '', $5, 'Ordinario', 'Cocina', 'Bar', 0, NULL, 'Activa',
-                 TRUE, TRUE, FALSE, CURRENT_TIMESTAMP, $2, $4, CURRENT_TIMESTAMP)`,
+                 FALSE, FALSE, FALSE, CURRENT_TIMESTAMP, $2, $4, CURRENT_TIMESTAMP)`,
         [nombreComercial, propietario, telefono, email, provincia]
       );
     }
@@ -112,10 +113,7 @@ router.post(
     const logoArchivo = archivoDeCampo(req, 'logo_archivo');
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : null;
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : null;
-    const temaRaw = String(req.body.tema_activo || '').trim();
-    const tema = ['claro-luxury-gold', 'negro-brillante', 'marfil-dorado'].includes(temaRaw)
-      ? temaRaw
-      : 'claro-luxury-gold';
+    const tema = normalizarTema(req.body.tema_activo);
     const primario = String(req.body.color_primario || '').trim() || null;
     const secundario = String(req.body.color_secundario || '').trim() || null;
     const opacidad = Number(req.body.opacidad_fondo);

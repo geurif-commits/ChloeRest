@@ -4,7 +4,7 @@ import { obtenerSesion } from '../../api.js';
 import { toastAviso } from '../Toast.jsx';
 import {
   Image as ImageIcon, Upload, Trash2, Save, Store,
-  Eye, RefreshCw, Sliders, Smartphone, Palette
+  Eye, RefreshCw, Sliders
 } from 'lucide-react';
 import { LOGIN_TEMAS } from '../../themes/loginThemes.js';
 import './admin.css';
@@ -19,7 +19,7 @@ export default function LogoFondoSettings({ apiUrl }) {
     slogan: '',
     logo_url: '',
     fondo_login_url: '',
-    login_theme: 'esmeralda',
+    login_theme: 'sistema',
     opacidad_fondo: 1,
   });
   const [fondoArchivo, setFondoArchivo] = useState(null);
@@ -41,7 +41,7 @@ export default function LogoFondoSettings({ apiUrl }) {
             slogan: data.slogan || '',
             logo_url: data.logo_url || '',
             fondo_login_url: data.fondo_login_url || '',
-            login_theme: data.login_theme || 'esmeralda',
+            login_theme: data.login_theme || 'sistema',
             opacidad_fondo: Number(data.opacidad_fondo || 1),
           };
           setConfig(nueva);
@@ -68,7 +68,7 @@ export default function LogoFondoSettings({ apiUrl }) {
       const fd = new FormData();
       fd.append('nombre_negocio', config.nombre_negocio);
       fd.append('slogan', config.slogan);
-      fd.append('login_theme', config.login_theme || 'esmeralda');
+      fd.append('login_theme', config.login_theme || 'sistema');
       fd.append('opacidad_fondo', config.opacidad_fondo);
       if (fondoArchivo) fd.append('fondo_archivo', fondoArchivo);
       else if (config.quitarFondo) fd.append('quitar_fondo', '1');
@@ -364,10 +364,10 @@ export default function LogoFondoSettings({ apiUrl }) {
           style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
         >
           {(() => {
-            const skinActivo = LOGIN_TEMAS.find((t) => t.id === (config.login_theme || 'esmeralda')) || LOGIN_TEMAS[0];
+            const skinActivo = LOGIN_TEMAS.find((t) => t.id === (config.login_theme || 'sistema')) || LOGIN_TEMAS[0];
             const colorAcento = skinActivo.paleta[2] || 'var(--gold, #f5b842)';
             const colorSecundario = skinActivo.paleta[3] || 'var(--gold, #f5b842)';
-            const esClaro = skinActivo.categoria === 'Luz';
+            const esClaro = skinActivo.id === 'sistema' && !document.documentElement.getAttribute('data-theme')?.includes('negro');
 
             return (
               <div className="admin-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -390,7 +390,7 @@ export default function LogoFondoSettings({ apiUrl }) {
                     fontWeight: 700,
                     color: colorAcento
                   }}>
-                    <span>{skinActivo.badge} {skinActivo.nombre}</span>
+                    <span>{skinActivo.nombre}</span>
                   </div>
                 </div>
 

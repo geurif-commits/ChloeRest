@@ -164,3 +164,6 @@ assert(!cors.response.headers.get('access-control-allow-origin'), 'CORS permiti�
 checks.push('CORS');
 
 console.log(`Smoke integration OK (${checks.length} checks): ${checks.join(', ')}`);
+if (!env.BOOTSTRAP_ADMIN_PIN) {
+  console.log('AVISO: BOOTSTRAP_ADMIN_PIN no está definido en .env; se OMITIERON los flujos autenticados (mesas, productos, pedido → KDS → cobro, usuarios).');
+}

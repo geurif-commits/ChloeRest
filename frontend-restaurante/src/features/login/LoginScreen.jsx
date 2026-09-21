@@ -62,6 +62,8 @@ function LoginScreen({
   const [pin, setPin] = useState('');
   const [cargando, setCargando] = useState(false);
   const [modo, setModo] = useState('acceso'); // 'acceso' | 'turno'
+  // Pantalla KDS pedida desde el acceso rápido: los pedidos exigen sesión, así que primero se pide el PIN.
+  const [kdsPendiente, setKdsPendiente] = useState(null); // 'Cocina' | 'Bar' | null
   const [turnoPaso, setTurnoPaso] = useState(null);
   const turnoPinRef = useRef('');
   const [ahora, setAhora] = useState(() => new Date());
@@ -126,7 +128,7 @@ function LoginScreen({
 
         if (res.ok) {
           avisar(`Hola, ${data.usuario?.nombre || data.nombre || ''}`.trim(), 'ok');
-          onLogin(data);
+          onLogin(data, kdsPendiente);
         } else {
           toastError(data.error || 'PIN de acceso incorrecto');
           marcarFallo(data.error || 'PIN incorrecto.');
@@ -140,7 +142,7 @@ function LoginScreen({
         setCargando(false);
       }
     },
-    [apiUrl, cargando, onLogin, avisar, marcarFallo]
+    [apiUrl, cargando, onLogin, avisar, marcarFallo, kdsPendiente]
   );
 
   /* ── Registro de turno (entrada / salida) ── */
@@ -204,6 +206,7 @@ function LoginScreen({
     setTurnoPaso(null);
     setPin('');
     avisar('');
+    setKdsPendiente(null);
     setModo(nuevo);
   }, [cargando, avisar]);
 
@@ -313,7 +316,7 @@ function LoginScreen({
   };
 
   const esTurno = modo === 'turno';
-  const skinFijo = configSistema?.login_theme === 'marfil' || configSistema?.login_theme === 'medianoche';
+  const skinFijo = configSistema?.login_theme === 'medianoche' || configSistema?.login_theme === 'bosque';
 
   return (
     <main className="lg">
@@ -383,8 +386,8 @@ function LoginScreen({
           {!turnoPaso && (
             <>
               <div className="lg-head">
-                <h1>{esTurno ? 'Marca tu turno' : 'Introduce tu PIN'}</h1>
-                <p>{esTurno ? 'Digita tu PIN para registrar tu entrada o tu salida.' : 'Tu PIN abre tu sesión y tus mesas.'}</p>
+                <h1>{esTurno ? 'Marca tu turno' : kdsPendiente ? `PIN para KDS ${kdsPendiente}` : 'Introduce tu PIN'}</h1>
+                <p>{esTurno ? 'Digita tu PIN para registrar tu entrada o tu salida.' : kdsPendiente ? `Ingresa tu PIN para abrir la pantalla de ${kdsPendiente === 'Bar' ? 'bar' : 'cocina'}.` : 'Tu PIN abre tu sesión y tus mesas.'}</p>
               </div>
 
               <div className={`lg-dots ${fallo ? 'is-error' : ''}`} role="img" aria-label={`${pin.length} de ${pinLength} dígitos`}>
@@ -411,9 +414,15 @@ function LoginScreen({
 
               {!esTurno && onVerKDS && (
                 <div className="lg-kds">
-                  <span>Comanderas</span>
-                  <button type="button" className="lg-btn" onClick={() => onVerKDS('Cocina')}><ChefHat size={17} />KDS Cocina</button>
-                  <button type="button" className="lg-btn" onClick={() => onVerKDS('Bar')}><Wine size={17} />KDS Bar</button>
+                  {kdsPendiente ? (
+                    <button type="button" className="lg-btn" onClick={() => { setKdsPendiente(null); setPin(''); avisar(''); }}><ArrowLeft size={16} />Cancelar KDS {kdsPendiente}</button>
+                  ) : (
+                    <>
+                      <span>Comanderas</span>
+                      <button type="button" className="lg-btn" onClick={() => { setPin(''); avisar(''); setKdsPendiente('Cocina'); }}><ChefHat size={17} />KDS Cocina</button>
+                      <button type="button" className="lg-btn" onClick={() => { setPin(''); avisar(''); setKdsPendiente('Bar'); }}><Wine size={17} />KDS Bar</button>
+                    </>
+                  )}
                 </div>
               )}
 

@@ -1,15 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   KeyRound,
-  ShieldCheck,
-  Sparkles,
   Phone,
   Mail,
   Clock,
   ArrowLeft,
   Crown,
-  CreditCard,
-  Delete
+  CreditCard
 } from 'lucide-react';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 import './ActivacionDispositivo.css';

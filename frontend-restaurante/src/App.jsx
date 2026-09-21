@@ -4,7 +4,6 @@ import MapaMesas from './components/MapaMesas';
 import PantallaKDS from './components/PantallaKDS';
 import PanelAdmin from './components/PanelAdmin';
 import BloqueoLicencia from './components/BloqueoLicencia';
-import SafeImage from './components/SafeImage.jsx';
 import ActivacionDispositivo from './components/ActivacionDispositivo';
 import ConfigurarIP from './components/ConfigurarIP';
 import PantallaCaja from './components/PantallaCaja';
@@ -19,7 +18,7 @@ import UpdateBanner from './components/UpdateBanner.jsx';
 import { toastAviso } from './components/Toast.jsx';
 
 import { borrarSesion, cerrarSesionServidor, guardarSesion, obtenerSesion } from './api.js';
-import { obtenerInfoDispositivo, obtenerDeviceId } from './utils/dispositivo.js';
+import { obtenerInfoDispositivo, obtenerDeviceId, recordarActivacion, activacionRecordada } from './utils/dispositivo.js';
 
 import {
   getApiUrl,
@@ -202,9 +201,10 @@ const establecerUsuario = (data) => {
     setUsuario({ ...data.usuario, requiereCambioPin: Boolean(data.requiereCambioPin) });
   };
 
-  const iniciarSesion = (data) => {
+  // kds: 'Cocina' | 'Bar' cuando el acceso rápido a la comandera pidió el PIN antes de abrir la pantalla.
+  const iniciarSesion = (data, kds = null) => {
     establecerUsuario(data);
-    navegarRuta(rutaUsuario(data.usuario));
+    navegarRuta(kds ? `/kds/${String(kds).toLowerCase()}` : rutaUsuario(data.usuario));
   };
 
   const cambiarPinObligatorio = async (nuevoPin) => {
@@ -303,21 +303,11 @@ const navegarRuta = (ruta) => {
     }
   };
 
-const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
-
+  // Mostrar ventana en Electron al montar la app (arranque silencioso -> visible bajo demanda)
   useEffect(() => {
-    const alConectar = () => setRedOnline(true);
-    const alDesconectar = () => setRedOnline(false);
-    window.addEventListener('online', alConectar);
-    window.addEventListener('offline', alDesconectar);
-    // Mostrar ventana en Electron al montar la app (arranque silencioso -> visible bajo demanda)
-    if (esElectronApp && window.electronPOS?.mostrarVentana) {
+    if (esElectronApp() && window.electronPOS?.mostrarVentana) {
       window.electronPOS.mostrarVentana();
     }
-    return () => {
-      window.removeEventListener('online', alConectar);
-      window.removeEventListener('offline', alDesconectar);
-    };
   }, []);
 
   useEffect(() => {
@@ -440,6 +430,11 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
     return () => { cancelado = true; };
   }, [apiUrl]);
 
+  // Recuerda la activación (también cuando se activa desde el asistente o el login) para tolerar fallos del servidor al abrir.
+  useEffect(() => {
+    if (dispositivoActivado === true) recordarActivacion(true);
+  }, [dispositivoActivado]);
+
   // ==========================================================
   // REGISTRAR / VERIFICAR DISPOSITIVO
   // ==========================================================
@@ -469,14 +464,16 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
           if (data.empresaId || data.tenantId) {
             localStorage.setItem('POS_TENANT_ID', String(data.tenantId || data.empresaId));
           }
+          recordarActivacion(Boolean(data.activado));
           setDispositivoActivado(Boolean(data.activado));
         } else {
-          setDispositivoActivado(false);
+          // Límite de solicitudes o fallo del servidor: un equipo ya activado no debe caer al LandingScreen.
+          setDispositivoActivado(activacionRecordada());
         }
       } catch (e) {
         console.error('Error verificando dispositivo:', e);
         if (!cancelado) {
-          setDispositivoActivado(false);
+          setDispositivoActivado(activacionRecordada());
         }
       } finally {
         if (!cancelado) {
@@ -541,8 +538,11 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
   // CONTROL DE INACTIVIDAD
   // ==========================================================
 
+  // Las pantallas KDS (cocina/bar) casi nunca se tocan: cerrar su sesión por inactividad las dejaba sin pedidos.
+  const esPantallaKDS = Boolean(viendoKDS) || usuario?.rol === 'Cocina' || usuario?.rol === 'Bar';
+
   useEffect(() => {
-    if (!usuario) return;
+    if (!usuario || esPantallaKDS) return;
     let timer;
 
     const resetTimer = () => {
@@ -561,11 +561,12 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
       clearTimeout(timer);
       eventos.forEach((evento) => window.removeEventListener(evento, resetTimer));
     };
-  }, [usuario]);
+  }, [usuario, esPantallaKDS]);
 
   useEffect(() => {
     const handler = () => {
       setUsuario(null);
+      setViendoKDS(null);
     };
     window.addEventListener('pos-sesion-vencida', handler);
     return () => {
@@ -628,6 +629,7 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
   useEffect(() => {
     const handler = () => {
       setUsuario(null);
+      setViendoKDS(null);
     };
     window.addEventListener('pos-sesion-vencida', handler);
     return () => {
@@ -690,7 +692,6 @@ const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? na
 
         <BloqueoLicencia
           motivo={estadoLicencia.motivo}
-          contacto={estadoLicencia.contacto}
           apiUrl={apiUrl}
           alIniciarSesionAdmin={(d) => {
 
@@ -989,9 +990,7 @@ if (usuario) {
           apiUrl={apiUrl}
           configSistema={configSistema}
           onLogin={iniciarSesion}
-          onVerKDS={(tipo) => {
-            navegarRuta(`/kds/${String(tipo || 'Cocina').toLowerCase()}`);
-          }}
+          onVerKDS={() => {}}
           servidorOnline={servidorOnline}
           onChangeServer={limpiarServidor}
           onVolver={

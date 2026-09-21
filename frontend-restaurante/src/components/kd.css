@@ -63,3 +63,5 @@
   .kd-grid { grid-template-columns: 1fr; }
   .kd-sub { flex-direction: column; gap: 2px; }
 }
+
+.kd-alert { flex: none; padding: 10px var(--px-gutter); font-size: .85rem; font-weight: 700; color: var(--px-bad); background: var(--red-soft); border-bottom: 1px solid color-mix(in srgb, var(--px-bad) 30%, transparent); }

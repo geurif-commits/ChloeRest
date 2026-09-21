@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { aplicarPersonalizacion, fondoLogin } from '../personalizacion.js';
+import { useRef, useState } from 'react';
+import { aplicarTemaId, fondoLogin } from '../personalizacion.js';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 import { ArrowLeft, ArrowRight, Building2, Check, ImagePlus, PartyPopper, Palette, Rocket, ShieldCheck } from 'lucide-react';
 import './wizard.css';
 
-const DORADO = '#d9a640';
-
 const TEMAS = [
-  { id: 'claro', name: 'Ivory & Gold', color: DORADO },
+  { id: 'marfil-dorado', name: 'Marfil Dorado', color: '#a9761b' },
+  { id: 'negro-brillante', name: 'Oscuro Zafiro', color: '#5e94ff' },
+  { id: 'esmeralda-oscuro', name: 'Oscuro Esmeralda', color: '#46c283' },
 ];
 
 function Campo({ etiqueta, children }) {
@@ -21,27 +21,14 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const [error, setError] = useState('');
   const [nombreNegocio, setNombreNegocio] = useState(config.nombre_negocio || configRegistro?.negocio || '');
   const [slogan, setSlogan] = useState(config.slogan || '');
-  const [temaActivo, setTemaActivo] = useState('claro');
-  const [colorPrimario, setColorPrimario] = useState(config.color_primario || DORADO);
-  const [colorSecundario, setColorSecundario] = useState(config.color_secundario || '');
-  const [opacidad, setOpacidad] = useState(Number(config.opacidad_fondo || 1));
+  const [temaActivo, setTemaActivo] = useState('marfil-dorado');
+  const [opacidad] = useState(Number(config.opacidad_fondo || 1));
   const [fondoArchivo, setFondoArchivo] = useState(null);
   const [logoArchivo, setLogoArchivo] = useState(null);
   const [adminNombre, setAdminNombre] = useState('');
   const [adminPin, setAdminPin] = useState('');
   const fondoRef = useRef(null);
   const logoRef = useRef(null);
-  const temaRef = useRef({ temaActivo, colorPrimario, colorSecundario });
-  const aplicarTemaDebounce = useRef(null);
-
-  useEffect(() => {
-    temaRef.current = { temaActivo, colorPrimario, colorSecundario };
-  }, [temaActivo, colorPrimario, colorSecundario]);
-
-  // Limpia el temporizador de aplicación del tema al desmontar
-  useEffect(() => () => {
-    if (aplicarTemaDebounce.current) clearTimeout(aplicarTemaDebounce.current);
-  }, []);
 
   const necesitaAdmin = !config.tiene_administrador;
   const totalPasos = necesitaAdmin ? 5 : 4;
@@ -64,8 +51,6 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
       fd.append('nombre_negocio', nombreNegocio.trim());
       fd.append('slogan', slogan.trim());
       fd.append('tema_activo', temaActivo);
-      fd.append('color_primario', colorPrimario);
-      fd.append('color_secundario', colorSecundario);
       fd.append('opacidad_fondo', opacidad);
       if (fondoArchivo) fd.append('fondo_archivo', fondoArchivo);
       if (logoArchivo) fd.append('logo_archivo', logoArchivo);
@@ -88,18 +73,11 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
       }
       localStorage.removeItem('pos_theme');
       if (alCompletado) alCompletado(data);
-    } catch (e) {
+    } catch {
       setError('No se pudo conectar con el servidor. Verifica la red e inténtalo de nuevo.');
     } finally {
       setGuardando(false);
     }
-  };
-
-  const aplicarVista = () => {
-    // Aplica el tema en vivo con debounce para no forzar recalculos de estilo
-    // en cada movimiento del color picker (evita congelamientos en Electron).
-    if (aplicarTemaDebounce.current) clearTimeout(aplicarTemaDebounce.current);
-    aplicarTemaDebounce.current = setTimeout(() => aplicarPersonalizacion(temaRef.current), 250);
   };
 
   const pasoVisible = paso;
@@ -108,7 +86,7 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const pct = Math.round(((paso + 1) / totalPasos) * 100);
 
   return (
-    <div className="wz" onLoad={aplicarVista}>
+    <div className="wz">
       {fondoVista && <div className="wz__bg" style={{ backgroundImage: `url(${fondoVista})` }} />}
 
       <div className="wz__card" role="dialog" aria-label="Configuración inicial">
@@ -154,30 +132,16 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
 
         {pasoVisible === 2 && (
           <>
-            <div className="wz__title"><span className="wz__ico"><Palette size={20} /></span><div><h2>Apariencia del sistema</h2><p>Elige el tema, tus colores y las imágenes de la pantalla de PIN.</p></div></div>
+            <div className="wz__title"><span className="wz__ico"><Palette size={20} /></span><div><h2>Apariencia del sistema</h2><p>Elige el tema del sistema y las imágenes de la pantalla de PIN.</p></div></div>
             <Campo etiqueta="Tema">
               <div className="wz__themes">
                 {TEMAS.map((t) => (
-                  <button key={t.id} type="button" title={t.name} className={`wz__theme ${temaActivo === t.id ? 'is-active' : ''}`} onClick={() => { setTemaActivo(t.id); setColorPrimario(t.color); setColorSecundario(''); aplicarVista(); }}>
+                  <button key={t.id} type="button" title={t.name} className={`wz__theme ${temaActivo === t.id ? 'is-active' : ''}`} onClick={() => { setTemaActivo(t.id); aplicarTemaId(t.id); }}>
                     <i style={{ background: t.color }} />{t.name}
                   </button>
                 ))}
               </div>
             </Campo>
-            <div className="wz__two">
-              <Campo etiqueta="Color principal">
-                <div className="wz__color">
-                  <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(colorPrimario) ? colorPrimario : DORADO} onChange={(e) => { setColorPrimario(e.target.value); aplicarVista(); }} aria-label="Color principal" />
-                  <input className="po-input" value={colorPrimario} onChange={(e) => { setColorPrimario(e.target.value); aplicarVista(); }} />
-                </div>
-              </Campo>
-              <Campo etiqueta="Color secundario">
-                <div className="wz__color">
-                  <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(colorSecundario) ? colorSecundario : (/^#[0-9a-fA-F]{6}$/.test(colorPrimario) ? colorPrimario : DORADO)} onChange={(e) => { setColorSecundario(e.target.value); aplicarVista(); }} aria-label="Color secundario" />
-                  <input className="po-input" value={colorSecundario} onChange={(e) => { setColorSecundario(e.target.value); aplicarVista(); }} />
-                </div>
-              </Campo>
-            </div>
             <Campo etiqueta="Logo del negocio (opcional)">
               <label className="wz__file"><ImagePlus size={18} /><span>{logoArchivo ? logoArchivo.name : 'Seleccionar imagen'}</span>
                 <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setLogoArchivo(e.target.files[0])} />

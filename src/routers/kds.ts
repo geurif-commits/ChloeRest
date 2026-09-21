@@ -13,6 +13,7 @@ import { registrarAuditoria } from '../services/auditoriaService.js';
 import { sseClients, sseMesaClients, notificarKDS } from '../lib/sse.js';
 import { consumirTicketSse } from '../lib/sseTickets.js';
 import { UserRole } from '../types/index.js';
+import { SQL_JOIN_CATEGORIA_PRODUCTO, sqlProductoEsBar } from '../services/destinoProducto.js';
 
 const router = Router();
 
@@ -102,120 +103,23 @@ router.get('/api/mesas/stream', autenticarSse, (req: Request, res: Response): vo
   });
 });
 
-// GET /api/kds/:categoria/pedidos (Cocina o Bar): pendientes sin anular de cuentas abiertas
+// GET /api/kds/:categoria/pedidos (Cocina o Bar): pendientes sin anular de cuentas abiertas.
+// El destino sigue al GRUPO de la categoría del producto (alimentos → Cocina, bebidas → Bar); ver destinoProducto.ts.
 router.get('/api/kds/:categoria/pedidos', autorizarKDS, route(async (req: Request, res: Response): Promise<void> => {
   const db = getDatabase();
   const categoria = String(req.params.categoria);
+  if (categoria !== 'Cocina' && categoria !== 'Bar') {throw httpError(400, 'La pantalla debe ser Cocina o Bar.');}
   const result = await db.query<IPedidoKDSFila>(
     `SELECT cd.id AS detalle_id, cd.cantidad, cd.hora_pedido, cd.notas, cd.guarnicion, cd.termino, p.nombre AS producto, p.categoria, COALESCE(m.nombre_numero, 'Para llevar') AS mesa
      FROM cuenta_detalles cd
      JOIN cuentas c ON c.id = cd.cuenta_id
      LEFT JOIN mesas m ON m.id = c.mesa_id
      JOIN productos p ON p.id = cd.producto_id
+     ${SQL_JOIN_CATEGORIA_PRODUCTO}
      WHERE COALESCE(cd.estado_cocina, 'Pendiente') = 'Pendiente'
        AND cd.anulado_en IS NULL
        AND c.estado = 'Abierta'
-       AND (
-         ($1 = 'Bar' AND (
-           LOWER(TRIM(COALESCE(p.tipo_destino, ''))) = 'bar'
-           OR LOWER(TRIM(COALESCE(p.categoria, ''))) IN (
-             'bar', 'bebida', 'bebidas', 'licor', 'licores', 'trago', 'tragos',
-             'coctel', 'cocteles', 'cóctel', 'cócteles', 'cerveza', 'cervezas',
-             'vino', 'vinos', 'ron', 'rones', 'whisky', 'whiskey', 'vodka',
-             'tequila', 'refresco', 'refrescos', 'jugo', 'jugos', 'malta',
-             'soda', 'agua', 'champagne', 'brandy', 'ginebra', 'gin',
-             'mojito', 'margarita', 'sangria', 'sangría', 'ponche', 'batida',
-             'frappe', 'frappé', 'batido', 'batidos', 'limonada', 'tamarindo',
-             'chinola', 'mabi'
-           )
-           OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ' LIKE '% bebida%'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% bar %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% coctel %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% trago %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% licor %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% cerveza %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% jugo %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% refresco %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% vino %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% ron %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% whisky %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% whiskey %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% vodka %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% tequila %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% malta %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% soda %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% champagne %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% mojito %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% margarita %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% sangria %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% ponche %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% batida %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% batido %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% frappe %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% limonada %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% tamarindo %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% chinola %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% mabi %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% brandy %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% ginebra %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% gin %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% morir %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% cóctel %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% sangría %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% frappé %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% mabí %')
-         ))
-         OR
-         ($1 = 'Cocina' AND NOT (
-           LOWER(TRIM(COALESCE(p.tipo_destino, ''))) = 'bar'
-           OR LOWER(TRIM(COALESCE(p.categoria, ''))) IN (
-             'bar', 'bebida', 'bebidas', 'licor', 'licores', 'trago', 'tragos',
-             'coctel', 'cocteles', 'cóctel', 'cócteles', 'cerveza', 'cervezas',
-             'vino', 'vinos', 'ron', 'rones', 'whisky', 'whiskey', 'vodka',
-             'tequila', 'refresco', 'refrescos', 'jugo', 'jugos', 'malta',
-             'soda', 'agua', 'champagne', 'brandy', 'ginebra', 'gin',
-             'mojito', 'margarita', 'sangria', 'sangría', 'ponche', 'batida',
-             'frappe', 'frappé', 'batido', 'batidos', 'limonada', 'tamarindo',
-             'chinola', 'mabi'
-           )
-           OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ' LIKE '% bebida%'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% bar %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% coctel %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% trago %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% licor %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% cerveza %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% jugo %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% refresco %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% vino %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% ron %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% whisky %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% whiskey %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% vodka %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% tequila %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% malta %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% soda %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% champagne %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% mojito %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% margarita %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% sangria %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% ponche %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% batida %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% batido %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% frappe %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% limonada %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% tamarindo %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% chinola %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% mabi %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% brandy %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% ginebra %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% gin %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% morir %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% cóctel %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% sangría %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% frappé %'
-             OR (' ' || LOWER(COALESCE(p.categoria, '')) || ' ') LIKE '% mabí %')
-         ))
-       )
+       AND ${sqlProductoEsBar()} = ($1 = 'Bar')
      ORDER BY cd.hora_pedido ASC`,
     [categoria]
   );

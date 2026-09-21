@@ -47,3 +47,20 @@ WHERE rolname = 'chloerest_app';
 ```
 
 Todos los indicadores deben ser `false`. Después ejecuta el servidor en producción y confirma que `/api/health` responde con la base conectada.
+
+## Cada despliegue con cambios de base de datos
+
+`scripts/deploy.py` compila y reinicia, pero **no migra**. Si la versión trae migraciones nuevas (por ejemplo `047_turnos_empleados` y `048_turnos_config` para Turnos y Asistencia), aplícalas antes de usar la función, con un rol DDL:
+
+```bash
+DB_USER=<rol_ddl> DB_PASSWORD=<...> DB_HOST=<...> DB_NAME=<...> npm run migrate
+```
+
+Después, si el rol de la aplicación no tiene `ALTER DEFAULT PRIVILEGES`, concédele acceso a las tablas nuevas:
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO chloerest_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO chloerest_app;
+```
+
+Comprueba con `GET /api/health`: el campo `migracion` debe ser la última migración de esta versión. Si falta una migración, las pantallas afectadas responden 503 con el mensaje «La base de datos no está actualizada para esta función».

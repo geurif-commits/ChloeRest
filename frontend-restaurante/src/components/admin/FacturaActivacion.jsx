@@ -26,7 +26,7 @@ function FacturaActivacion({ factura, nombreNegocio, alCerrar }) {
         window.print();
         setTimeout(() => document.body.classList.remove('imprimiendo-precheque'), 1000);
       }
-    } catch (err) {
+    } catch {
       window.print();
     }
   };

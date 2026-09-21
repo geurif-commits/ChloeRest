@@ -105,7 +105,7 @@ function LandingScreen({ onAcceder, onRegistrarse, onAccesoPropietario, config, 
     .slice(0, 4);
 
   return (
-    <div className={`ld ld--${claro ? 'light' : 'dark'}`}>
+    <div className={`ld ld--${claro ? 'light' : 'dark'}${landingTheme === 'noir-executive' ? ' ld--emerald' : ''}`}>
       <div className="ld-aura" aria-hidden="true" />
 
       {/* ── Navegación ── */}

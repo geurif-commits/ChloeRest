@@ -5,6 +5,7 @@ import {
   CreditCard, Pencil, Trash2, Plus, CheckCircle2, ShieldCheck, Sparkles,
   RefreshCw
 } from 'lucide-react';
+import { PROPINA_MIN, PROPINA_MAX, porcentajePropina } from '../utils/dinero.js';
 import './admin/admin.css';
 
 const SUBPESTANAS = [
@@ -17,6 +18,8 @@ const SUBPESTANAS = [
 
 export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
   const [subpestana, setSubpestana] = useState('identidad');
+  // Texto que se está escribiendo en el campo de propina (se acota a 2–30 al salir del campo).
+  const [propinaTexto, setPropinaTexto] = useState(null);
   const [formData, setFormData] = useState({
     nombre_comercial: '',
     razon_social: '',
@@ -29,8 +32,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     nombre_bar: 'Bar',
     duracion_meses: 0,
     logo_url: '',
-    cobrar_itbis: true,
-    cobrar_propina: true,
+    cobrar_itbis: false,
+    cobrar_propina: false,
+    propina_porcentaje: 10,
     mesa_color_disponible: '#00f576',
     mesa_color_ocupada: '#ff4444',
     mesa_color_reservada: 'var(--gold)',
@@ -151,8 +155,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
         const data = await res.json();
         setFormData({
           ...data,
-          cobrar_itbis: data.cobrar_itbis ?? true,
-          cobrar_propina: data.cobrar_propina ?? true
+          cobrar_itbis: data.cobrar_itbis ?? false,
+          cobrar_propina: data.cobrar_propina ?? false,
+          propina_porcentaje: porcentajePropina(data)
         });
       }
     } catch {
@@ -168,6 +173,22 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
       ...formData,
       [name]: type === 'checkbox' ? checked : value
     });
+  };
+
+  // Porcentaje de propina: siempre entre PROPINA_MIN y PROPINA_MAX.
+  const cambiarPorcentajePropina = (valor) => {
+    const n = Math.round(Number(valor));
+    const acotado = Number.isFinite(n) ? Math.min(PROPINA_MAX, Math.max(PROPINA_MIN, n)) : PROPINA_MIN;
+    setFormData((actual) => ({ ...actual, propina_porcentaje: acotado }));
+    setPropinaTexto(null);
+  };
+
+  const escribirPorcentajePropina = (texto) => {
+    setPropinaTexto(texto);
+    const n = Number(texto);
+    if (texto !== '' && Number.isFinite(n) && n >= PROPINA_MIN && n <= PROPINA_MAX) {
+      setFormData((actual) => ({ ...actual, propina_porcentaje: Math.round(n) }));
+    }
   };
 
   const handleArchivo = (e) => {
@@ -220,6 +241,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     dataToSend.append('duracion_meses', formData.duracion_meses);
     dataToSend.append('cobrar_itbis', formData.cobrar_itbis);
     dataToSend.append('cobrar_propina', formData.cobrar_propina);
+    dataToSend.append('propina_porcentaje', String(porcentajePropina(formData)));
     dataToSend.append('mesa_color_disponible', formData.mesa_color_disponible);
     dataToSend.append('mesa_color_ocupada', formData.mesa_color_ocupada);
     dataToSend.append('mesa_color_reservada', formData.mesa_color_reservada);
@@ -563,7 +585,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Cargos e Impuestos de Ley</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
-                  Ajusta la aplicación automática de ITBIS y Propina de Ley en cuentas y facturas.
+                  Activa o desactiva el ITBIS y la propina en cuentas y facturas. Por ahora vienen desactivados.
                 </p>
               </div>
             </div>
@@ -592,11 +614,48 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   style={{ width: '18px', height: '18px', accentColor: 'var(--gold, #f5b842)' }}
                 />
                 <div>
-                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Propina Legal (10%)</strong>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Añade el 10% legal de servicio al consumidor</span>
+                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Cobrar propina ({porcentajePropina(formData)}%)</strong>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Añade el porcentaje de propina elegido a cada cuenta</span>
                 </div>
               </label>
             </div>
+
+            {formData.cobrar_propina && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                  <label htmlFor="propina_porcentaje" style={{ color: 'var(--text-primary)', fontSize: '0.88rem', fontWeight: 700 }}>Porcentaje de propina</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      id="propina_porcentaje"
+                      type="number"
+                      min={PROPINA_MIN}
+                      max={PROPINA_MAX}
+                      step="1"
+                      value={propinaTexto ?? porcentajePropina(formData)}
+                      onChange={(e) => escribirPorcentajePropina(e.target.value)}
+                      onBlur={(e) => cambiarPorcentajePropina(e.target.value)}
+                      style={{ width: '72px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)', fontWeight: 700, textAlign: 'right' }}
+                    />
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>%</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={PROPINA_MIN}
+                  max={PROPINA_MAX}
+                  step="1"
+                  value={porcentajePropina(formData)}
+                  onChange={(e) => cambiarPorcentajePropina(e.target.value)}
+                  aria-label="Porcentaje de propina"
+                  style={{ width: '100%', accentColor: 'var(--gold, #f5b842)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
+                  <span>{PROPINA_MIN}%</span>
+                  <span>Se puede elegir de {PROPINA_MIN}% a {PROPINA_MAX}%</span>
+                  <span>{PROPINA_MAX}%</span>
+                </div>
+              </div>
+            )}
 
             <button
               type="button"
