@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  copiarRespaldo,
   depurarRespaldos,
   esNombreDeRespaldo,
   listarRespaldos,
@@ -62,6 +63,39 @@ describe('listar y depurar', () => {
     for (let i = 1; i <= 5; i += 1) { crear(`chloerest_2025010${i}_000001.dump`, 400 + i); }
     depurarRespaldos(dir, 14);
     expect(listarRespaldos(dir)).toHaveLength(3);
+  });
+});
+
+describe('copia a otra carpeta', () => {
+  it('copia el respaldo, deja el original y no deja archivos parciales', () => {
+    crear('chloerest_20260301_010101.dump', 0);
+    const otra = path.join(dir, 'usb', 'respaldos');
+    expect(copiarRespaldo(path.join(dir, 'chloerest_20260301_010101.dump'), otra, 14)).toBe('ok');
+    expect(fs.readdirSync(otra)).toEqual(['chloerest_20260301_010101.dump']);
+    expect(fs.readFileSync(path.join(otra, 'chloerest_20260301_010101.dump'), 'utf8')).toBe('x');
+    expect(fs.existsSync(path.join(dir, 'chloerest_20260301_010101.dump'))).toBe(true);
+  });
+
+  it('aplica la retención en la carpeta de destino, conservando los 3 más recientes', () => {
+    const otra = path.join(dir, 'nube');
+    fs.mkdirSync(otra);
+    for (let i = 1; i <= 4; i += 1) {
+      const archivo = path.join(otra, `chloerest_2026010${i}_000001.dump`);
+      fs.writeFileSync(archivo, 'x');
+      const vieja = new Date(Date.now() - (60 - i) * DIA);
+      fs.utimesSync(archivo, vieja, vieja);
+    }
+    crear('chloerest_20260301_010101.dump', 0);
+    expect(copiarRespaldo(path.join(dir, 'chloerest_20260301_010101.dump'), otra, 14)).toBe('ok');
+    expect(listarRespaldos(otra)).toHaveLength(3);
+    expect(listarRespaldos(otra)[0].nombre).toBe('chloerest_20260301_010101.dump');
+  });
+
+  it('avisa con "fallida" (sin lanzar) si el destino no es utilizable', () => {
+    crear('chloerest_20260301_010101.dump', 0);
+    const ocupado = path.join(dir, 'archivo-normal');
+    fs.writeFileSync(ocupado, 'no soy una carpeta');
+    expect(copiarRespaldo(path.join(dir, 'chloerest_20260301_010101.dump'), path.join(ocupado, 'dentro'), 14)).toBe('fallida');
   });
 });
 

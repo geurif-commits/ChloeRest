@@ -1005,6 +1005,11 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   ? `Respaldo automático activo: cada día a las ${String(respaldos.hora).padStart(2, '0')}:00, se conservan ${respaldos.retencionDias} días.`
                   : 'El respaldo automático está desactivado en este servidor.'}
               </p>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--admin-text-muted)' }}>
+                {respaldos.copiaExternaConfigurada
+                  ? 'Cada respaldo también se copia a la carpeta externa configurada (BACKUP_COPY_DIR).'
+                  : 'Sin copia externa: guarda una copia en una memoria USB o en la nube. Si este equipo falla, los respaldos que estén en él también se pierden.'}
+              </p>
               {!respaldos.herramientaDisponible && (
                 <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.84rem' }}>
                   No se encontró pg_dump en este equipo: instala las herramientas de PostgreSQL para poder respaldar.

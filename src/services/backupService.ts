@@ -27,7 +27,10 @@ export interface IRespaldo {
   creado: string;
 }
 
-export type IRespaldoVerificado = IRespaldo & { verificado: boolean };
+/** Resultado de copiar el respaldo a la segunda carpeta (BACKUP_COPY_DIR). */
+export type ICopiaExterna = 'no_configurada' | 'ok' | 'fallida';
+
+export type IRespaldoVerificado = IRespaldo & { verificado: boolean; copiaExterna: ICopiaExterna };
 
 const dosDigitos = (n: number): string => String(n).padStart(2, '0');
 
@@ -71,6 +74,26 @@ export function depurarRespaldos(dir: string, retencionDias: number, ahora: numb
     }
   });
   return eliminados;
+}
+
+/**
+ * Copia un respaldo ya verificado a otra carpeta (USB, nube sincronizada, red) y aplica allí la misma
+ * depuración. Nunca lanza: un destino caído no debe hacer fallar el respaldo local; se avisa en el log.
+ */
+export function copiarRespaldo(origen: string, dirDestino: string, retencionDias: number): ICopiaExterna {
+  const destino = path.join(dirDestino, path.basename(origen));
+  const parcial = `${destino}.parcial`;
+  try {
+    fs.mkdirSync(dirDestino, { recursive: true });
+    fs.copyFileSync(origen, parcial);
+    fs.renameSync(parcial, destino);
+    depurarRespaldos(dirDestino, retencionDias);
+    return 'ok';
+  } catch (error) {
+    if (fs.existsSync(parcial)) {fs.rmSync(parcial, { force: true });}
+    logger.warn({ action: 'RESPALDO_COPIA_FALLIDA', error: { message: error instanceof Error ? error.message : String(error) } });
+    return 'fallida';
+  }
 }
 
 /** Milisegundos hasta la próxima ejecución diaria a la hora indicada (0–23). */
@@ -180,9 +203,12 @@ export async function crearRespaldo(): Promise<IRespaldoVerificado> {
       throw new Error('El respaldo se creó pero no pasó la verificación (pg_restore --list).');
     }
     const eliminados = depurarRespaldos(dir, config.backup.retentionDays);
+    const copiaExterna: ICopiaExterna = config.backup.copyDir
+      ? copiarRespaldo(destino, config.backup.copyDir, config.backup.retentionDays)
+      : 'no_configurada';
     const stat = fs.statSync(destino);
-    logger.info({ action: 'RESPALDO_CREADO', details: { nombre, bytes: stat.size, eliminados: eliminados.length } });
-    return { nombre, bytes: stat.size, creado: stat.mtime.toISOString(), verificado };
+    logger.info({ action: 'RESPALDO_CREADO', details: { nombre, bytes: stat.size, eliminados: eliminados.length, copiaExterna } });
+    return { nombre, bytes: stat.size, creado: stat.mtime.toISOString(), verificado, copiaExterna };
   } catch (error) {
     if (fs.existsSync(parcial)) {fs.unlinkSync(parcial);}
     logger.error({ action: 'RESPALDO_FALLIDO', error: { message: error instanceof Error ? error.message : String(error) } });

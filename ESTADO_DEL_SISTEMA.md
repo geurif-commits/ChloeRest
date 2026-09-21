@@ -1,7 +1,7 @@
 # ESTADO DEL SISTEMA — ChloeRestaurant POS
 
 > Documento de traspaso para otras IA y desarrolladores. Resume **qué existe, qué se hizo, cómo se verificó y qué falta**.
-> Última actualización: 2026-09-21 (auditoría final y plan ejecutado: ITBIS unificado, descuentos, dividir cuenta, respaldos, seguridad, accesibilidad, CI; antes: rediseño, turnos, KDS, temas, limpieza).
+> Última actualización: 2026-09-21 (v2.3.0: auditoría final y plan ejecutado — ITBIS unificado, descuentos, dividir cuenta, respaldos con copia externa, seguridad, accesibilidad, CI; antes: rediseño, turnos, KDS, temas, limpieza).
 > Complementa a `AGENTS.md` (estructura del repo) y `BITACORA_DE_CAMBIOS.md` (histórico anterior). **No contiene credenciales ni PINs.**
 
 ---
@@ -231,16 +231,17 @@ Todo lo que se podía resolver desde el código está hecho y verificado; lo que
 - **Electron**: el secreto de sesión y (en instalaciones nuevas de PostgreSQL) la contraseña de la base se generan por instalación (`main.cjs`, carpeta `userData`); `predist` ya no copia `APP_SESSION_SECRET` al instalador.
 
 **Operación**
-- **Respaldos**: `services/backupService.ts` (pg_dump `-Fc`, verificación con `pg_restore --list`, depuración a 14 días, mínimo 3), programado a las 03:00 (`BACKUP_*`), `npm run backup` y `npm run backup:verify` (restaura en base temporal). API `GET/POST /api/respaldos` y descarga (solo propietario o, con `BACKUP_TENANT_ACCESS=1`, el Administrador de una instalación de un solo negocio); pestaña *Respaldos* en Datos de la Empresa; Electron los activa por defecto en `userData/respaldos`. **RLS está forzado en las 27 tablas**: el rol que respalda necesita `BYPASSRLS`.
-- `GET /api/health` informa `zonaHorariaBd`. `npm run verify:deploy -- <url>` verifica un despliegue (solo lectura).
+- **Respaldos**: `services/backupService.ts` (pg_dump `-Fc`, verificación con `pg_restore --list`, depuración a 14 días, mínimo 3), programado a las 03:00 (`BACKUP_*`), `npm run backup` y `npm run backup:verify` (restaura en base temporal). API `GET/POST /api/respaldos` y descarga (solo propietario o, con `BACKUP_TENANT_ACCESS=1`, el Administrador de una instalación de un solo negocio); pestaña *Respaldos* en Datos de la Empresa; Electron los activa por defecto en `userData/respaldos`. `BACKUP_COPY_DIR` (opcional) copia cada respaldo verificado a una segunda carpeta (USB, nube sincronizada, red) con la misma retención; si falla queda `RESPALDO_COPIA_FALLIDA` en el log y el respaldo local no se pierde. **RLS está forzado en las 27 tablas**: el rol que respalda necesita `BYPASSRLS`.
+- `GET /api/health` informa `zonaHorariaBd`. `npm run verify:deploy -- <url>` verifica un despliegue (solo lectura); `scripts/deploy.py` lo ejecuta al terminar.
+- **Versión 2.3.0** (`package.json` raíz y `frontend-restaurante`, más el `version` de `src/app.ts` y `src/routers/sistema.ts`). Instalador compilado **sin firma** en `frontend-restaurante/release/ChloeRestaurant Setup 2.3.0.exe` (≈444 MB, ignorado por git; el `.env` empaquetado no lleva `APP_SESSION_SECRET`). `/api/app/version` informa la versión del `package.json` del servidor: publicar el instalador (`APP_DOWNLOAD_URL`) **antes** de desplegar.
 
 **Calidad**
-- `npm run test:e2e` (49 comprobaciones) + `npm run seed:e2e`; job `e2e` en `.github/workflows/quality.yml` (probado en local sobre una base vacía) y `test:coverage` con piso (42 % líneas). 178 pruebas unitarias.
+- `npm run test:e2e` (52 comprobaciones, incluida la copia externa de respaldos) + `npm run seed:e2e`; job `e2e` en `.github/workflows/quality.yml` (runner `ubuntu-24.04` con `postgresql-client-16`; reproducido en local sobre una base vacía, lo que destapó y corrigió un error de tipos en `seed-e2e.mjs`) y `test:coverage` con piso (42 % líneas). 181 pruebas unitarias.
 - **Accesibilidad**: 0 violaciones WCAG 2.1 A/AA (axe-core) en pantallas principales, todo el panel y el cobro, en los 3 temas. Tokens de contraste ajustados (Marfil: `--gold` `#835b15`, textos tenues más oscuros; oscuros: textos tenues más claros); `utils/accesibilidad.js` asocia los `<label>` del panel con sus campos.
 
 **Documentos nuevos**: `docs/OPERACION.md`, `docs/MANUAL_USUARIO.md`, `docs/legal/` (borradores: términos, privacidad, contrato; requieren abogado).
 
-**Pendiente (externo / decisión)**: desplegar y firmar el instalador (certificado de firma de código), copia de respaldos fuera del equipo, zona horaria de la BD de producción, certificación e-CF con la DGII, revisión legal, precios, pruebas con impresora térmica real y restaurantes piloto, monitoreo (UptimeRobot), token en `localStorage` (mitigado por CSP). El job de CI no se ha ejecutado en GitHub.
+**Pendiente (externo / decisión)**: desplegar (el acceso SSH a producción y `git push` los bloquea el sistema de permisos de la sesión: los ejecuta el dueño), firmar el instalador (certificado de firma de código; el 2.3.0 ya está compilado sin firma) y probarlo en un equipo limpio, definir `BACKUP_COPY_DIR`/copia externa y el rol `BYPASSRLS` del servidor central, zona horaria de la BD de producción, certificación e-CF con la DGII, revisión legal, precios, pruebas con impresora térmica real y restaurantes piloto, monitoreo (UptimeRobot), token en `localStorage` (mitigado por CSP). El job de CI no se ha ejecutado en GitHub.
 
 ---
 

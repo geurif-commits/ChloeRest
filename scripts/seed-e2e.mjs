@@ -19,7 +19,7 @@ await c.connect();
 try {
   await c.query("SELECT set_config('app.platform', 'true', false), set_config('app.empresa_id', '1', false)");
   await c.query(
-    "INSERT INTO dispositivos (device_id, nombre, estado, empresa_id, activado_en) SELECT $1, 'CI', 'Activo', 1, NOW() WHERE NOT EXISTS (SELECT 1 FROM dispositivos WHERE device_id = $1)",
+    "INSERT INTO dispositivos (device_id, nombre, estado, empresa_id, activado_en) SELECT $1::text, 'CI', 'Activo', 1, NOW() WHERE NOT EXISTS (SELECT 1 FROM dispositivos WHERE device_id = $1::text)",
     [dispositivo]
   );
   const mesas = await c.query('SELECT count(*)::int AS n FROM mesas');

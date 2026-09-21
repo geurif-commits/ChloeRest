@@ -148,7 +148,7 @@ router.get('/api/sistema/info', route(async (req: Request, res: Response) => {
     const empresaId = await empresaDeDispositivoActivo(req);
     if (empresaId === null) {
       // Sin un equipo activado no se revelan datos del negocio.
-      res.json({ version: '2.2.0', caja: { abierta: false, monto: 0 }, sucursal: 'No disponible', provincia: null, cajera: null, horaServidor: new Date().toISOString() });
+      res.json({ version: '2.3.0', caja: { abierta: false, monto: 0 }, sucursal: 'No disponible', provincia: null, cajera: null, horaServidor: new Date().toISOString() });
       return;
     }
     await runWithRequestContext({ empresaId }, async () => {
@@ -179,7 +179,7 @@ router.get('/api/sistema/info', route(async (req: Request, res: Response) => {
       const mesasOcupadas = mesasRes.rowCount ? parseInt(mesasRes.rows[0].total, 10) : 0;
 
       res.json({
-        version: '2.2.0',
+        version: '2.3.0',
         caja: { abierta: cajaAbierta, monto: montoCaja },
         sucursal: negocio.provincia || 'No configurada',
         provincia: negocio.provincia || null,
@@ -194,7 +194,7 @@ router.get('/api/sistema/info', route(async (req: Request, res: Response) => {
   } catch (error) {
     logger.warn({ action: 'SISTEMA_INFO_FALLBACK', error: (error as Error).message });
     res.json({
-      version: '2.2.0',
+      version: '2.3.0',
       caja: { abierta: false, monto: 0 },
       sucursal: 'No disponible',
       provincia: null,

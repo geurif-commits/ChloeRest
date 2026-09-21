@@ -29,6 +29,7 @@ router.get('/api/respaldos', requireAuth, accesoRespaldos, route(async (_req: Re
     automaticos: config.backup.enabled,
     hora: config.backup.hour,
     retencionDias: config.backup.retentionDays,
+    copiaExternaConfigurada: config.backup.copyDir !== null,
     herramientaDisponible: localizarHerramienta('pg_dump') !== null,
     respaldos: listarRespaldos(config.backup.dir),
   });
@@ -46,10 +47,13 @@ router.post('/api/respaldos', requireAuth, accesoRespaldos, route(async (req: Re
     usuarioId: req.auth!.userId,
     accion: 'CREAR_RESPALDO',
     entidad: 'respaldos',
-    detalle: { nombre: respaldo.nombre, bytes: respaldo.bytes },
+    detalle: { nombre: respaldo.nombre, bytes: respaldo.bytes, copiaExterna: respaldo.copiaExterna },
     ip: clientIp(req),
   });
-  res.status(201).json({ mensaje: 'Respaldo creado y verificado.', respaldo });
+  const mensaje = respaldo.copiaExterna === 'fallida'
+    ? 'Respaldo creado y verificado, pero no se pudo copiar a la carpeta externa (revisa que esté disponible).'
+    : 'Respaldo creado y verificado.';
+  res.status(201).json({ mensaje, respaldo });
 }));
 
 // GET /api/respaldos/:nombre: descarga (solo nombres válidos dentro de la carpeta de respaldos).

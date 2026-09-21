@@ -35,6 +35,8 @@ export const config = {
   backup: {
     enabled: process.env.BACKUP_ENABLED === '1',
     dir: path.resolve(process.cwd(), process.env.BACKUP_DIR || path.join('backups', 'auto')),
+    /** Segunda carpeta (USB, nube sincronizada, recurso de red) donde se copia cada respaldo verificado. */
+    copyDir: process.env.BACKUP_COPY_DIR ? path.resolve(process.cwd(), process.env.BACKUP_COPY_DIR) : null,
     retentionDays: Math.max(1, Number(process.env.BACKUP_RETENTION_DAYS || 14)),
     hour: Math.min(23, Math.max(0, Number(process.env.BACKUP_HOUR ?? 3))),
     pgBinDir: process.env.PG_BIN_DIR || null,

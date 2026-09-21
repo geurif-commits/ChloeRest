@@ -16,6 +16,7 @@ Guía para quien despliega, respalda y vigila el sistema. Complementa `docs/POST
 | `PUBLIC_RATE_MAX` | Solicitudes a endpoints públicos por IP cada 10 min | 30 |
 | `BACKUP_ENABLED` | `1` activa el respaldo diario automático | `0` (las instalaciones de escritorio lo activan solas) |
 | `BACKUP_DIR` | Carpeta de respaldos | `backups/auto` |
+| `BACKUP_COPY_DIR` | Segunda carpeta (USB, carpeta de OneDrive/Dropbox/Google Drive, recurso de red) a la que se copia cada respaldo verificado, con la misma retención | — |
 | `BACKUP_HOUR` | Hora local del respaldo diario (0–23) | 3 |
 | `BACKUP_RETENTION_DAYS` | Días que se conservan (siempre quedan los 3 más recientes) | 14 |
 | `BACKUP_DB_USER`, `BACKUP_DB_PASSWORD` | Rol que respalda (superusuario o con `BYPASSRLS`) | el de la app |
@@ -41,8 +42,8 @@ Guía para quien despliega, respalda y vigila el sistema. Complementa `docs/POST
 
 ## 3. Respaldos
 
-- **Instalación de escritorio (un negocio):** el respaldo diario viene activado; los archivos quedan en la carpeta de datos del usuario (`respaldos`). El Administrador los ve y descarga en *Datos de la Empresa → Respaldos*. **Guardar una copia fuera del equipo** (USB o nube) — si el equipo falla, los respaldos que estén en él también se pierden.
-- **Servidor multiempresa:** definir `BACKUP_ENABLED=1`, `BACKUP_DIR` en un disco distinto al de la base, `BACKUP_DB_USER/PASSWORD` con un rol con `BYPASSRLS` (las tablas de negocio tienen RLS **forzado**: un rol sin ese permiso hace fallar `pg_dump` en voz alta) y copiar los archivos fuera del servidor. En hosting compartido sin acceso a `pg_dump`, usar los respaldos del proveedor y probar su restauración.
+- **Instalación de escritorio (un negocio):** el respaldo diario viene activado; los archivos quedan en la carpeta de datos del usuario (`respaldos`). El Administrador los ve y descarga en *Datos de la Empresa → Respaldos*. **Guardar una copia fuera del equipo**: definir la variable de entorno de Windows `BACKUP_COPY_DIR` con una memoria USB o una carpeta sincronizada de la nube (por ejemplo la de OneDrive) y reiniciar la aplicación; cada respaldo verificado se copia allí solo (si el destino no está disponible, queda el aviso `RESPALDO_COPIA_FALLIDA` en el registro y el respaldo local no se pierde). Si el equipo falla, los respaldos que estén únicamente en él también se pierden.
+- **Servidor multiempresa:** definir `BACKUP_ENABLED=1`, `BACKUP_DIR` en un disco distinto al de la base, `BACKUP_DB_USER/PASSWORD` con un rol con `BYPASSRLS` (las tablas de negocio tienen RLS **forzado**: un rol sin ese permiso hace fallar `pg_dump` en voz alta) y `BACKUP_COPY_DIR` apuntando a un disco o montaje de otro equipo/servicio para tener la copia fuera del servidor. En hosting compartido sin acceso a `pg_dump`, usar los respaldos del proveedor y probar su restauración.
 - **A mano:** `npm run backup`.
 - **Prueba de restauración (hacerla cada mes y tras cambiar de servidor):** `npm run backup:verify` restaura el último respaldo en una base temporal, compara tablas, RLS y migraciones con la base actual y la elimina.
 - **Restaurar de verdad:** crear una base vacía y `pg_restore -h <host> -U <rol> -d <base_nueva> --no-owner --no-privileges <archivo.dump>`; después apuntar `DB_NAME` a ella.
@@ -65,10 +66,10 @@ y reiniciar la aplicación. Hacerlo antes de acumular historial (los datos ya gu
 
 ## 6. Instalador de Windows
 
-1. `npm run dist` (desde `frontend-restaurante`) compila el servidor, la interfaz y genera `release/ChloeRestaurant Setup <versión>.exe`.
+1. Subir la versión (`npm version x.y.z --no-git-tag-version` en la raíz y en `frontend-restaurante`, y el `version` de `src/app.ts` y `src/routers/sistema.ts`) y ejecutar `npm run dist` (desde `frontend-restaurante`): compila el servidor, la interfaz y genera `release/ChloeRestaurant Setup <versión>.exe`. No reutilizar el número de una versión ya distribuida.
 2. **Secretos:** el secreto de sesión **ya no viaja** en el instalador; cada instalación genera el suyo la primera vez (y, si PostgreSQL no estaba instalado, también su propia contraseña de base de datos). Las instalaciones antiguas conservan la contraseña que ya tenían.
 3. **Firma de código:** sin firma, Windows SmartScreen muestra "editor desconocido". Con un certificado de firma de código (OV/EV) definir `CSC_LINK` (ruta o base64 del `.pfx`) y `CSC_KEY_PASSWORD` antes de `npm run dist`; `electron-builder` firma solo.
-4. Subir el instalador y publicar la versión: definir `APP_DOWNLOAD_URL` y `APP_UPDATE_NOTES` en el servidor central (los equipos consultan `/api/app/version`).
+4. Publicar la versión: **primero** subir el instalador y definir `APP_DOWNLOAD_URL` y `APP_UPDATE_NOTES` en el servidor central, y **después** desplegar. `/api/app/version` informa la versión del `package.json` del servidor; si se despliega antes, los equipos ya instalados muestran "hay una nueva versión" sin enlace de descarga.
 5. Probar en un equipo limpio: instalación, activación con clave, apertura de caja, cobro, impresión de ticket y respaldo (*Datos de la Empresa → Respaldos → Crear respaldo ahora*).
 
 ## 7. Pruebas

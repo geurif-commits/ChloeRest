@@ -37,6 +37,7 @@ const ROOT = process.cwd();
 const PORT = Number(process.env.E2E_PORT || 3011);
 const base = `http://127.0.0.1:${PORT}`;
 const dirRespaldos = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-respaldos-'));
+const dirCopia = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-copia-'));
 const db = new pg.Client({ host: env.DB_HOST || 'localhost', port: Number(env.DB_PORT || 5432), user: env.DB_USER || 'postgres', password: env.DB_PASSWORD || undefined, database: env.DB_NAME });
 
 const resultados = [];
@@ -259,17 +260,29 @@ async function principal() {
   console.log('\n== E. Respaldos ==');
   ok('el administrador no gestiona respaldos en un servidor multiempresa (403)', (await llamar('GET', '/api/respaldos', { token: T })).status === 403);
   detenerServidor();
-  await iniciarServidor({ BACKUP_DIR: dirRespaldos, BACKUP_TENANT_ACCESS: '1' });
+  await iniciarServidor({ BACKUP_DIR: dirRespaldos, BACKUP_COPY_DIR: dirCopia, BACKUP_TENANT_ACCESS: '1' });
   const T2 = (await llamar('POST', '/api/login/camarero', { body: { pin: PIN, deviceId: DEV } })).body.token;
   const lista0 = await llamar('GET', '/api/respaldos', { token: T2 });
   ok('en una instalación de un solo negocio el administrador ve los respaldos', lista0.status === 200 && Array.isArray(lista0.body.respaldos), `herramienta: ${lista0.body.herramientaDisponible}`);
+  ok('la API informa que hay copia externa configurada', lista0.body.copiaExternaConfigurada === true);
   if (lista0.body.herramientaDisponible) {
     const nuevo = await llamar('POST', '/api/respaldos', { token: T2 });
     ok('crear un respaldo ahora (se verifica antes de responder)', nuevo.status === 201 && nuevo.body.respaldo?.verificado === true, nuevo.body.respaldo?.nombre || nuevo.body.error);
     const descarga = await fetch(`${base}/api/respaldos/${nuevo.body.respaldo.nombre}`, { headers: { Authorization: 'Bearer ' + T2, 'X-Device-ID': DEV } });
     ok('descargar el respaldo', descarga.status === 200 && (await descarga.arrayBuffer()).byteLength > 1000);
+    ok('el respaldo también se copió a la carpeta externa', nuevo.body.respaldo.copiaExterna === 'ok' && fs.existsSync(path.join(dirCopia, nuevo.body.respaldo.nombre)) && fs.readdirSync(dirCopia).every((f) => !f.endsWith('.parcial')));
   }
   ok('no se puede pedir un archivo fuera de la carpeta de respaldos', (await llamar('GET', '/api/respaldos/..%2F..%2F.env', { token: T2 })).status === 404 && (await llamar('GET', '/api/respaldos/otro.txt', { token: T2 })).status === 404);
+  if (lista0.body.herramientaDisponible) {
+    // Un destino que no se puede usar no debe romper el respaldo local: se avisa con 'fallida'.
+    const ocupado = path.join(dirCopia, 'no-es-carpeta');
+    fs.writeFileSync(ocupado, 'x');
+    detenerServidor();
+    await iniciarServidor({ BACKUP_DIR: dirRespaldos, BACKUP_COPY_DIR: path.join(ocupado, 'dentro'), BACKUP_TENANT_ACCESS: '1' });
+    const T3 = (await llamar('POST', '/api/login/camarero', { body: { pin: PIN, deviceId: DEV } })).body.token;
+    const conFallo = await llamar('POST', '/api/respaldos', { token: T3 });
+    ok('si la carpeta externa no está disponible el respaldo local igual se crea y se avisa', conFallo.status === 201 && conFallo.body.respaldo?.copiaExterna === 'fallida' && /no se pudo copiar/i.test(conFallo.body.mensaje || ''), conFallo.body.mensaje || conFallo.body.error);
+  }
 
   // ── F. Fuerza bruta ──
   console.log('\n== F. Bloqueo por intentos ==');
@@ -303,6 +316,7 @@ async function limpiar() {
     else await db.query('UPDATE negocio_config SET nombre_comercial=$2, razon_social=$3, rnc=$4, telefono=$5, direccion=$6, cobrar_itbis=$7, cobrar_propina=$8, propina_porcentaje=$9 WHERE id=$1', [est.negocio.id, est.negocio.nombre_comercial, est.negocio.razon_social, est.negocio.rnc, est.negocio.telefono, est.negocio.direccion, est.negocio.cobrar_itbis, est.negocio.cobrar_propina, est.negocio.propina_porcentaje]);
     await db.query('DELETE FROM login_intentos WHERE actualizado_en >= $1', [est.t0]);
     fs.rmSync(dirRespaldos, { recursive: true, force: true });
+    fs.rmSync(dirCopia, { recursive: true, force: true });
     console.log('limpieza OK');
   } catch (e) { console.log('LIMPIEZA CON ERROR:', e.message); }
   await db.end();

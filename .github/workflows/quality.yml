@@ -24,7 +24,7 @@ jobs:
       - run: npm run test:production-config
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -56,6 +56,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: Herramientas de PostgreSQL 16 (pg_dump y pg_restore para la prueba de respaldos)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
       - name: Migrar la base vacía (crea al administrador inicial)
         run: npm run migrate
       - name: Sembrar equipo activado y mesas

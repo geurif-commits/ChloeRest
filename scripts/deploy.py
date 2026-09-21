@@ -198,6 +198,12 @@ def deploy():
             print(f"  Intento {i}/7: {e}")
             time.sleep(2)
 
+    print("\n[6] Verificación posterior (solo lectura)...")
+    verif = subprocess.run(['node', os.path.join('scripts', 'verify-deploy.mjs'), 'https://chloerestaurant.lat'], cwd=LOCAL_ROOT)
+    if verif.returncode != 0:
+        print("AVISO: la verificación reportó diferencias. Si la migración no está al día, "
+              "ejecuta 'npm run migrate' con el rol DDL (docs/OPERACION.md sección 2).")
+
     ssh.close()
     dur = time.time() - start
     print(f"\n¡Despliegue atómico finalizado con éxito en {dur:.1f} segundos!")
