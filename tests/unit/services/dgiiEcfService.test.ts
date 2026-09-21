@@ -58,8 +58,8 @@ describe('construirNombreArchivo', () => {
 });
 
 describe('calcularMontoTotal', () => {
-  it('suma gravado + exento + ITBIS (item 18%)', () => {
-    const total = calcularMontoTotal([{ cantidad: 1, precio_unitario: 118, tasa_itbis: 18 }]);
+  it('suma gravado + exento + ITBIS (item 18%, precio sin ITBIS)', () => {
+    const total = calcularMontoTotal([{ cantidad: 1, precio_unitario: 100, tasa_itbis: 18 }]);
     expect(total).toBe(118);
   });
 

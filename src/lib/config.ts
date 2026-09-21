@@ -31,6 +31,16 @@ export const config = {
   licenseActivationKey: process.env.LICENSE_ACTIVATION_KEY || null,
   bootstrapAdminPin: process.env.BOOTSTRAP_ADMIN_PIN || null,
   ownerPin: process.env.OWNER_PIN || null,
+  /** Respaldos automáticos de la base de datos (ver services/backupService.ts). */
+  backup: {
+    enabled: process.env.BACKUP_ENABLED === '1',
+    dir: path.resolve(process.cwd(), process.env.BACKUP_DIR || path.join('backups', 'auto')),
+    retentionDays: Math.max(1, Number(process.env.BACKUP_RETENTION_DAYS || 14)),
+    hour: Math.min(23, Math.max(0, Number(process.env.BACKUP_HOUR ?? 3))),
+    pgBinDir: process.env.PG_BIN_DIR || null,
+    /** Solo instalaciones de un negocio: el Administrador puede ver, crear y descargar respaldos. */
+    tenantAccess: process.env.BACKUP_TENANT_ACCESS === '1',
+  },
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
   telegramOwnerChatId: process.env.TELEGRAM_OWNER_CHAT_ID || null,
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET || null,

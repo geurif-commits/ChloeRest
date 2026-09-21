@@ -13,7 +13,7 @@ export const LOGIN_TEMAS = [
     id: 'sistema',
     nombre: 'Del sistema',
     desc: 'Usa los colores del tema activo del sistema.',
-    paleta: ['#2b2010', '#f2ede3', '#a9761b', '#5e94ff'],
+    paleta: ['#2b2010', '#f2ede3', '#835b15', '#5e94ff'],
   },
   {
     id: 'medianoche',

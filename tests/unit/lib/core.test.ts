@@ -69,3 +69,14 @@ describe('Validators', () => {
     expect(validateRequired({ nombre: '' }, ['nombre'])).toBe('Campo requerido: nombre');
   });
 });
+
+describe('constantTimeEquals', () => {
+  it('compara secretos sin importar la longitud ni el contenido parcial', async () => {
+    const { constantTimeEquals } = await import('../../../src/lib/core.js');
+    expect(constantTimeEquals('secreto-largo-123', 'secreto-largo-123')).toBe(true);
+    expect(constantTimeEquals('secreto-largo-123', 'secreto-largo-124')).toBe(false);
+    expect(constantTimeEquals('corto', 'corto-pero-distinto')).toBe(false);
+    expect(constantTimeEquals(undefined, null)).toBe(true); // ambos vacíos: quien la use debe descartarlos antes
+    expect(constantTimeEquals('', 'x')).toBe(false);
+  });
+});

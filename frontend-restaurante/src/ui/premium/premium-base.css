@@ -96,7 +96,7 @@ body {
 }
 
 .px-eyebrow {
-  font: 700 .68rem/1 var(--px-font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--px-gold);
+  font: 700 .68rem/1 var(--px-font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--px-gold-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {

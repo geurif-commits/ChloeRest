@@ -288,3 +288,16 @@
   .caja-topbar__end { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
   .caja-fondo { height: 40px; padding: 0 12px 0 10px; font-size: .78rem; }
 }
+
+/* Descuento y división de cuenta en el cobro */
+.cobro-extras { display: flex; gap: 8px; flex-wrap: wrap; }
+.cobro-extra { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 14px; border: 1px solid var(--px-line-2); border-radius: 999px; background: var(--px-raised); color: var(--px-ink-2); font: 600 .82rem var(--px-font-ui); cursor: pointer; }
+.cobro-extra:hover { border-color: var(--px-gold); color: var(--px-ink); }
+.cobro-extra.is-on { border-color: var(--px-gold); color: var(--px-gold-ink); background: color-mix(in srgb, var(--px-gold) 12%, transparent); }
+.cobro-nota { margin: 0; font-size: .78rem; color: var(--px-ink-3); }
+.cobro-desc { display: grid; grid-template-columns: 72px 110px 1fr; gap: 8px; }
+.cobro-desc select, .cobro-desc input { min-height: 40px; padding: 0 10px; border: 1px solid var(--px-line-2); border-radius: 10px; background: var(--px-raised); color: var(--px-ink); font: 600 .88rem var(--px-font-ui); }
+.cobro-stepper { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.cobro-stepper button { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--px-line-2); border-radius: 8px; background: var(--px-raised); color: var(--px-ink); cursor: pointer; }
+.cobro-stepper button:disabled { opacity: .4; cursor: default; }
+.cobro-stepper strong { min-width: 42px; text-align: center; font-variant-numeric: lining-nums tabular-nums; font-size: .82rem; }

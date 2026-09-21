@@ -450,7 +450,7 @@ function GestionNCF({ alVolver, apiUrl }) {
                             <button onClick={() => editar(item)} className="admin-btn admin-btn-secondary" style={{ padding: '5px 10px', fontSize: '0.8rem', marginRight: '6px' }}>
                               <Pencil size={14} /> Editar
                             </button>
-                            <button onClick={() => eliminar(item.id)} className="admin-btn admin-btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem' }}>
+                            <button onClick={() => eliminar(item.id)} aria-label="Eliminar secuencia" className="admin-btn admin-btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem' }}>
                               <Trash2 size={14} />
                             </button>
                           </td>

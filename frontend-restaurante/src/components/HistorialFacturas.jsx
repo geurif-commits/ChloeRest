@@ -60,6 +60,7 @@ function HistorialFacturas({ apiUrl }) {
       items: fac.items || [],
       subtotal: Number(fac.subtotal),
       itbis: Number(fac.itbis),
+      descuento: Number(fac.descuento || 0),
       propina: Number(fac.propina),
       total: Number(fac.total),
       metodoPago: fac.metodo_pago,
@@ -139,10 +140,10 @@ function HistorialFacturas({ apiUrl }) {
         </div>
         {pestana === 'historial' && (
           <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '3px' }}>
-            <button onClick={() => setVistaModo('lista')} style={{ background: vistaModo === 'lista' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'lista' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <button aria-label="Ver como lista" onClick={() => setVistaModo('lista')} style={{ background: vistaModo === 'lista' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'lista' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               <LayoutList size={15} />
             </button>
-            <button onClick={() => setVistaModo('grid')} style={{ background: vistaModo === 'grid' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'grid' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <button aria-label="Ver como cuadrícula" onClick={() => setVistaModo('grid')} style={{ background: vistaModo === 'grid' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'grid' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               <LayoutGrid size={15} />
             </button>
           </div>
@@ -205,7 +206,7 @@ function HistorialFacturas({ apiUrl }) {
                     <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: '600', background: mc.bg, color: mc.color, alignSelf: 'center' }}>{fac.metodo_pago}</span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fac.camarero_nombre || 'N/A'}</span>
                     <span style={{ fontWeight: '700', color: 'var(--gold)', textAlign: 'right', fontSize: '0.85rem' }}>RD$ {formatearRD(fac.total)}</span>
-                    <button onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', justifySelf: 'end' }}>
+                    <button aria-label={`Reimprimir factura ${fac.ncf_ecf_generado || fac.id}`} onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', justifySelf: 'end' }}>
                       <Printer size={14} />
                     </button>
                   </div>
@@ -231,7 +232,7 @@ function HistorialFacturas({ apiUrl }) {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
                       <span style={{ fontWeight: '800', color: 'var(--gold)', fontSize: '1rem' }}>RD$ {formatearRD(fac.total)}</span>
-                      <button onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <button aria-label={`Reimprimir factura ${fac.ncf_ecf_generado || fac.id}`} onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                         <Printer size={13} />
                       </button>
                     </div>

@@ -13,6 +13,7 @@ import { config } from './lib/config.js';
 import { createDatabase, getDatabase } from './db/index.js';
 import { runMigrations, fixDatabaseConsistency } from './db/migrations.js';
 import { iniciarTelegramBot } from './services/telegramBotService.js';
+import { iniciarRespaldosAutomaticos } from './services/backupService.js';
 import { obtenerOpcionesTelegramBot } from './services/telegramBotOptions.js';
 import { execSync } from 'node:child_process';
 import pg from 'pg';
@@ -165,6 +166,8 @@ function arrancarServidor(app: Express, intento = 1): void {
         details: 'APP_SESSION_SECRET no está configurado: las sesiones se invalidarán al reiniciar el servidor.',
       });
     }
+
+    iniciarRespaldosAutomaticos();
 
     void iniciarTelegramBot(obtenerOpcionesTelegramBot()).catch((error: Error) => {
       logger.warn({

@@ -1,7 +1,7 @@
 # ESTADO DEL SISTEMA — ChloeRestaurant POS
 
 > Documento de traspaso para otras IA y desarrolladores. Resume **qué existe, qué se hizo, cómo se verificó y qué falta**.
-> Última actualización: 2026-09-21 (auditoría final, material comercial, ITBIS/propina desactivados y propina 2–30 %; antes: rediseño, turnos, KDS/clasificación, temas, limpieza).
+> Última actualización: 2026-09-21 (auditoría final y plan ejecutado: ITBIS unificado, descuentos, dividir cuenta, respaldos, seguridad, accesibilidad, CI; antes: rediseño, turnos, KDS, temas, limpieza).
 > Complementa a `AGENTS.md` (estructura del repo) y `BITACORA_DE_CAMBIOS.md` (histórico anterior). **No contiene credenciales ni PINs.**
 
 ---
@@ -136,14 +136,15 @@ Migraciones añadidas/relevantes (`src/db/migrations.ts`):
 | `049_destino_alimentos_bebidas` | Reparación de grupos/destinos | clasificación |
 | `050_temas_y_estilos_login` | Normaliza `tema_activo` (3 temas) y `login_theme` (3 estilos) + defaults | temas |
 | `051_itbis_propina_desactivados` | ITBIS/propina apagados para todos, productos sin ITBIS ni propina, defaults nuevos y `propina_porcentaje` (2–30) | impuestos |
+| `052_descuentos_y_division_cuenta` | Descuento con motivo en `cuentas` y `cuenta_origen_id` (dividir cuenta) | dinero |
 
 **Procedimiento en producción** (`docs/POSTGRES_PRODUCCION.md`, sección "Cada despliegue con cambios de base de datos"):
 1. Desplegar (`scripts/deploy.py`: compila front + back, sube y reinicia; usa llave SSH `~/.ssh/chloerest_deploy` o `DEPLOY_PASS`).
 2. `DB_USER=<rol_ddl> DB_PASSWORD=… DB_HOST=… DB_NAME=… npm run migrate` (script nuevo `scripts/run-migrations.ts`; idempotente).
 3. Si el rol de la app no tiene `ALTER DEFAULT PRIVILEGES`: `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO <rol_app>; GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO <rol_app>;`
-4. Verificar `GET /api/health` → campo `migracion` = `051_itbis_propina_desactivados` (o posterior).
+4. Verificar `GET /api/health` → campo `migracion` = `052_descuentos_y_division_cuenta` (o posterior).
 
-Instalaciones **frescas**: `schemaBase.ts` / `schema_base.sql` ahora crean `empresas` antes de `metodos_pago` (antes fallaba con «no existe la relación empresas»). Verificado aplicando las 50 migraciones (001–051, sin 017) sobre una BD vacía.
+Instalaciones **frescas**: `schemaBase.ts` / `schema_base.sql` ahora crean `empresas` antes de `metodos_pago` (antes fallaba con «no existe la relación empresas»). Verificado aplicando las 51 migraciones (001–052, sin 017) sobre una BD vacía.
 
 Si falta una migración, el `errorHandler` responde **503** (`DB_SCHEMA_OUTDATED`, códigos PG 42P01/42703/42501) con mensaje accionable en vez de "Error interno"; el módulo de turnos usa horarios por defecto si falta solo la columna 048. La pantalla de asistencia muestra el motivo real.
 
@@ -212,6 +213,34 @@ Informe completo: **`docs/AUDITORIA_FINAL_2026-09-21.md`**. Resumen para quien c
 - **Material comercial:** carpeta `marketing/` (capturas con datos de demostración, 6 anuncios PNG, fuentes HTML y la presentación de 13 diapositivas). Placeholders pendientes: precios, contacto, ciudad/cantidad del piloto. Sin commitear. Las capturas del comandero muestran líneas de ITBIS/propina porque son demostraciones con esas opciones activas.
 - **Producción:** al desplegar, la migración 051 apagará ITBIS y propina y quitará el ITBIS/propina de todos los productos existentes de todos los negocios. No se desplegó nada.
 - **Trampa conocida:** el frontend asume la API en el puerto 3000 cuando se sirve desde localhost/127.0.0.1; probar en otro puerto deja la app en el LandingScreen.
+
+---
+
+## 12d. Plan de la auditoría ejecutado (2026-09-21, tarde)
+
+Todo lo que se podía resolver desde el código está hecho y verificado; lo que queda depende de terceros o de una decisión (ver la última tabla). Detalle en `docs/AUDITORIA_FINAL_2026-09-21.md` §8.
+
+**Dinero**
+- **ITBIS unificado** (precios SIN ITBIS): `calcularTotales` (servidor, en centavos), `frontend/src/utils/dinero.js` (pantalla), `lib/ecf.ts`, `dgiiEcfService`, router e-CF y reporte 607 usan la misma fórmula (ITBIS por línea con la tasa de cada producto, sumado al subtotal). `GET /api/mesas/:id/cuenta` incluye `tasa_itbis` de cada línea. `POST /api/productos/itbis` (Administrador) aplica/quita ITBIS a todos los productos y hay un botón en *Datos de la Empresa → Fiscal & Cuentas*.
+- **Descuentos** (migración `052`): `cuentas.descuento/descuento_tipo/descuento_valor/descuento_motivo`; % o monto, motivo obligatorio, reparte entre líneas y reduce la base del ITBIS y de la propina. `cuentas.subtotal` = subtotal **después** del descuento.
+- **Dividir cuenta**: `detalles_cobrar` en el cobro separa las líneas elegidas en una cuenta nueva (`cuenta_origen_id`, nace `Cerrada` porque solo puede haber una `Abierta` por mesa) y deja el resto abierto; la mesa no se libera hasta cobrar el resto.
+- **El cobro exige caja abierta** (`CAJA_CERRADA`, últimas 24 h). **Pago mixto** valida el monto.
+
+**Seguridad**
+- `/api/sistema/info`, `/api/configuracion/completa` y `/api/negocio/config` no revelan datos del negocio a equipos sin activar (en producción hoy sí, hasta desplegar). Comparación en tiempo constante de secretos (`constantTimeEquals`). Límite de `/api/dispositivo/registrar` 300/10 min por IP (`DEVICE_REGISTER_RATE_MAX`) y `/api/setup` limitado. `package.json` con `UNLICENSED` y `private`.
+- **Electron**: el secreto de sesión y (en instalaciones nuevas de PostgreSQL) la contraseña de la base se generan por instalación (`main.cjs`, carpeta `userData`); `predist` ya no copia `APP_SESSION_SECRET` al instalador.
+
+**Operación**
+- **Respaldos**: `services/backupService.ts` (pg_dump `-Fc`, verificación con `pg_restore --list`, depuración a 14 días, mínimo 3), programado a las 03:00 (`BACKUP_*`), `npm run backup` y `npm run backup:verify` (restaura en base temporal). API `GET/POST /api/respaldos` y descarga (solo propietario o, con `BACKUP_TENANT_ACCESS=1`, el Administrador de una instalación de un solo negocio); pestaña *Respaldos* en Datos de la Empresa; Electron los activa por defecto en `userData/respaldos`. **RLS está forzado en las 27 tablas**: el rol que respalda necesita `BYPASSRLS`.
+- `GET /api/health` informa `zonaHorariaBd`. `npm run verify:deploy -- <url>` verifica un despliegue (solo lectura).
+
+**Calidad**
+- `npm run test:e2e` (49 comprobaciones) + `npm run seed:e2e`; job `e2e` en `.github/workflows/quality.yml` (probado en local sobre una base vacía) y `test:coverage` con piso (42 % líneas). 178 pruebas unitarias.
+- **Accesibilidad**: 0 violaciones WCAG 2.1 A/AA (axe-core) en pantallas principales, todo el panel y el cobro, en los 3 temas. Tokens de contraste ajustados (Marfil: `--gold` `#835b15`, textos tenues más oscuros; oscuros: textos tenues más claros); `utils/accesibilidad.js` asocia los `<label>` del panel con sus campos.
+
+**Documentos nuevos**: `docs/OPERACION.md`, `docs/MANUAL_USUARIO.md`, `docs/legal/` (borradores: términos, privacidad, contrato; requieren abogado).
+
+**Pendiente (externo / decisión)**: desplegar y firmar el instalador (certificado de firma de código), copia de respaldos fuera del equipo, zona horaria de la BD de producción, certificación e-CF con la DGII, revisión legal, precios, pruebas con impresora térmica real y restaurantes piloto, monitoreo (UptimeRobot), token en `localStorage` (mitigado por CSP). El job de CI no se ha ejecutado en GitHub.
 
 ---
 

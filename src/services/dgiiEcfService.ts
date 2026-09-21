@@ -106,13 +106,13 @@ export function calcularMontoTotal(detalles: IDetalleECF[]): number {
   let itbis = 0;
   for (const d of detalles) {
     const montoItem = money(Number(d.cantidad) * Number(d.precio_unitario));
-    const tasa = Number(d.tasa_itbis ?? 18);
+    const tasa = Number(d.tasa_itbis ?? 0);
     if (tasa === 0) {
       exento += montoItem;
     } else {
-      const g = money(montoItem / (1 + tasa / 100));
-      gravado += g;
-      itbis += money((g * tasa) / 100);
+      // Precios sin ITBIS: base = monto de la línea; el ITBIS se suma.
+      gravado += montoItem;
+      itbis += money((montoItem * tasa) / 100);
     }
   }
   return money(gravado + exento + itbis);

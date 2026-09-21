@@ -220,6 +220,7 @@ function DashboardGerencial({ apiUrl }) {
             <button
               type="button"
               onClick={() => setSlideActivo((prev) => (prev === 0 ? 2 : prev - 1))}
+              aria-label="Diapositiva anterior"
               style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <ChevronLeft size={15} />
@@ -227,6 +228,7 @@ function DashboardGerencial({ apiUrl }) {
             <button
               type="button"
               onClick={() => setSlideActivo((prev) => (prev === 2 ? 0 : prev + 1))}
+              aria-label="Diapositiva siguiente"
               style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <ChevronRight size={15} />

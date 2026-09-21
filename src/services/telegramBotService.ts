@@ -13,6 +13,7 @@
 /* global fetch, AbortController, clearTimeout */
 
 import { createLogger } from '../lib/logger.js';
+import { constantTimeEquals } from '../lib/core.js';
 import { runWithRequestContext } from '../db/index.js';
 
 const API_BASE = 'https://api.telegram.org';
@@ -267,7 +268,7 @@ export async function iniciarTelegramBot(opciones: IOpcionesTelegramBot = {}): P
 }
 
 export function validarWebhookSecret(value: unknown): boolean {
-  return Boolean(webhookSecret) && String(value || '') === webhookSecret;
+  return Boolean(webhookSecret) && constantTimeEquals(value, webhookSecret);
 }
 
 export async function procesarActualizacionWebhook(update: ITelegramUpdate | null | undefined): Promise<void> {

@@ -68,6 +68,23 @@ async function empresaPorDeviceId(req: Request): Promise<number | null> {
   return null;
 }
 
+/**
+ * Empresa del equipo que hace la petición, únicamente si su dispositivo está ACTIVADO.
+ * Devuelve null si no se envió el identificador, no existe o sigue pendiente: en ese caso los
+ * endpoints públicos no deben revelar datos del negocio (caja, cajero, dirección, teléfono, propietario).
+ */
+async function empresaDeDispositivoActivo(req: Request): Promise<number | null> {
+  const db = getDatabase();
+  const deviceId = String(req.get('x-device-id') || '').trim();
+  if (!deviceId) {return null;}
+  const dev = await db.queryUnscoped<{ empresa_id: number | null; estado: string | null }>(
+    'SELECT empresa_id, estado FROM dispositivos WHERE device_id = $1',
+    [deviceId]
+  );
+  if (dev.rowCount && dev.rows[0].estado === 'Activo') {return dev.rows[0].empresa_id || 1;}
+  return null;
+}
+
 /** Fila de configuracion_sistema por empresa (o primera global) sin RLS, como el legacy. */
 async function configuracionSistemaDe(empresaId: number | null): Promise<FilaConfiguracion | null> {
   const db = getDatabase();
@@ -128,7 +145,12 @@ async function jsonConfiguracion(
 // y respondía 200 aunque fallara: mismo comportamiento con try/catch interno.
 router.get('/api/sistema/info', route(async (req: Request, res: Response) => {
   try {
-    const empresaId = (await empresaPorDeviceId(req)) ?? 1;
+    const empresaId = await empresaDeDispositivoActivo(req);
+    if (empresaId === null) {
+      // Sin un equipo activado no se revelan datos del negocio.
+      res.json({ version: '2.2.0', caja: { abierta: false, monto: 0 }, sucursal: 'No disponible', provincia: null, cajera: null, horaServidor: new Date().toISOString() });
+      return;
+    }
     await runWithRequestContext({ empresaId }, async () => {
       const db = getDatabase();
       // Caja estado
@@ -197,6 +219,8 @@ router.get('/api/configuracion/sistema', route(async (req: Request, res: Respons
 router.get('/api/configuracion/completa', route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const empresaId = await empresaPorDeviceId(req);
+  // Los datos del negocio (RNC, propietario, correo, teléfono…) solo se entregan a equipos activados.
+  const equipoActivado = (await empresaDeDispositivoActivo(req)) !== null;
   const row = await configuracionSistemaDe(empresaId);
 
   let negocio: FilaConfiguracion = {};
@@ -221,7 +245,7 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
       nombre_negocio: negocio.nombre_comercial,
       logo_url: negocio.logo_url,
     })),
-    negocio: {
+    negocio: !equipoActivado ? { nombre_comercial: negocio.nombre_comercial || null } : {
       nombre_comercial: negocio.nombre_comercial || null,
       razon_social: negocio.razon_social || null,
       rnc: negocio.rnc || null,
@@ -250,7 +274,11 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
 
 // GET /api/negocio/config (público; pantalla inicial pre-login)
 router.get('/api/negocio/config', route(async (req: Request, res: Response) => {
-  const empresaId = (await empresaPorDeviceId(req)) ?? 1;
+  const empresaId = await empresaDeDispositivoActivo(req);
+  if (empresaId === null) {
+    res.json({ nombre_comercial: 'Mi Restaurante', cobrar_itbis: false, cobrar_propina: false, propina_porcentaje: propinaPorcentajeOAlDefecto(null) });
+    return;
+  }
   await runWithRequestContext({ empresaId }, async () => {
     const db = getDatabase();
     const result = await db.query<FilaConfiguracion>(

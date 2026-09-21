@@ -18,7 +18,7 @@ import {
   healthCheck,
 } from './middleware/requestLogger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import { loginLimiter, publicLimiter } from './middleware/rateLimiter.js';
+import { loginLimiter, publicLimiter, registroDispositivoLimiter } from './middleware/rateLimiter.js';
 import pingRouter from './routers/ping.js';
 import inventarioRouter from './routers/inventario.js';
 import authRouter from './routers/auth.js';
@@ -39,6 +39,7 @@ import dgiiEcfRouter from './routers/dgiiEcf.js';
 import dgiiReportesRouter from './routers/dgiiReportes.js';
 import kdsRouter from './routers/kds.js';
 import webhookRouter from './routers/webhook.js';
+import respaldosRouter from './routers/respaldos.js';
 
 const logger = createLogger('app');
 
@@ -107,6 +108,9 @@ export const createApp = (): Express => {
       await db.query('SELECT 1');
       const migRes = await db.query('SELECT id FROM app_migrations ORDER BY ejecutada_en DESC LIMIT 1');
       const ultimaMig = migRes.rowCount ? migRes.rows[0].id : 'ninguna';
+      // Las fechas del negocio (cierres, reportes, turnos) dependen de la zona horaria de la base de datos.
+      const tzRes = await db.query("SELECT current_setting('TimeZone') AS zona");
+      const zonaHorariaBd = tzRes.rows[0]?.zona ? String(tzRes.rows[0].zona) : 'desconocida';
       let uploadsOk = true;
       try {
         const probe = path.join(config.uploadsDir, `.health-${process.pid}.tmp`);
@@ -121,6 +125,7 @@ export const createApp = (): Express => {
         version: '2.2.0',
         baseDeDatos: 'conectada',
         migracion: ultimaMig,
+        zonaHorariaBd,
         telegram: telegramActivo() ? 'activo' : 'inactivo',
         uploads: uploadsOk ? 'escribible' : 'no_escribible',
         uptimeSegundos: Math.round(process.uptime()),
@@ -157,10 +162,11 @@ export const createApp = (): Express => {
   app.use('/api/kds/autenticar', loginLimiter);
   app.use('/api/dueno/login', loginLimiter);
   app.use('/api/dueno/establecer-pin', loginLimiter);
-  app.use('/api/dispositivo/registrar', publicLimiter);
+  app.use('/api/dispositivo/registrar', registroDispositivoLimiter);
   app.use('/api/dispositivo/activar', publicLimiter);
   app.use('/api/solicitud-licencia', publicLimiter);
   app.use('/setup', loginLimiter);
+  app.use('/api/setup', publicLimiter);
 
   // ── Routers de negocio (cada uno protege sus propias rutas) ──
   app.use('/ping', pingRouter);
@@ -183,6 +189,7 @@ export const createApp = (): Express => {
   app.use(dgiiReportesRouter);
   app.use(kdsRouter);
   app.use(webhookRouter);
+  app.use(respaldosRouter);
 
   // ── Frontend compilado (SPA) en producción/dev ──
   const frontendDist = resolverFrontendDist();

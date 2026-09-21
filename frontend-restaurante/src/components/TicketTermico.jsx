@@ -24,6 +24,8 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     camarero,
     items = [],
     subtotal = 0,
+    subtotalBruto,
+    descuento = 0,
     itbis = 0,
     propina = 0,
     total = 0,
@@ -208,10 +210,16 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
           <div style={{display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px'}}>
             <div style={{display: 'flex', justifyContent: 'space-between'}}>
               <span>Subtotal:</span>
-              <strong>RD$ {formatearRD(subtotal)}</strong>
+              <strong>RD$ {formatearRD(Number(descuento) > 0 ? (subtotalBruto ?? Number(subtotal) + Number(descuento)) : subtotal)}</strong>
             </div>
+            {Number(descuento) > 0 && (
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span>Descuento:</span>
+                <strong>- RD$ {formatearRD(descuento)}</strong>
+              </div>
+            )}
             <div style={{display: 'flex', justifyContent: 'space-between'}}>
-              <span>ITBIS (18%):</span>
+              <span>ITBIS:</span>
               <strong>RD$ {formatearRD(itbis)}</strong>
             </div>
             {propina > 0 && (

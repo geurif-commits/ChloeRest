@@ -403,7 +403,7 @@ const [mobileTab, setMobileTab] = useState('menu');
       camarero: mesa.camarero || usuario.nombre,
       items: cuentaActual,
       subtotal: totalOriginal,
-       ...calcularTotales(cuentaActual, { cobrarItbis: configNegocio.cobrar_itbis, cobrarPropina: configNegocio.cobrar_propina, tasaPropina: porcentajePropina(configNegocio) / 100 }),
+       ...calcularTotales(cuentaActual, { cobrarItbis: configNegocio.cobrar_itbis, cobrarPropina: configNegocio.cobrar_propina, porcentajePropina: porcentajePropina(configNegocio) }),
       fecha: new Date().toLocaleString(),
       ticketConfig: {
         font_family: configNegocio.ticket_font_family,
@@ -468,7 +468,7 @@ const [mobileTab, setMobileTab] = useState('menu');
   const totalesFactura = calcularTotales([...cuentaActual, ...comandaNueva], {
     cobrarItbis: configNegocio.cobrar_itbis,
     cobrarPropina: configNegocio.cobrar_propina,
-    tasaPropina: porcentajePropina(configNegocio) / 100,
+    porcentajePropina: porcentajePropina(configNegocio),
   });
   const { subtotal: subtotalFactura, itbis, propina: propinaLey, total: totalAPagar } = totalesFactura;
   const granTotal = subtotalFactura;
@@ -629,7 +629,7 @@ const [mobileTab, setMobileTab] = useState('menu');
 
             <div className="po-sum">
               <div><span>Subtotal</span><strong>RD$ {formatearRD(subtotalFactura)}</strong></div>
-              {configNegocio.cobrar_itbis && <div><span>ITBIS 18%</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
+              {configNegocio.cobrar_itbis && <div><span>ITBIS</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
               {configNegocio.cobrar_propina && <div><span>Propina {porcentajePropina(configNegocio)}%</span><strong>RD$ {formatearRD(propinaLey)}</strong></div>}
               <div className="po-sum__total"><span>Total a pagar</span><strong>RD$ {formatearRD(totalAPagar)}</strong></div>
             </div>

@@ -83,7 +83,7 @@ function PedidoTicket({
       <footer className="po-ticket__foot">
         <div className="po-totals">
           <div><span>Subtotal</span><span>RD$ {formatearRD(subtotalFactura ?? granTotal)}</span></div>
-          {itbis > 0 && <div><span>ITBIS 18 %</span><span>RD$ {formatearRD(itbis)}</span></div>}
+          {itbis > 0 && <div><span>ITBIS</span><span>RD$ {formatearRD(itbis)}</span></div>}
           {propinaLey > 0 && <div><span>Propina {propinaPorcentaje} %</span><span>RD$ {formatearRD(propinaLey)}</span></div>}
           <div className="po-totals__grand"><span>Total mesa</span><strong>RD$ {formatearRD(totalAPagar ?? granTotal)}</strong></div>
         </div>

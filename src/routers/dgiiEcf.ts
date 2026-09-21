@@ -149,7 +149,7 @@ router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), r
   const tipoECF = tipoCF === 'E31' || (tipoCF === 'e-CF' && (cta.ncf || '').startsWith('E31')) ? 31 : 32;
 
   const detalles = await db.query<IDetalleCuentaFila>(
-    `SELECT cd.*, p.nombre AS producto_nombre, COALESCE(p.tasa_itbis, 18) AS tasa_itbis
+    `SELECT cd.*, p.nombre AS producto_nombre, COALESCE(p.tasa_itbis, 0) AS tasa_itbis
      FROM cuenta_detalles cd JOIN productos p ON p.id = cd.producto_id
      WHERE cd.cuenta_id = $1 AND cd.anulado_en IS NULL`,
     [cuentaId]
@@ -259,13 +259,13 @@ router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), r
   let totalItbis = 0;
   for (const d of detalles.rows) {
     const montoItem = money(Number(d.cantidad) * Number(d.precio_unitario));
-    const tasa = Number(d.tasa_itbis ?? 18);
+    const tasa = Number(d.tasa_itbis ?? 0);
     if (tasa === 0) {
       montoExento += montoItem;
     } else {
-      const gravado = money(montoItem / (1 + tasa / 100));
-      montoGravado += gravado;
-      totalItbis += money((gravado * tasa) / 100);
+      // Precios sin ITBIS: base = monto de la línea; el ITBIS se suma.
+      montoGravado += montoItem;
+      totalItbis += money((montoItem * tasa) / 100);
     }
   }
 

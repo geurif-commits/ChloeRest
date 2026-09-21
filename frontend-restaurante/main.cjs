@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const http = require('http');
 const net = require('net');
 const { spawn } = require('child_process');
@@ -28,9 +29,51 @@ function readLocalEnvValue(name) {
   return '';
 }
 
-// Nunca incrustar credenciales de PostgreSQL en el ejecutable. En una instalación
-// local se toma de la configuración privada empaquetada o del entorno del equipo.
-const DB_SUPER_PASSWORD = readLocalEnvValue('POSTGRES_SUPER_PASSWORD') || readLocalEnvValue('DB_PASSWORD');
+// Nunca incrustar credenciales de PostgreSQL en el ejecutable. Las instalaciones antiguas usan la
+// contraseña de la configuración privada empaquetada (herencia); las nuevas generan la suya.
+const DB_PASSWORD_HEREDADA = readLocalEnvValue('POSTGRES_SUPER_PASSWORD') || readLocalEnvValue('DB_PASSWORD');
+
+// ── Secretos propios de cada instalación ─────────────────────────────
+// El instalador ya no impone el mismo secreto de sesión ni la misma contraseña de PostgreSQL a todos
+// los clientes: se generan al primer arranque y se guardan en la carpeta de datos del usuario.
+function secretoLocal(nombre, { crear = false } = {}) {
+  const archivo = path.join(app.getPath('userData'), `${nombre}.secret`);
+  try {
+    const guardado = fs.readFileSync(archivo, 'utf8').trim();
+    if (guardado.length >= 32) return guardado;
+  } catch { /* todavía no existe */ }
+  if (!crear) return '';
+  const nuevo = crypto.randomBytes(32).toString('hex');
+  fs.mkdirSync(path.dirname(archivo), { recursive: true });
+  fs.writeFileSync(archivo, nuevo, { mode: 0o600 });
+  return nuevo;
+}
+
+// ¿Ya hay un PostgreSQL instalado en el equipo? Entonces se conserva su contraseña actual.
+function postgresYaInstalado() {
+  const base = process.env.ProgramFiles || 'C:\Program Files';
+  return fs.existsSync(path.join(base, 'PostgreSQL'));
+}
+
+// Contraseña para instalar PostgreSQL: propia en instalaciones nuevas; heredada si ya existía.
+function contrasenaDeInstalacionPostgres() {
+  if (postgresYaInstalado()) return DB_PASSWORD_HEREDADA;
+  return secretoLocal('db', { crear: true });
+}
+
+// Variables que se inyectan al backend local (tienen prioridad sobre el .env empaquetado).
+function entornoDelBackend() {
+  const dbPassword = secretoLocal('db');
+  return {
+    ...process.env,
+    APP_SESSION_SECRET: secretoLocal('session', { crear: true }),
+    ...(dbPassword ? { DB_PASSWORD: dbPassword } : {}),
+    // Respaldo diario de la base de datos en la carpeta de datos del usuario; el Administrador puede verlo y descargarlo.
+    BACKUP_ENABLED: process.env.BACKUP_ENABLED || '1',
+    BACKUP_DIR: process.env.BACKUP_DIR || path.join(app.getPath('userData'), 'respaldos'),
+    BACKUP_TENANT_ACCESS: '1',
+  };
+}
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -68,13 +111,13 @@ function findPostgresInstaller() {
   return null;
 }
 
-function installPostgresSilently(installerPath) {
+function installPostgresSilently(installerPath, superPassword) {
   return new Promise((resolve) => {
     const args = [
       '--mode', 'unattended',
       '--unattendedmodeui', 'none',
       '--superaccount', 'postgres',
-      '--superpassword', DB_SUPER_PASSWORD,
+      '--superpassword', superPassword,
       '--serverport', String(DB_PORT),
       '--install_runtimes', '0',
       '--create_shortcuts', '0',
@@ -99,8 +142,9 @@ async function ensureDatabase() {
     console.log(`PostgreSQL disponible en ${DB_HOST}:${DB_PORT}.`);
     return;
   }
-  if (!DB_SUPER_PASSWORD) {
-    console.warn('PostgreSQL no está disponible y falta POSTGRES_SUPER_PASSWORD en la configuración local.');
+  const contrasenaInstalacion = contrasenaDeInstalacionPostgres();
+  if (!contrasenaInstalacion) {
+    console.warn('PostgreSQL no está disponible y no hay contraseña configurada para instalarlo.');
     return;
   }
   const installerPath = findPostgresInstaller();
@@ -109,7 +153,7 @@ async function ensureDatabase() {
     return;
   }
   console.log('PostgreSQL no detectado en la PC. Ejecutando instalación automática...');
-  await installPostgresSilently(installerPath);
+  await installPostgresSilently(installerPath, contrasenaInstalacion);
   for (let attempt = 1; attempt <= 30; attempt += 1) {
     if (await checkDatabase()) {
       console.log('PostgreSQL listo tras la instalación.');
@@ -362,6 +406,7 @@ async function startBackendIfNeeded() {
     backendProcess = spawn(launcher.command, launcher.args, {
       cwd: launcher.cwd,
       detached: false,
+      env: entornoDelBackend(),
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
@@ -370,7 +415,7 @@ async function startBackendIfNeeded() {
     backendProcess = spawn(process.execPath, [launcher.script], {
       cwd: launcher.cwd,
       detached: false,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      env: { ...entornoDelBackend(), ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });

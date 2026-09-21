@@ -7,6 +7,8 @@
 
 ## 1. Veredicto
 
+> **Actualización (tarde del 21-sep):** el plan se ejecutó; ver la tabla de la sección 8. Lo que queda depende de acciones externas (despliegue, instalador firmado, copia de respaldos, DGII, abogado, pruebas con impresoras y piloto).
+
 **Listo para un piloto controlado (3–5 restaurantes). No listo todavía para distribución masiva.** La base técnica es sólida (autenticación, aislamiento entre negocios, roles, pruebas), pero hay **cuatro bloqueantes** que conviene cerrar antes de vender a nivel nacional. Uno de ellos toca dinero y requiere una decisión suya.
 
 | # | Bloqueante | Por qué importa | Acción |
@@ -113,3 +115,32 @@ Rama `feat/rediseno-verde-turnos-asistencia`: **~80 archivos sin commitear** des
 - `anuncios/` — 6 piezas PNG: feed 1080×1080 (×2), historia 1080×1920, Facebook/LinkedIn 1200×628, feed 4:5 1080×1350, banner 1920×1080. Fuentes editables en `src/*.html`.
 - `presentacion/` — imágenes y archivos de la presentación (13 diapositivas, publicada como artefacto).
 - **Limitaciones:** no hay generador de imágenes por IA en este entorno; las piezas se componen con capturas reales y diseño propio. Sin testimonios, cifras de clientes ni certificaciones. Pendientes en la presentación: precios, datos de contacto y ciudad/cantidad del piloto (entre corchetes).
+
+---
+
+## 8. Estado tras las correcciones (2026-09-21, tarde)
+
+A pedido del dueño se ejecutó el plan. Verificado con: 178 pruebas unitarias, `tsc`/`eslint` sin errores, `vite build`, `oxlint` 0 errores, e2e **49/49** (también sobre una base vacía sembrada como lo haría CI), RLS **27/27** con aislamiento comprobado, restauración de respaldo verificada y **0 violaciones de accesibilidad WCAG 2.1 A/AA** (axe-core) en pantallas principales, panel completo y cobro, en los tres temas.
+
+| # | Hallazgo | Estado | Qué se hizo / qué falta |
+|---|---|---|---|
+| B1 / H1 | ITBIS distinto entre pantalla y servidor | ✅ Resuelto | Precios sin ITBIS; misma fórmula en servidor (centavos), pantalla, e-CF y 607; ITBIS por producto; botón "aplicar ITBIS a todos" |
+| B2 / H2 | Sin respaldos automáticos | ✅ Resuelto en código | Respaldo diario verificado, restauración probada (`npm run backup:verify`), API + pestaña *Respaldos*, activado por defecto en Electron. **Falta:** copia fuera del equipo y rol con `BYPASSRLS` en el servidor central |
+| B3 / H3 | Producción e instalador desactualizados | ⏳ Requiere acción suya | No se desplegó ni se compiló el instalador. Pasos y verificación (`npm run verify:deploy`) en `docs/OPERACION.md`. Hoy producción sigue en `049` |
+| B4 / H4 | Secretos compartidos en el instalador | ✅ Resuelto en código | Secreto de sesión y contraseña de PostgreSQL por instalación (`main.cjs`); `predist` ya no copia `APP_SESSION_SECRET`. **Falta:** compilar el instalador y probarlo en un equipo limpio |
+| H5 | Límite de `registrar` | ✅ Resuelto | 300/10 min por IP, configurable; la app además recuerda la activación |
+| H6 | Cobertura de pruebas | ◐ Mejorado | e2e (49) en CI, piso de cobertura y +40 pruebas unitarias; la cobertura unitaria sigue en 44 % (los routers los cubre el e2e) |
+| H7 | Cobro sin caja abierta | ✅ Resuelto | 409 `CAJA_CERRADA` |
+| H8 | Sin división de cuenta ni descuentos | ✅ Resuelto | Descuentos con motivo (migración 052) y cobro dividido por producto/cantidad |
+| H9 | e-CF | ⏳ Externo | Los cálculos están alineados; falta la certificación con la DGII |
+| H10 | Datos públicos del negocio | ✅ Resuelto en código | Solo equipos activados los reciben. **Producción los sigue exponiendo hasta desplegar** (comprobado con `verify:deploy`) |
+| H11 | Token en `localStorage` | ⏳ No cambiado | Cambio de arquitectura (cookies httpOnly); mitigado por CSP `script-src 'self'` |
+| H12–H13 | Comparaciones no constantes, `/api/setup` sin límite | ✅ Resuelto | `constantTimeEquals`; límite en `/api/setup` |
+| H14 | Monitoreo | ◐ Documentado | `docs/OPERACION.md` §5 (UptimeRobot sobre `/api/health`); falta darlo de alta |
+| H15 | Accesibilidad | ✅ Resuelto | 0 violaciones axe-core; contraste y nombres accesibles corregidos |
+| H16 | Licencia ISC | ✅ Resuelto | `UNLICENSED` + `private` |
+| H17 | Instalador pesado | ⏳ Sin cambio | Incluye el instalador de PostgreSQL |
+| — | Zona horaria de la BD | ◐ Detectable | `/api/health` → `zonaHorariaBd`; verificar en producción |
+| — | Legal y capacitación | ◐ Borradores | `docs/legal/` (requieren abogado) y `docs/MANUAL_USUARIO.md` |
+
+**Nuevas defensas verificadas:** las rutas de negocio (133) rechazan peticiones sin credenciales; el cajero y el camarero no acceden a respaldos, ITBIS masivo ni horarios; un cobro parcial o con descuento inválido se rechaza sin tocar la cuenta.

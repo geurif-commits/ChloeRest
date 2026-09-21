@@ -233,6 +233,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
 
               <select
                 value={filtroRol}
+                aria-label="Filtrar por rol"
                 onChange={(e) => setFiltroRol(e.target.value)}
                 className="admin-select"
                 style={{ fontSize: '0.82rem', height: '36px', width: 'auto', minWidth: '130px' }}
@@ -378,6 +379,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
               <label className="admin-label">Rol y Nivel de Acceso *</label>
               <select
                 name="rol"
+                aria-label="Rol del usuario"
                 className="admin-select"
                 value={nuevoUsuario.rol}
                 onChange={manejarCambioInput}
@@ -418,6 +420,7 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
                 <button
                   type="button"
                   onClick={() => setVerPin(!verPin)}
+                  aria-label={verPin ? 'Ocultar PIN' : 'Mostrar PIN'}
                   style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--admin-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 >
                   {verPin ? <EyeOff size={16} /> : <Eye size={16} />}

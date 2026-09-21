@@ -29,6 +29,7 @@ interface IFacturaConItemsFila {
   camarero_nombre: string | null;
   cajero_nombre: string | null;
   subtotal: string | null;
+  descuento: string | null;
   itbis: string | null;
   propina: string | null;
   total: string | null;
@@ -148,6 +149,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
       u.nombre AS camarero_nombre,
       j.nombre AS cajero_nombre,
       c.subtotal,
+      c.descuento,
       c.itbis,
       c.propina,
       c.total,

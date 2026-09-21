@@ -3,7 +3,7 @@ import { toastAviso, toastError } from './Toast.jsx';
 import {
   Store, Key, Building2, Receipt, Printer, FileText, Save,
   CreditCard, Pencil, Trash2, Plus, CheckCircle2, ShieldCheck, Sparkles,
-  RefreshCw
+  RefreshCw, HardDrive, Download
 } from 'lucide-react';
 import { PROPINA_MIN, PROPINA_MAX, porcentajePropina } from '../utils/dinero.js';
 import './admin/admin.css';
@@ -14,7 +14,10 @@ const SUBPESTANAS = [
   { id: 'fiscal', label: 'Fiscal & Cuentas', icon: Receipt, desc: 'Impuestos y transferencias bancarias' },
   { id: 'estaciones', label: 'Estaciones & Despacho', icon: Printer, desc: 'Cocina, Bar e impresoras térmicas' },
   { id: 'tickets', label: 'Formato de Tickets', icon: FileText, desc: 'Tipografía, márgenes y QR' },
+  { id: 'respaldos', label: 'Respaldos', icon: HardDrive, desc: 'Copias de seguridad de tus datos' },
 ];
+
+const formatearTamano = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
   const [subpestana, setSubpestana] = useState('identidad');
@@ -48,6 +51,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
   const [archivoLogo, setArchivoLogo] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  // ITBIS masivo por producto: null | 'aplicar' | 'quitar' (paso de confirmación en la propia tarjeta).
+  const [confirmandoItbis, setConfirmandoItbis] = useState(null);
+  const [aplicandoItbis, setAplicandoItbis] = useState(false);
   const fileRef = useRef(null);
   const urlBase = apiUrl;
 
@@ -64,6 +70,58 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
   const [impresorasEstacion, setImpresorasEstacion] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chloe_impresoras') || '{}'); } catch { return {}; }
   });
+
+  // Respaldos de la base de datos (solo visible para quien tenga permiso: Administrador en instalaciones locales).
+  const [respaldos, setRespaldos] = useState(null);
+  const [respaldosError, setRespaldosError] = useState('');
+  const [creandoRespaldo, setCreandoRespaldo] = useState(false);
+
+  const cargarRespaldos = async () => {
+    setRespaldosError('');
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos`);
+      if (res.ok) setRespaldos(await res.json());
+      else if (res.status === 403) setRespaldosError('Los respaldos de este servidor los gestiona el propietario de la plataforma.');
+      else setRespaldosError('No se pudo consultar los respaldos.');
+    } catch {
+      setRespaldosError('Error de conexión con el servidor.');
+    }
+  };
+
+  const crearRespaldoAhora = async () => {
+    setCreandoRespaldo(true);
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) toastAviso(data.mensaje || 'Respaldo creado.');
+      else toastError(data.error || 'No se pudo crear el respaldo.');
+      await cargarRespaldos();
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    } finally {
+      setCreandoRespaldo(false);
+    }
+  };
+
+  const descargarRespaldo = async (nombre) => {
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos/${encodeURIComponent(nombre)}`);
+      if (!res.ok) return toastError('No se pudo descargar el respaldo.');
+      const url = URL.createObjectURL(await res.blob());
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = nombre;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    }
+  };
+
+  useEffect(() => {
+    if (subpestana === 'respaldos') cargarRespaldos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subpestana]);
 
   useEffect(() => {
     cargarConfiguracion();
@@ -188,6 +246,25 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     const n = Number(texto);
     if (texto !== '' && Number.isFinite(n) && n >= PROPINA_MIN && n <= PROPINA_MAX) {
       setFormData((actual) => ({ ...actual, propina_porcentaje: Math.round(n) }));
+    }
+  };
+
+  const cambiarItbisProductos = async (aplica) => {
+    setAplicandoItbis(true);
+    try {
+      const res = await fetch(`${urlBase}/api/productos/itbis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aplica, tasa: 18 })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) toastAviso(data.mensaje || 'Productos actualizados.');
+      else toastError(data.error || 'No se pudo actualizar el ITBIS de los productos.');
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    } finally {
+      setAplicandoItbis(false);
+      setConfirmandoItbis(null);
     }
   };
 
@@ -532,6 +609,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   <label className="admin-label">Duración del Plan</label>
                   <select
                     value={duracionActivar}
+                    aria-label="Duración de la licencia"
                     onChange={(e) => setDuracionActivar(e.target.value)}
                     className="admin-select"
                   >
@@ -657,6 +735,29 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               </div>
             )}
 
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+              <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>ITBIS por producto</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
+                Los precios del menú no incluyen ITBIS y los productos vienen sin ITBIS. Cuando actives el cobro de ITBIS, puedes aplicar el 18 % a todos los productos de una vez (después puedes ajustar cada uno en su ficha).
+              </span>
+              {confirmandoItbis ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {confirmandoItbis === 'aplicar' ? '¿Aplicar ITBIS 18 % a todos los productos activos?' : '¿Quitar el ITBIS a todos los productos activos?'}
+                  </span>
+                  <button type="button" className="admin-btn admin-btn-primary" disabled={aplicandoItbis} onClick={() => cambiarItbisProductos(confirmandoItbis === 'aplicar')}>
+                    {aplicandoItbis ? 'Aplicando…' : 'Sí, confirmar'}
+                  </button>
+                  <button type="button" className="admin-btn" disabled={aplicandoItbis} onClick={() => setConfirmandoItbis(null)}>Cancelar</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  <button type="button" className="admin-btn" onClick={() => setConfirmandoItbis('aplicar')}>Aplicar ITBIS 18 % a todos los productos</button>
+                  <button type="button" className="admin-btn" onClick={() => setConfirmandoItbis('quitar')}>Quitar ITBIS a todos los productos</button>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={() => guardarNegocio()}
@@ -717,6 +818,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 />
                 <select
                   value={formCuenta.tipo_cuenta}
+                  aria-label="Tipo de cuenta bancaria"
                   onChange={(e) => setFormCuenta({ ...formCuenta, tipo_cuenta: e.target.value })}
                   className="admin-select"
                 >
@@ -858,6 +960,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   <span style={{ color: 'var(--kpi-gold)', width: '80px', textTransform: 'capitalize', fontWeight: 600, fontSize: '0.85rem' }}>{estacion}:</span>
                   <select
                     value={impresorasEstacion[estacion] || ''}
+                    aria-label={`Impresora de ${estacion}`}
                     onChange={(e) => guardarImpresorasEstacion({ ...impresorasEstacion, [estacion]: e.target.value })}
                     className="admin-select"
                     style={{ flex: 1, minWidth: '220px' }}
@@ -886,6 +989,62 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
       )}
 
       {/* ── PESTAÑA 5: FORMATO DE TICKETS & FACTURAS ── */}
+      {subpestana === 'respaldos' && (
+        <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Respaldos de la base de datos</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
+              Copia de seguridad de todos tus datos (ventas, productos, usuarios). Cada respaldo se verifica al crearse.
+            </p>
+          </div>
+          {respaldosError && <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.86rem' }}>{respaldosError}</p>}
+          {respaldos && (
+            <>
+              <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                {respaldos.automaticos
+                  ? `Respaldo automático activo: cada día a las ${String(respaldos.hora).padStart(2, '0')}:00, se conservan ${respaldos.retencionDias} días.`
+                  : 'El respaldo automático está desactivado en este servidor.'}
+              </p>
+              {!respaldos.herramientaDisponible && (
+                <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.84rem' }}>
+                  No se encontró pg_dump en este equipo: instala las herramientas de PostgreSQL para poder respaldar.
+                </p>
+              )}
+              <button
+                type="button"
+                className="admin-btn admin-btn-primary"
+                onClick={crearRespaldoAhora}
+                disabled={creandoRespaldo || !respaldos.herramientaDisponible}
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <HardDrive size={16} />
+                {creandoRespaldo ? 'Creando respaldo…' : 'Crear respaldo ahora'}
+              </button>
+              {respaldos.respaldos.length === 0 ? (
+                <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--admin-text-muted)' }}>Todavía no hay respaldos.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {respaldos.respaldos.map((r) => (
+                    <div key={r.nombre} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.03)' }}>
+                      <div>
+                        <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>{new Date(r.creado).toLocaleString('es-DO')}</strong>
+                        <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>{formatearTamano(r.bytes)}</span>
+                      </div>
+                      <button type="button" className="admin-btn" onClick={() => descargarRespaldo(r.nombre)} aria-label={`Descargar respaldo del ${new Date(r.creado).toLocaleString('es-DO')}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Download size={15} /> Descargar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--admin-text-muted)' }}>
+                Guarda una copia fuera de este equipo (memoria USB o la nube): si el equipo falla, los respaldos que estén en él también se pierden.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       {subpestana === 'tickets' && (
         <form onSubmit={guardarNegocio} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
@@ -907,6 +1066,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Tipografía (Font Family)</label>
                 <select
                   name="ticket_font_family"
+                  aria-label="Tipografía del ticket"
                   value={formData.ticket_font_family}
                   onChange={handleChange}
                   className="admin-select"
@@ -924,6 +1084,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Tamaño de Fuente Base</label>
                 <select
                   name="ticket_font_size"
+                  aria-label="Tamaño de letra del ticket"
                   value={formData.ticket_font_size}
                   onChange={handleChange}
                   className="admin-select"
@@ -941,6 +1102,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Posición del Logotipo</label>
                 <select
                   name="ticket_logo_position"
+                  aria-label="Posición del logo en el ticket"
                   value={formData.ticket_logo_position}
                   onChange={handleChange}
                   className="admin-select"
@@ -955,6 +1117,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Márgenes de Papel</label>
                 <select
                   name="ticket_margin"
+                  aria-label="Márgenes del ticket"
                   value={formData.ticket_margin}
                   onChange={handleChange}
                   className="admin-select"

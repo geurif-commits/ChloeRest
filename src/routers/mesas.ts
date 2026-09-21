@@ -86,6 +86,7 @@ interface IDetalleCuentaFila {
   guarnicion: string | null;
   termino: string | null;
   nombre: string;
+  tasa_itbis: string;
 }
 
 /** Fila de producto activo consultado al tomar una comanda. */
@@ -251,7 +252,8 @@ router.get('/api/mesas/:id/cuenta', requireAuth, route(async (req: Request, res:
     throw httpError(403, 'Solo el camarero que abrió la mesa puede ver esta cuenta.');
   }
   const details = await db.query<IDetalleCuentaFila>(
-    `SELECT cd.id, cd.cantidad, cd.precio_unitario AS precio, cd.notas, cd.guarnicion, cd.termino, p.nombre
+    `SELECT cd.id, cd.cantidad, cd.precio_unitario AS precio, cd.notas, cd.guarnicion, cd.termino, p.nombre,
+            COALESCE(p.tasa_itbis, 0) AS tasa_itbis
      FROM cuenta_detalles cd
      JOIN productos p ON p.id = cd.producto_id
      WHERE cd.cuenta_id = $1 AND cd.anulado_en IS NULL
@@ -376,7 +378,14 @@ router.post(['/api/mesas/:id/cobrar', '/api/mesas/:id/cerrar', '/api/cuentas/:id
     req,
   });
   logger.info({ action: 'CUENTA_COBRADA', userId: req.auth!.userId, cuentaId: result.rows[0].id, ncf: receipt.comprobante });
-  res.json({ mensaje: 'Pago procesado e inventario actualizado.', ncf: receipt.comprobante, comprobante: receipt.comprobante, totales: receipt });
+  res.json({
+    mensaje: 'Pago procesado e inventario actualizado.',
+    ncf: receipt.comprobante,
+    comprobante: receipt.comprobante,
+    cuenta_id: receipt.cuenta_id,
+    dividida: receipt.dividida,
+    totales: receipt,
+  });
 }));
 
 // DELETE /api/cuenta_detalles/:id (operación): anula un producto de una cuenta

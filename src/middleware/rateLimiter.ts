@@ -20,6 +20,18 @@ export const loginLimiter = rateLimit({
   },
 });
 
+/**
+ * Registro de dispositivos: cada equipo lo llama al abrir la app, así que varios equipos de un mismo
+ * negocio (misma IP pública) no deben agotar el límite. Sigue acotado para frenar el registro masivo.
+ */
+export const registroDispositivoLimiter = rateLimit({
+  windowMs: Number(process.env.DEVICE_REGISTER_RATE_WINDOW_MS || 10 * 60 * 1000),
+  max: Number(process.env.DEVICE_REGISTER_RATE_MAX || 300),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Demasiadas solicitudes. Intenta más tarde.', code: 'RATE_LIMITED' },
+});
+
 /** Rate limiter para endpoints públicos generales (formularios, licencias). */
 export const publicLimiter = rateLimit({
   windowMs: Number(process.env.PUBLIC_RATE_WINDOW_MS || 10 * 60 * 1000), // 10 min

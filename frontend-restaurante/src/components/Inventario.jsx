@@ -194,7 +194,7 @@ function Inventario({ alVolver, apiUrl }) {
             </span>
           </div>
 
-          <div style={{ overflowX: 'auto', width: '100%' }}>
+          <div style={{ overflowX: 'auto', width: '100%' }} tabIndex={0} role="region" aria-label="Tabla con desplazamiento">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -349,7 +349,7 @@ function Inventario({ alVolver, apiUrl }) {
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto', width: '100%' }}>
+            <div style={{ overflowX: 'auto', width: '100%' }} tabIndex={0} role="region" aria-label="Tabla con desplazamiento">
               <table className="admin-table">
                 <thead>
                   <tr>

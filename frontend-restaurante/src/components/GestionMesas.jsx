@@ -256,6 +256,7 @@ function GestionMesas({ apiUrl }) {
                             <button
                               type="button"
                               onClick={() => guardarEdicion(mesa.id)}
+                              aria-label="Guardar nombre de la mesa"
                               className="admin-btn admin-btn-primary"
                               style={{ padding: '4px 8px', fontSize: '0.76rem' }}
                             >
@@ -264,6 +265,7 @@ function GestionMesas({ apiUrl }) {
                             <button
                               type="button"
                               onClick={() => setEditandoId(null)}
+                              aria-label="Cancelar edición"
                               className="admin-btn admin-btn-secondary"
                               style={{ padding: '4px 8px', fontSize: '0.76rem' }}
                             >
@@ -297,6 +299,7 @@ function GestionMesas({ apiUrl }) {
                           <button
                             type="button"
                             onClick={() => eliminarMesa(mesa.id, mesa.nombre_numero, mesa.estado)}
+                            aria-label={`Eliminar ${mesa.nombre_numero}`}
                             className="admin-btn"
                             style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--kpi-red)', padding: '4px 10px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >

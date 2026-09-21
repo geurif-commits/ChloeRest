@@ -6,7 +6,7 @@ import CobroModal from './CobroModal';
 import AperturaModal from './AperturaModal';
 import ConfirmModal from './ConfirmModal';
 import { redondearMoneda } from '../utils/input.js';
-import { porcentajePropina } from '../utils/dinero.js';
+import { calcularTotales, porcentajePropina } from '../utils/dinero.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
 import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote } from 'lucide-react';
 import './caja/caja.css';
@@ -76,6 +76,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [notasArqueo, setNotasArqueo] = useState('');
 
   const [cajaAbierta, setCajaAbierta] = useState(true);
+  // Descuento y cobro parcial (dividir cuenta) del cobro en curso.
+  const [descuentoCobro, setDescuentoCobro] = useState({ tipo: 'porcentaje', valor: '', motivo: '' });
+  const [dividir, setDividir] = useState({ activo: false, cantidades: {} });
   const [montoApertura, setMontoApertura] = useState('');
   const [notasApertura, setNotasApertura] = useState('');
   const [mostrandoModalApertura, setMostrandoModalApertura] =
@@ -582,31 +585,22 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
     }
   };
 
-  const subtotal = redondearMoneda(
-    cuentaMesa.reduce(
-      (acc, item) =>
-        acc +
-        Number(item.precio) *
-          Number(item.cantidad),
-      0
-    )
-  );
+  // Líneas que se cobran ahora: toda la cuenta o, al dividir, solo las cantidades elegidas.
+  const itemsACobrar = dividir.activo
+    ? cuentaMesa
+      .map((item) => ({ ...item, cantidad: Number(dividir.cantidades[item.id] || 0) }))
+      .filter((item) => item.cantidad > 0)
+    : cuentaMesa;
+  const dividiendoParte = dividir.activo && itemsACobrar.some((item, i, todos) => todos.length !== cuentaMesa.length || Number(item.cantidad) !== Number(cuentaMesa.find((c) => c.id === item.id)?.cantidad));
+  const descuentoPedido = Number(descuentoCobro.valor) > 0 ? { tipo: descuentoCobro.tipo, valor: Number(descuentoCobro.valor) } : null;
 
-  const itbis = redondearMoneda(
-    configNegocio.cobrar_itbis
-      ? subtotal * 0.18
-      : 0
-  );
-
-  const propina = redondearMoneda(
-    configNegocio.cobrar_propina
-      ? (subtotal * porcentajePropina(configNegocio)) / 100
-      : 0
-  );
-
-  const total = redondearMoneda(
-    subtotal + itbis + propina
-  );
+  // Mismos totales que el comandero y el servidor (ITBIS por producto, propina configurable, descuento).
+  const { subtotalBruto, descuento, subtotal, itbis, propina, total } = calcularTotales(itemsACobrar, {
+    cobrarItbis: configNegocio.cobrar_itbis,
+    cobrarPropina: configNegocio.cobrar_propina,
+    porcentajePropina: porcentajePropina(configNegocio),
+    descuento: descuentoPedido,
+  });
 
   const montoEntregadoNum =
     parseFloat(montoEntregado || '0');
@@ -638,6 +632,13 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const confirmarCobroFinal = async (
     datosMixto = {}
   ) => {
+    if (descuentoPedido && descuentoCobro.motivo.trim().length < 3) {
+      return toastAviso('Indica el motivo del descuento.');
+    }
+    if (dividir.activo && itemsACobrar.length === 0) {
+      return toastAviso('Selecciona al menos un producto para cobrar.');
+    }
+
     if (!datosMixto.pagoMixto) {
       if (metodoPago === 'Efectivo') {
         if (montoEntregadoDOP < total) {
@@ -710,7 +711,18 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
             banco_pago_2:
               datosMixto.bancoPago2 ||
-              null
+              null,
+
+            descuento_tipo:
+              descuentoPedido ? descuentoPedido.tipo : null,
+            descuento_valor:
+              descuentoPedido ? descuentoPedido.valor : null,
+            descuento_motivo:
+              descuentoPedido ? descuentoCobro.motivo.trim() : null,
+            detalles_cobrar:
+              dividiendoParte
+                ? itemsACobrar.map((item) => ({ id: item.id, cantidad: item.cantidad }))
+                : undefined
           })
         }
       );
@@ -751,9 +763,11 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
             usuario.nombre,
 
           items:
-            cuentaMesa,
+            itemsACobrar,
 
           subtotal,
+          subtotalBruto,
+          descuento,
           itbis,
           propina,
           total,
@@ -783,6 +797,8 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         setRncCliente('');
         setTarjetaUltimos4('');
         setMonedaPago('DOP');
+        setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
+        setDividir({ activo: false, cantidades: {} });
 
         await cargarMesas();
 
@@ -1522,7 +1538,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 }}
               >
                 <span>
-                  ITBIS (18%):
+                  ITBIS:
                 </span>
 
                 <strong>
@@ -1620,9 +1636,16 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 tasaEur,
 
                 subtotal,
+                subtotalBruto,
+                descuento,
                 itbis,
                 propina,
                 total,
+
+                descuentoCobro,
+                setDescuentoCobro,
+                dividir,
+                setDividir,
 
                 onCobroExitoso:
                   confirmarCobroFinal,
@@ -1638,6 +1661,8 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 setMesaSeleccionada(null);
                 setCuentaMesa([]);
                 setMontoEntregado('');
+                setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
+                setDividir({ activo: false, cantidades: {} });
               }}
             />
           )}

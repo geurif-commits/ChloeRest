@@ -272,4 +272,18 @@ router.delete('/api/productos/:id', requireAuth, requireRoles(...ROLES_ADMIN), r
   res.json({ mensaje: 'Producto eliminado del menú.' });
 }));
 
+// POST /api/productos/itbis (Administrador): aplica o quita el ITBIS a TODOS los productos activos.
+// Sirve para activar el ITBIS de una sola vez cuando el negocio decide cobrarlo. Body: { aplica: boolean, tasa?: 16 | 18 }.
+router.post('/api/productos/itbis', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
+  const db = getDatabase();
+  const aplica = esVerdaderoExtendido(req.body?.aplica);
+  const tasaSolicitada = Number(req.body?.tasa ?? 18);
+  if (aplica && ![16, 18].includes(tasaSolicitada)) {throw httpError(400, 'La tasa de ITBIS debe ser 16 o 18.');}
+  const tasa = aplica ? tasaSolicitada : 0;
+  const result = await db.query("UPDATE productos SET aplica_itbis = $1, tasa_itbis = $2 WHERE estado = 'Activo'", [aplica, tasa]);
+  await registrarAuditoria(db, { usuarioId: req.auth!.userId, accion: 'ITBIS_MASIVO_PRODUCTOS', entidad: 'productos', detalle: { aplica, tasa, productos: result.rowCount }, ip: clientIp(req) });
+  logger.info({ action: 'ITBIS_MASIVO_PRODUCTOS', userId: req.auth!.userId, aplica, tasa, productos: result.rowCount });
+  res.json({ mensaje: aplica ? `ITBIS ${tasa} % aplicado a ${result.rowCount} productos.` : `ITBIS quitado a ${result.rowCount} productos.`, productos: result.rowCount, aplica, tasa });
+}));
+
 export default router;

@@ -8,6 +8,7 @@ import {
 import './admin/admin.css';
 import './admin/admin-shell.css';
 import ConfiguracionNegocio from './ConfiguracionNegocio';
+import { observarEtiquetas } from '../utils/accesibilidad.js';
 import DashboardGerencial from './DashboardGerencial';
 import GestionMesas from './GestionMesas';
 import Inventario from './Inventario';
@@ -86,6 +87,9 @@ const METADATA_MODULOS = {
 
 export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicencia, configSistema: configProp }) {
   const [pestana, setPestana] = useState('dashboard');
+
+  // Asocia las etiquetas de los formularios del panel con sus campos (nombre accesible para lectores de pantalla).
+  useEffect(() => observarEtiquetas(document.body), []);
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
   const obtenerFechaHora12 = () => {
     const ahora = new Date();

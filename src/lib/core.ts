@@ -3,6 +3,7 @@
  * Universal helpers: error handling, money, validators
  */
 
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import { IErrorResponse, IMoney } from '../types/index.js';
 
@@ -249,6 +250,16 @@ export function positiveInteger(value: unknown, field: string): number {
  */
 export function money(value: unknown): number {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * Compara dos textos en tiempo constante (secretos y tokens): el tiempo de respuesta no revela
+ * cuántos caracteres coinciden. Quien la use debe descartar antes los valores vacíos.
+ */
+export function constantTimeEquals(a: unknown, b: unknown): boolean {
+  const ha = createHash('sha256').update(String(a ?? '')).digest();
+  const hb = createHash('sha256').update(String(b ?? '')).digest();
+  return timingSafeEqual(ha, hb);
 }
 
 /**

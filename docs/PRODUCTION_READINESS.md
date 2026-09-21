@@ -5,8 +5,12 @@ Este documento es la puerta de salida para operar un restaurante real. Un despli
 ## Evidencia verificada en el proyecto
 
 - Backend TypeScript: `npm run typecheck` correcto.
-- Tests unitarios: `npm run test` — 66/66.
+- Tests unitarios: `npm run test` — 178/178 (piso de cobertura en `npm run test:coverage`).
 - Integración reproducible: `npm run test:integration` — health, SPA, auth, mesas, productos, pedido, KDS, cobro, usuarios y CORS.
+- Extremo a extremo: `npm run test:e2e` (49 comprobaciones: rutas sin credenciales, roles, ITBIS/propina, descuentos, división de cuenta, caja cerrada, turnos, respaldos, bloqueo de PIN); corre también en CI.
+- Respaldos: `npm run backup` y `npm run backup:verify` (restaura en una base temporal y compara tablas, RLS y migraciones).
+- Accesibilidad: 0 violaciones WCAG 2.1 A/AA (axe-core) en las pantallas principales, el panel completo y el cobro, en los tres temas.
+- Despliegue: `npm run verify:deploy -- https://<dominio>` (solo lectura).
 - RLS: 25 tablas tenant y 25 políticas; aislamiento de lectura/escritura probado.
 - Release Electron: `npm run test:release` correcto.
 - Electron empaquetado con `nodeIntegration=false`, `contextIsolation=true`, `webSecurity=true` y ventana inicial oculta.
@@ -31,6 +35,10 @@ Este documento es la puerta de salida para operar un restaurante real. Un despli
 - No incluir contraseñas reales en repositorio, logs ni instaladores.
 
 ### 3. Operación del restaurante
+
+- Respaldos con copia **fuera del equipo** y prueba de restauración mensual (`docs/OPERACION.md`).
+- Zona horaria de la base de datos = `America/Santo_Domingo` (`/api/health` → `zonaHorariaBd`).
+- Instalador firmado con certificado de firma de código (`docs/OPERACION.md`, §6).
 
 - Probar impresoras térmicas reales y PDF.
 - Probar varias cajas, camareros, cocina y bar simultáneamente.

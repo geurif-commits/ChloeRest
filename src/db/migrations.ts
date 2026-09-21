@@ -891,6 +891,20 @@ const migrations: IMigracion[] = [{
       UPDATE productos SET aplica_itbis = FALSE, tasa_itbis = 0, aplica_propina = FALSE, tasa_propina = 0;
     `,
   },
+  {
+    id: '052_descuentos_y_division_cuenta',
+    sql: `
+      -- Descuento sobre la cuenta (con motivo) y cuentas nacidas de dividir otra.
+      -- cuentas.subtotal pasa a ser el subtotal DESPUÉS del descuento; el monto descontado queda en cuentas.descuento.
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento NUMERIC(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento_tipo VARCHAR(12);
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento_valor NUMERIC(12,2);
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento_motivo TEXT;
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS cuenta_origen_id BIGINT;
+      ALTER TABLE cuentas DROP CONSTRAINT IF EXISTS chk_cuentas_descuento;
+      ALTER TABLE cuentas ADD CONSTRAINT chk_cuentas_descuento CHECK (descuento >= 0);
+    `,
+  },
 ];
 export async function runMigrations(pool: Database): Promise<void> {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());
