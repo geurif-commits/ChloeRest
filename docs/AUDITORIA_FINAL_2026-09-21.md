@@ -129,7 +129,7 @@ A pedido del dueño se ejecutó el plan. Verificado con: 178 pruebas unitarias, 
 | B3 / H3 | Producción e instalador desactualizados | ⏳ Requiere acción suya | Versión 2.3.0; instalador compilado **sin firma** (`release/ChloeRestaurant Setup 2.3.0.exe`). No se desplegó: el acceso SSH a producción lo bloquea el sistema de permisos de la sesión. Pasos y verificación (`npm run verify:deploy`, que `deploy.py` ya ejecuta al terminar) en `docs/OPERACION.md`. Hoy producción sigue en `049` |
 | B4 / H4 | Secretos compartidos en el instalador | ✅ Resuelto en código | Secreto de sesión y contraseña de PostgreSQL por instalación (`main.cjs`); `predist` ya no copia `APP_SESSION_SECRET`. **Falta:** compilar el instalador y probarlo en un equipo limpio |
 | H5 | Límite de `registrar` | ✅ Resuelto | 300/10 min por IP, configurable; la app además recuerda la activación |
-| H6 | Cobertura de pruebas | ◐ Mejorado | e2e (49) en CI, piso de cobertura y +40 pruebas unitarias; la cobertura unitaria sigue en 44 % (los routers los cubre el e2e) |
+| H6 | Cobertura de pruebas | ◐ Mejorado | e2e (52) en CI —en verde en GitHub (PR #3) tras corregir el lockfile y `release.yml`—, piso de cobertura y +40 pruebas unitarias; la cobertura unitaria sigue en 44 % (los routers los cubre el e2e) |
 | H7 | Cobro sin caja abierta | ✅ Resuelto | 409 `CAJA_CERRADA` |
 | H8 | Sin división de cuenta ni descuentos | ✅ Resuelto | Descuentos con motivo (migración 052) y cobro dividido por producto/cantidad |
 | H9 | e-CF | ⏳ Externo | Los cálculos están alineados; falta la certificación con la DGII |
