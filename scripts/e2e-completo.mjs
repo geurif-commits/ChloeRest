@@ -96,6 +96,8 @@ async function principal() {
   console.log('\n== A. Autenticación y datos públicos ==');
   const h = await llamar('GET', '/api/health', { sinDispositivo: true });
   ok('health responde y reporta la zona horaria de la BD', h.status === 200 && typeof h.body.zonaHorariaBd === 'string', `${h.body.migracion} · ${h.body.zonaHorariaBd}`);
+  const remoto = await llamar('POST', '/api/dueno/establecer-pin', { sinDispositivo: true, body: { pin: '482913' }, cabeceras: { 'X-Forwarded-For': '203.0.113.9' } });
+  ok('el PIN inicial del propietario no se puede crear desde fuera del equipo servidor (403)', remoto.status === 403, `HTTP ${remoto.status}`);
 
   const rutas = new Set();
   for (const f of fs.readdirSync('src/routers').filter((x) => x.endsWith('.ts'))) {
@@ -286,6 +288,12 @@ async function principal() {
 
   // ── F. Fuerza bruta ──
   console.log('\n== F. Bloqueo por intentos ==');
+  // Ventana de intentos: los fallos de hace días no se acumulan (LOGIN_WINDOW_MINUTES).
+  await db.query("DELETE FROM login_intentos WHERE clave LIKE 'ip:%' AND actualizado_en >= $1", [est.t0]);
+  await db.query("INSERT INTO login_intentos (clave, intentos, actualizado_en) VALUES ('dev:ventana-e2e', 4, NOW() - INTERVAL '2 days') ON CONFLICT (clave) DO UPDATE SET intentos = 4, bloqueado_hasta = NULL, actualizado_en = NOW() - INTERVAL '2 days'");
+  const viejo = await llamar('POST', '/api/login/camarero', { body: { pin: '910099', deviceId: 'ventana-e2e' }, cabeceras: { 'X-Device-ID': 'ventana-e2e' }, sinDispositivo: true });
+  const filaVieja = (await db.query("SELECT intentos, bloqueado_hasta FROM login_intentos WHERE clave = 'dev:ventana-e2e'")).rows[0];
+  ok('los fallos de hace días no se acumulan: un PIN incorrecto nuevo no bloquea', viejo.status === 401 && Number(filaVieja?.intentos) === 1 && filaVieja?.bloqueado_hasta === null, `HTTP ${viejo.status} · intentos=${filaVieja?.intentos} · bloqueado=${filaVieja?.bloqueado_hasta}`);
   const estados = [];
   for (let i = 0; i < 8; i += 1) estados.push((await llamar('POST', '/api/login/camarero', { body: { pin: String(910000 + i), deviceId: 'lockout-e2e' }, cabeceras: { 'X-Device-ID': 'lockout-e2e' }, sinDispositivo: true })).status);
   ok('tras varios PIN incorrectos el sistema bloquea (429)', estados.slice(-2).every((s) => s === 429 || s === 423), estados.join(','));

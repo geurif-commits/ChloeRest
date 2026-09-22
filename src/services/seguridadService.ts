@@ -39,6 +39,7 @@ export async function verificarDuenoEpoch(ep: number | undefined): Promise<boole
 // ──── Lockout persistente por clave (ip / device) ────
 
 const MAX_INTENTOS = config.login.maxAttempts;
+const VENTANA_MIN = config.login.windowMinutes;
 const LOCKOUT_MIN = config.login.lockoutMinutes;
 
 export async function verificarBloqueo(claves: Array<string | null | undefined>): Promise<void> {
@@ -60,11 +61,16 @@ export async function registrarFallo(claves: Array<string | null | undefined>): 
   const db = getDatabase();
   const keys = claves.filter((k): k is string => Boolean(k));
   for (const clave of keys) {
+    // Los fallos solo se acumulan dentro de la ventana (LOGIN_WINDOW_MINUTES desde el último fallo): cinco PIN
+    // incorrectos repartidos en días distintos no deben bloquear a nadie.
     await db.queryUnscoped(
       `INSERT INTO login_intentos (clave, intentos, actualizado_en)
        VALUES ($1, 1, CURRENT_TIMESTAMP)
-       ON CONFLICT (clave) DO UPDATE SET intentos = login_intentos.intentos + 1, actualizado_en = CURRENT_TIMESTAMP`,
-      [clave]
+       ON CONFLICT (clave) DO UPDATE SET
+         intentos = CASE WHEN login_intentos.actualizado_en < CURRENT_TIMESTAMP - ($2 || ' minutes')::interval
+                         THEN 1 ELSE login_intentos.intentos + 1 END,
+         actualizado_en = CURRENT_TIMESTAMP`,
+      [clave, String(VENTANA_MIN)]
     );
     await db.queryUnscoped(
       `UPDATE login_intentos

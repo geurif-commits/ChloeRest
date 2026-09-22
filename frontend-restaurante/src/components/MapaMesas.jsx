@@ -66,11 +66,11 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
 
     const conectarSSE = async () => {
       try {
-        const ticket = await obtenerTicketSse(urlBase);
-        if (!ticket || !activo) return;
-        const q = `ticket=${encodeURIComponent(ticket)}`;
-        sseMesas = new EventSource(`${urlBase}/api/mesas/stream?${q}`);
-        sseKDS = new EventSource(`${urlBase}/api/kds/stream?${q}`);
+        // Los tickets son de un solo uso: cada stream necesita el suyo.
+        const [ticketMesas, ticketKds] = await Promise.all([obtenerTicketSse(urlBase), obtenerTicketSse(urlBase)]);
+        if (!ticketMesas || !ticketKds || !activo) return;
+        sseMesas = new EventSource(`${urlBase}/api/mesas/stream?ticket=${encodeURIComponent(ticketMesas)}`);
+        sseKDS = new EventSource(`${urlBase}/api/kds/stream?ticket=${encodeURIComponent(ticketKds)}`);
         const manejarEvento = () => { if (activo) cargarMesas(); };
         sseMesas.onmessage = manejarEvento;
         sseKDS.onmessage = manejarEvento;

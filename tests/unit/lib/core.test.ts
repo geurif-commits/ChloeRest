@@ -80,3 +80,24 @@ describe('constantTimeEquals', () => {
     expect(constantTimeEquals('', 'x')).toBe(false);
   });
 });
+
+describe('esPeticionLocal', () => {
+  const pedido = (remoteAddress: string | undefined, headers: Record<string, string> = {}) =>
+    ({ socket: { remoteAddress }, headers }) as unknown as import('express').Request;
+
+  it('acepta las conexiones que llegan por el propio equipo (IPv4, IPv6 y IPv4 mapeada)', async () => {
+    const { esPeticionLocal } = await import('../../../src/lib/core.js');
+    for (const origen of ['127.0.0.1', '::1', '::ffff:127.0.0.1', '127.0.1.1']) {
+      expect(esPeticionLocal(pedido(origen)), origen).toBe(true);
+    }
+  });
+
+  it('rechaza cualquier otro origen y los que vienen de un proxy', async () => {
+    const { esPeticionLocal } = await import('../../../src/lib/core.js');
+    for (const origen of ['192.168.1.20', '10.0.0.5', '::ffff:192.168.1.20', '8.8.8.8', '', undefined]) {
+      expect(esPeticionLocal(pedido(origen)), String(origen)).toBe(false);
+    }
+    expect(esPeticionLocal(pedido('127.0.0.1', { 'x-forwarded-for': '203.0.113.9' }))).toBe(false);
+    expect(esPeticionLocal(pedido('127.0.0.1', { forwarded: 'for=203.0.113.9' }))).toBe(false);
+  });
+});

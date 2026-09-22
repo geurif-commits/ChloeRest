@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { route, httpError, clientIp } from '../lib/core.js';
+import { route, httpError, clientIp, esPeticionLocal } from '../lib/core.js';
 import { config } from '../lib/config.js';
 import { getDatabase } from '../db/index.js';
 import { requireDueno } from '../middleware/auth.js';
@@ -193,6 +193,11 @@ router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
 // Permite crear el PIN inicial en instalaciones frescas. De un solo uso:
 // si ya existe PIN (env o BD), se rechaza.
 router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Response) => {
+  // Quien llegue primero a una instalación sin PIN se queda con la plataforma: solo se permite desde el
+  // propio equipo servidor. En un servidor remoto el PIN inicial se define con OWNER_PIN.
+  if (!esPeticionLocal(req)) {
+    throw httpError(403, 'Por seguridad, el PIN inicial del propietario solo se crea desde el equipo servidor. En un servidor remoto se define con OWNER_PIN.');
+  }
   const db = getDatabase();
   const ip = clientIp(req);
   const claves = ['ip:' + (ip || 'unknown')];
