@@ -4,9 +4,10 @@ import ProductoGrid from './pedido/ProductoGrid.jsx';
 import PedidoTicket from './pedido/PedidoTicket.jsx';
 import { obtenerSesion } from '../api.js';
 import { sanitizarDecimal } from '../utils/input.js';
+import { calcularTotales, porcentajePropina, formatearRD as formatearDinero } from '../utils/dinero.js';
 import { imprimirComanda } from '../utils/imprimirComanda.js';
-import { toastExito, toastError, toastAviso } from './Toast.jsx';
-import './pedido-modern.css';
+import { toastAviso } from './Toast.jsx';
+import { ArrowLeft, Search, Plus, Check, X, Banknote, CreditCard, Landmark, Receipt } from 'lucide-react';
 import './pedido/pedido.css';
 
 function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
@@ -16,6 +17,8 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   const [comandaNueva, setComandaNueva] = useState([]);
   const [cuentaActual, setCuentaActual] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [enviandoComanda, setEnviandoComanda] = useState(false);
+  const [procesandoFactura, setProcesandoFactura] = useState(false);
   
   // Guarniciones y Términos disponibles
   const [guarnicionesDisponibles, setGuarnicionesDisponibles] = useState([]);
@@ -27,8 +30,8 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   const [terminoSeleccionado, setTerminoSeleccionado] = useState('');
   const [notaEspecial, setNotaEspecial] = useState('');
   
-  // Filtros de categoría y búsqueda
-  const [categoriaActiva, setCategoriaActiva] = useState('Todos');
+// Filtros de categoría y búsqueda
+  const [categoriaActiva, setCategoriaActiva] = useState('');
   const [busqueda, setBusqueda] = useState('');
   
   // Configuración del negocio (Nombre, RNC, ITBIS / Propina)
@@ -38,8 +41,9 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
     direccion: 'República Dominicana',
     telefono: '',
     logo_url: '',
-    cobrar_itbis: true, 
-    cobrar_propina: true,
+    cobrar_itbis: false,
+    cobrar_propina: false,
+    propina_porcentaje: 10,
     comanda_modo: 'kds',
     ticket_font_family: 'Inter',
     ticket_font_size: '12',
@@ -50,9 +54,21 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
 
   // Estado para impresión de Pre-cheque por Camareros
   const [prechequeData, setPrechequeData] = useState(null);
+  const [anulacionPendiente, setAnulacionPendiente] = useState(null);
+  const [motivoAnulacion, setMotivoAnulacion] = useState('');
+  const [pinSupervisor, setPinSupervisor] = useState('');
+  const [procesandoAnulacion, setProcesandoAnulacion] = useState(false);
   
-  const [mobileTab, setMobileTab] = useState('menu');
+const [mobileTab, setMobileTab] = useState('menu');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  
+  // Al entrar en una mesa (o cambiar de mesa) siempre se muestran las
+  // categorías: sin filtros activos ni categoría heredada de otra mesa.
+  useEffect(() => {
+    setCategoriaActiva('');
+    setBusqueda('');
+    setMobileTab('menu');
+  }, [mesa?.id]);
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -69,12 +85,11 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   const [tarjetaMarca, setTarjetaMarca] = useState('Visa');
 
-  const METODOS_PAGO = ['Efectivo', 'Tarjeta', 'Transferencia'];
 
   const esCajero = usuario.rol === 'Cajero' || usuario.rol === 'Administrador';
 
   const formatearRD = (val) => {
-    return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return formatearDinero(val);
   };
 
   const cargarDatos = async () => {
@@ -103,7 +118,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
           setGuarnicionesDisponibles(guarnicionesList);
           setTerminosDisponibles(terminosList);
         }
-      } catch (err) {
+      } catch {
         setGuarnicionesDisponibles(['Tostones', 'Papas Fritas', 'Arroz Blanco', 'Vegetales Salteados', 'Puré de Papas']);
         setTerminosDisponibles(['Término Medio (Medium)', 'Tres Cuartos (3/4)', 'Bien Cocido (Well Done)']);
       }
@@ -126,8 +141,9 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
         direccion: data.direccion || 'República Dominicana',
         telefono: data.telefono || '',
         logo_url: data.logo_url || '',
-        cobrar_itbis: data.cobrar_itbis ?? true,
-        cobrar_propina: data.cobrar_propina ?? true,
+        cobrar_itbis: data.cobrar_itbis ?? false,
+        cobrar_propina: data.cobrar_propina ?? false,
+        propina_porcentaje: porcentajePropina(data),
         comanda_modo: data.comanda_modo || 'kds',
         ticket_font_family: data.ticket_font_family || 'Inter',
         ticket_font_size: data.ticket_font_size || '12',
@@ -168,17 +184,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
 
   const confirmarPersonalizacion = () => {
     if (!productoPersonalizando) return;
-    const partesNotas = [];
-    if (productoPersonalizando.requiere_guarnicion && guarnicionSeleccionada) {
-      partesNotas.push(`Guarnición: ${guarnicionSeleccionada}`);
-    }
-    if (productoPersonalizando.requiere_termino && terminoSeleccionado) {
-      partesNotas.push(`Término: ${terminoSeleccionado}`);
-    }
-    if (notaEspecial.trim()) {
-      partesNotas.push(`Nota: ${notaEspecial.trim()}`);
-    }
-    const notasFormateadas = partesNotas.join(' | ');
+    const notasFormateadas = notaEspecial.trim() || null;
     const itemKey = `custom-${productoPersonalizando.id}-${guarnicionSeleccionada}-${terminoSeleccionado}-${notaEspecial.trim()}`;
 
     setComandaNueva((prev) => {
@@ -214,8 +220,17 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
     });
   };
 
+  const incrementarProducto = (item) => {
+    setComandaNueva((prev) => prev.map((actual) => (
+      (actual.itemKey || actual.id) === (item.itemKey || item.id)
+        ? { ...actual, cantidad: actual.cantidad + 1 }
+        : actual
+    )));
+  };
+
   const enviarComanda = async () => {
-    if (comandaNueva.length === 0) return;
+    if (enviandoComanda || comandaNueva.length === 0) return;
+    setEnviandoComanda(true);
 
     try {
       const res = await fetch(`${urlBase}/api/mesas/${mesa.id}/pedidos`, {
@@ -234,6 +249,8 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       });
 
       if (res.ok) {
+        setComandaNueva([]);
+        await cargarDatos();
         const itemsParaImprimir = comandaNueva.map(item => {
           const detallesArray = [];
           if (item.guarnicion) detallesArray.push(`Guarnición: ${item.guarnicion}`);
@@ -258,45 +275,51 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
             (acc[estacion] ||= []).push(item);
             return acc;
           }, {});
-          await Promise.all(Object.entries(grupos).map(([estacion, productos]) => imprimirComanda({
-            negocio: { nombre: configNegocio.nombre, direccion: configNegocio.direccion, telefono: configNegocio.telefono, logo_url: configNegocio.logo_url },
-            mesa,
-            camarero: usuario,
-            productos,
-            ticket: { ...configNegocio, printerName: impresorasEstacion[estacion] || '' }
-          })));
+          try {
+            await Promise.all(Object.entries(grupos).map(([estacion, productos]) => imprimirComanda({
+              negocio: { nombre: configNegocio.nombre, direccion: configNegocio.direccion, telefono: configNegocio.telefono, logo_url: configNegocio.logo_url },
+              mesa,
+              camarero: usuario,
+              productos,
+              ticket: { ...configNegocio, printerName: impresorasEstacion[estacion] || '' }
+            })));
+          } catch {
+            toastAviso('Comanda guardada, pero no se pudo imprimir. No la reenvíes; revisa la impresora.');
+            return;
+          }
           toastAviso("🛎️ Comanda enviada e impresa correctamente.");
         } else {
           toastAviso("🛎️ Comanda enviada a Cocina/Bar correctamente.");
         }
 
-        setComandaNueva([]);
-        cargarDatos();
       } else {
         const errorData = await res.json();
         toastAviso(`❌ Error al enviar comanda: ${errorData.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("⚠️ Error de conexión con el servidor.");
+    } finally {
+      setEnviandoComanda(false);
     }
   };
 
   const anularProductoEnviado = async (itemCuenta) => {
-    const motivo = window.prompt(`Anular ${itemCuenta.nombre} (Mesa ${mesa.nombre_numero}).\nIngrese el motivo de anulación:`);
-    if (motivo === null) return;
-    if (!motivo.trim()) return toastAviso("⚠️ Debes especificar el motivo de la anulación.");
+    setAnulacionPendiente(itemCuenta);
+    setMotivoAnulacion('');
+    setPinSupervisor('');
+  };
 
-    const supervisorPin = window.prompt("Ingrese el PIN de supervisor para autorizar la anulación:");
-    if (supervisorPin === null) return;
-    if (!/^\d{6}$/.test(String(supervisorPin || ''))) {
-      return toastAviso('El PIN de autorización debe contener exactamente 6 dígitos.');
-    }
+  const confirmarAnulacion = async () => {
+    if (!anulacionPendiente || procesandoAnulacion) return;
+    if (!motivoAnulacion.trim()) return toastAviso('Debes especificar el motivo de la anulación.');
+    if (!/^\d{6}$/.test(pinSupervisor)) return toastAviso('El PIN debe contener exactamente 6 dígitos.');
+    setProcesandoAnulacion(true);
 
     try {
       const authRes = await fetch(`${urlBase}/api/autorizar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${obtenerSesion()}` },
-        body: JSON.stringify({ detalle_id: itemCuenta.id, pin: supervisorPin })
+        body: JSON.stringify({ detalle_id: anulacionPendiente.id, pin: pinSupervisor })
       });
 
       if (!authRes.ok) {
@@ -307,25 +330,28 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       const authData = await authRes.json();
       const token = authData.token;
 
-      const res = await fetch(`${urlBase}/api/cuenta_detalles/${itemCuenta.id}`, {
+      const res = await fetch(`${urlBase}/api/cuenta_detalles/${anulacionPendiente.id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${obtenerSesion()}`,
           'X-Supervisor-Authorization': token
         },
-        body: JSON.stringify({ motivo: motivo.trim() })
+        body: JSON.stringify({ motivo: motivoAnulacion.trim() })
       });
 
       const data = await res.json();
       if (res.ok) {
         toastAviso("✅ Producto anulado de la cuenta.");
         cargarDatos();
+        setAnulacionPendiente(null);
       } else {
         toastAviso(`❌ Error al anular: ${data.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("No se pudo validar la autorización. El producto no fue eliminado.");
+    } finally {
+      setProcesandoAnulacion(false);
     }
   };
 
@@ -357,7 +383,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       } else {
         toastAviso(`❌ Error: ${data.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("⚠️ Error de conexión al trasladar mesa.");
     }
   };
@@ -377,9 +403,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       camarero: mesa.camarero || usuario.nombre,
       items: cuentaActual,
       subtotal: totalOriginal,
-      itbis: configNegocio.cobrar_itbis ? totalOriginal * 0.18 : 0,
-      propina: configNegocio.cobrar_propina ? totalOriginal * 0.10 : 0,
-      total: totalOriginal + (configNegocio.cobrar_itbis ? totalOriginal * 0.18 : 0) + (configNegocio.cobrar_propina ? totalOriginal * 0.10 : 0),
+       ...calcularTotales(cuentaActual, { cobrarItbis: configNegocio.cobrar_itbis, cobrarPropina: configNegocio.cobrar_propina, porcentajePropina: porcentajePropina(configNegocio) }),
       fecha: new Date().toLocaleString(),
       ticketConfig: {
         font_family: configNegocio.ticket_font_family,
@@ -396,12 +420,16 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
   };
 
   const procesarFacturaDirecta = async () => {
+    if (procesandoFactura) return;
+    setProcesandoFactura(true);
     if (metodoPago === 'Efectivo') {
       if (!montoRecibido || parseFloat(montoRecibido) < totalAPagar) {
+        setProcesandoFactura(false);
         return toastAviso("⚠️ El monto recibido es insuficiente para completar el pago.");
       }
     } else if (metodoPago === 'Tarjeta') {
       if (!tarjetaUltimos4 || tarjetaUltimos4.length !== 4) {
+        setProcesandoFactura(false);
         return toastAviso("⚠️ Ingresa los últimos 4 dígitos de la tarjeta.");
       }
     }
@@ -409,7 +437,7 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
     try {
       const res = await fetch(`${urlBase}/api/mesas/${mesa.id}/cerrar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${obtenerSesion()}` },
         body: JSON.stringify({
           metodo_pago: metodoPago,
           tipo_comprobante: tipoComprobante,
@@ -428,48 +456,54 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
       } else {
         toastAviso(`❌ ${data.error}`);
       }
-    } catch (error) {
+    } catch {
       toastAviso("⚠️ Error al procesar la factura.");
+    } finally {
+      setProcesandoFactura(false);
     }
   };
 
   // Cálculos de totales
-  const totalOriginal = cuentaActual.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-  const totalNueva = comandaNueva.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-  const subtotalFactura = totalOriginal + totalNueva;
-
-  const itbis = configNegocio.cobrar_itbis ? subtotalFactura * 0.18 : 0;
-  const propinaLey = configNegocio.cobrar_propina ? subtotalFactura * 0.10 : 0;
-  const totalAPagar = subtotalFactura + itbis + propinaLey;
-  const granTotal = totalOriginal + totalNueva;
+  const totalOriginal = calcularTotales(cuentaActual, { cobrarItbis: false, cobrarPropina: false }).subtotal;
+  const totalesFactura = calcularTotales([...cuentaActual, ...comandaNueva], {
+    cobrarItbis: configNegocio.cobrar_itbis,
+    cobrarPropina: configNegocio.cobrar_propina,
+    porcentajePropina: porcentajePropina(configNegocio),
+  });
+  const { subtotal: subtotalFactura, itbis, propina: propinaLey, total: totalAPagar } = totalesFactura;
+  const granTotal = subtotalFactura;
 
   const cambio = montoRecibido ? parseFloat(montoRecibido) - totalAPagar : 0;
 
+  const cantidadesPorProducto = comandaNueva.reduce((acc, item) => {
+    acc[item.id] = (acc[item.id] || 0) + item.cantidad;
+    return acc;
+  }, {});
+
+  const opcionesCobro = [
+    { id: 'Efectivo', Icono: Banknote },
+    { id: 'Tarjeta', Icono: CreditCard },
+    { id: 'Transferencia', Icono: Landmark },
+  ];
+
   return (
-    <div className="pedido-workspace" style={{
-      display: 'flex', flexDirection: isMobile ? 'column' : 'row', width: '100vw', height: '100vh', background: 'var(--bg-primary, #0a0a0f)', 
-      color: 'var(--text-primary, #fff)', fontFamily: 'sans-serif', overflow: 'hidden', boxSizing: 'border-box',
-      position: 'fixed', top: 0, left: 0, zIndex: 1000
-    }}>
-      
+    <div className="po">
       {isMobile && (
-        <>
-          <div className="pedido-mobile-header">
-            <button onClick={alVolver}>⬅ Volver a Mesas</button>
-            <input 
-              type="text" 
-              placeholder="🔍 Buscar plato o bebida..." 
-              value={busqueda} 
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 'none' }}>
+          <div className="po-bar">
+            <button type="button" className="px-btn px-btn--icon" onClick={alVolver} aria-label="Volver a mesas"><ArrowLeft size={17} /></button>
+            <label className="po-search" style={{ margin: 0 }}>
+              <Search size={17} />
+              <input type="text" placeholder="Buscar plato o bebida" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar plato o bebida" />
+            </label>
           </div>
-          <div className="pedido-mobile-tab-bar">
-            <button className={mobileTab === 'menu' ? 'active' : ''} onClick={() => setMobileTab('menu')}>Menú</button>
-            <button className={mobileTab === 'cuenta' ? 'active' : ''} onClick={() => setMobileTab('cuenta')}>
-              Cuenta <span className="pedido-mobile-tab-badge">{comandaNueva.length + cuentaActual.length}</span>
+          <div className="po-mobile-tabs">
+            <button type="button" className={mobileTab === 'menu' ? 'is-active' : ''} onClick={() => setMobileTab('menu')}>Menú</button>
+            <button type="button" className={mobileTab === 'cuenta' ? 'is-active' : ''} onClick={() => setMobileTab('cuenta')}>
+              Cuenta <em>{comandaNueva.length + cuentaActual.length}</em>
             </button>
           </div>
-        </>
+        </div>
       )}
 
       <ProductoGrid
@@ -481,9 +515,11 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
         onCategoriaChange={setCategoriaActiva}
         onAgregarProducto={agregarProducto}
         onVolver={alVolver}
+        apiUrl={urlBase}
         formatearRD={formatearRD}
         isMobile={isMobile}
         mobileTab={mobileTab}
+        cantidades={cantidadesPorProducto}
       />
 
       <PedidoTicket
@@ -492,243 +528,222 @@ function MenuPedido({ mesa, usuario, alVolver, apiUrl }) {
         cuentaActual={cuentaActual}
         comandaNueva={comandaNueva}
         granTotal={granTotal}
+        subtotalFactura={subtotalFactura}
+        itbis={itbis}
+        propinaLey={propinaLey}
+        propinaPorcentaje={porcentajePropina(configNegocio)}
+        totalAPagar={totalAPagar}
         esCajero={esCajero}
-        onAgregar={agregarProducto}
+        onIncrementar={incrementarProducto}
         onRestar={restarProducto}
         onAnular={anularProductoEnviado}
         onEnviar={enviarComanda}
+        enviandoComanda={enviandoComanda}
         onPreCheque={imprimirPrechequeMesa}
         onTrasladar={trasladarMesa}
         onCobrar={() => setMostrandoCobro(true)}
-        onVolver={alVolver}
         formatearRD={formatearRD}
         isMobile={isMobile}
         mobileTab={mobileTab}
         comandaModo={configNegocio.comanda_modo}
       />
 
-      {/* MODAL IMPRESIÓN PRE-CHEQUE PARA CAMAREROS */}
+      {/* PRE-CHEQUE */}
       {prechequeData && (
-        <TicketTermico 
+        <TicketTermico
           datosFactura={prechequeData}
           esPrecheque={true}
           alCerrar={() => setPrechequeData(null)}
         />
       )}
 
-      {/* MODAL DE PERSONALIZACIÓN DE PLATO (GUARNICIÓN & TÉRMINO) */}
+      {/* PERSONALIZACIÓN DE PLATO */}
       {productoPersonalizando && (
-        <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'var(--bg-secondary, #14141b)', border: '1px solid rgba(245, 184, 61, 0.4)', borderRadius: '18px', padding: '24px', width: 'min(480px, 94vw)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.6)' }}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px', marginBottom: '16px' }}>
+        <div className="po-modal" role="dialog" aria-modal="true" aria-label={`Opciones de ${productoPersonalizando.nombre}`} onClick={() => setProductoPersonalizando(null)}>
+          <div className="po-modal__card" onClick={(e) => e.stopPropagation()}>
+            <div className="po-modal__head">
               <div>
-                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gold, #f5b842)', fontWeight: 700 }}>Opciones del Plato</span>
-                <h3 style={{ margin: '2px 0 0', color: '#fff', fontSize: '1.25rem' }}>{productoPersonalizando.nombre}</h3>
+                <span className="px-eyebrow">Opciones del plato</span>
+                <h3>{productoPersonalizando.nombre}</h3>
               </div>
-              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--gold, #f5b842)' }}>
-                RD$ {formatearRD(productoPersonalizando.precio)}
-              </span>
+              <span className="po-modal__price">RD$ {formatearRD(productoPersonalizando.precio)}</span>
             </div>
 
-            {/* SELECCIÓN DE GUARNICIÓN */}
             {productoPersonalizando.requiere_guarnicion && (
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', color: '#fff', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
-                  🍟 Seleccionar Guarnición / Acompañamiento:
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                  {guarnicionesDisponibles.map((guar) => {
-                    const activa = guarnicionSeleccionada === guar;
-                    return (
-                      <button
-                        key={guar}
-                        type="button"
-                        onClick={() => setGuarnicionSeleccionada(guar)}
-                        style={{
-                          background: activa ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255,255,255,0.03)',
-                          color: activa ? 'var(--gold, #f5b842)' : 'var(--text-primary, #fff)',
-                          border: `1.5px solid ${activa ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
-                          borderRadius: '10px',
-                          padding: '10px 8px',
-                          fontSize: '0.82rem',
-                          fontWeight: activa ? 700 : 500,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {activa ? '✓ ' : ''}{guar}
-                      </button>
-                    );
-                  })}
+              <div className="po-field">
+                <span>Guarnición</span>
+                <div className="po-options">
+                  {guarnicionesDisponibles.map((guar) => (
+                    <button key={guar} type="button" className={`po-option ${guarnicionSeleccionada === guar ? 'is-active' : ''}`} onClick={() => setGuarnicionSeleccionada(guar)}>
+                      {guarnicionSeleccionada === guar && <Check size={15} />}{guar}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* SELECCIÓN DE TÉRMINO */}
             {productoPersonalizando.requiere_termino && (
-              <div style={{ marginBottom: '18px' }}>
-                <label style={{ display: 'block', color: '#fff', fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>
-                  🥩 Seleccionar Término de Cocción:
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                  {terminosDisponibles.map((term) => {
-                    const activo = terminoSeleccionado === term;
-                    return (
-                      <button
-                        key={term}
-                        type="button"
-                        onClick={() => setTerminoSeleccionado(term)}
-                        style={{
-                          background: activo ? 'rgba(245, 184, 61, 0.2)' : 'rgba(255,255,255,0.03)',
-                          color: activo ? 'var(--gold, #f5b842)' : 'var(--text-primary, #fff)',
-                          border: `1.5px solid ${activo ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`,
-                          borderRadius: '10px',
-                          padding: '10px 8px',
-                          fontSize: '0.82rem',
-                          fontWeight: activo ? 700 : 500,
-                          cursor: 'pointer',
-                          textAlign: 'center',
-                          transition: 'all 0.15s ease'
-                        }}
-                      >
-                        {activo ? '✓ ' : ''}{term}
-                      </button>
-                    );
-                  })}
+              <div className="po-field">
+                <span>Término de cocción</span>
+                <div className="po-options">
+                  {terminosDisponibles.map((term) => (
+                    <button key={term} type="button" className={`po-option ${terminoSeleccionado === term ? 'is-active' : ''}`} onClick={() => setTerminoSeleccionado(term)}>
+                      {terminoSeleccionado === term && <Check size={15} />}{term}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* NOTA ESPECIAL AL CHEF */}
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', color: 'var(--text-muted, #9494ad)', fontSize: '0.8rem', marginBottom: '6px' }}>
-                ✍️ Nota adicional para Cocina (Opcional):
-              </label>
+            <div className="po-field">
+              <label htmlFor="po-nota">Nota para cocina <small style={{ fontWeight: 500, color: 'var(--px-ink-3)' }}>(opcional)</small></label>
               <input
+                id="po-nota"
+                className="po-input"
                 type="text"
                 value={notaEspecial}
                 onChange={(e) => setNotaEspecial(e.target.value)}
-                placeholder="Ej. Sin sal, salsa aparte, cebolla bien frita..."
-                style={{ width: '100%', padding: '10px 12px', background: '#0a0a0f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff', fontSize: '0.85rem' }}
+                placeholder="Sin sal, salsa aparte, bien frito…"
               />
             </div>
 
-            {/* ACCIONES DEL MODAL */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setProductoPersonalizando(null)}
-                style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarPersonalizacion}
-                style={{ flex: 1.5, padding: '12px', background: 'var(--gold, #f5b842)', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-              >
-                ＋ Agregar a Comanda
-              </button>
+            <div className="po-modal__actions">
+              <button type="button" className="px-btn px-btn--lg" onClick={() => setProductoPersonalizando(null)}>Cancelar</button>
+              <button type="button" className="px-btn px-btn--gold px-btn--lg" onClick={confirmarPersonalizacion}><Plus size={18} />Agregar a la comanda</button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* MODAL DE COBRO Y FACTURACIÓN FISCAL */}
+      {/* COBRO Y FACTURACIÓN FISCAL */}
       {mostrandoCobro && (
-        <div style={{position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999}}>
-          <div style={{background: 'var(--bg-secondary, #14141b)', border: '2px solid var(--accent, #00f576)', borderRadius: '16px', padding: '25px', width: 'min(460px, 95vw)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.5)'}}>
-            <h2 style={{color: '#00f576', marginTop: 0}}>Cobrar {mesa.nombre_numero}</h2>
-            
-            <div style={{background: '#0a0a0f', padding: '14px', borderRadius: '10px', marginBottom: '15px', border: '1px solid #2a2a38', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.9rem'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', color: '#9494ad'}}><span>Subtotal:</span><strong>RD$ {formatearRD(subtotalFactura)}</strong></div>
-              {configNegocio.cobrar_itbis && (
-                <div style={{display: 'flex', justifyContent: 'space-between', color: '#9494ad'}}><span>ITBIS (18%):</span><strong>RD$ {formatearRD(itbis)}</strong></div>
-              )}
-              {configNegocio.cobrar_propina && (
-                <div style={{display: 'flex', justifyContent: 'space-between', color: '#9494ad'}}><span>Propina Ley (10%):</span><strong>RD$ {formatearRD(propinaLey)}</strong></div>
-              )}
-              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', color: '#00f576', borderTop: '1px solid #2a2a38', paddingTop: '8px', fontWeight: '800'}}><span>Total a Pagar:</span><strong>RD$ {formatearRD(totalAPagar)}</strong></div>
+        <div className="po-modal" role="dialog" aria-modal="true" aria-label={`Cobrar ${mesa.nombre_numero}`}>
+          <div className="po-modal__card">
+            <div className="po-modal__head">
+              <div>
+                <span className="px-eyebrow">Facturación</span>
+                <h3>Cobrar {mesa.nombre_numero}</h3>
+              </div>
+              <button type="button" className="px-btn px-btn--icon px-btn--sm" onClick={() => setMostrandoCobro(false)} aria-label="Cerrar"><X size={16} /></button>
             </div>
 
-            {/* Configuración Fiscal DGII */}
-            <div style={{marginBottom: '15px', textAlign: 'left'}}>
-              <label style={{color: '#00f576', fontSize: '0.85rem', fontWeight: 'bold', display: 'block', marginBottom: '5px'}}>🏛️ Comprobante Fiscal DGII</label>
-              <select value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value)} style={{width: '100%', padding: '10px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px'}}>
-                <option value="B02">B02 - Consumidor Final</option>
-                <option value="B01">B01 - Crédito Fiscal</option>
-                <option value="e-CF">e-CF - Factura Electrónica</option>
+            <div className="po-sum">
+              <div><span>Subtotal</span><strong>RD$ {formatearRD(subtotalFactura)}</strong></div>
+              {configNegocio.cobrar_itbis && <div><span>ITBIS</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
+              {configNegocio.cobrar_propina && <div><span>Propina {porcentajePropina(configNegocio)}%</span><strong>RD$ {formatearRD(propinaLey)}</strong></div>}
+              <div className="po-sum__total"><span>Total a pagar</span><strong>RD$ {formatearRD(totalAPagar)}</strong></div>
+            </div>
+
+            <div className="po-field">
+              <label htmlFor="po-comprobante">Comprobante fiscal DGII</label>
+              <select id="po-comprobante" className="po-input" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value)}>
+                <option value="B02">B02 · Consumidor final</option>
+                <option value="B01">B01 · Crédito fiscal</option>
+                <option value="e-CF">e-CF · Factura electrónica</option>
               </select>
-
               {tipoComprobante !== 'B02' && (
-                <div style={{marginTop: '10px'}}>
-                  <label style={{fontSize: '0.8rem', color: '#9494ad', display: 'block', marginBottom: '4px'}}>RNC o Cédula del Cliente</label>
-                  <input type="text" placeholder="Ej: 131000001" value={rncCliente} onChange={(e) => setRncCliente(e.target.value)} style={{width: '100%', padding: '10px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px'}} />
-                </div>
+                <input className="po-input" type="text" placeholder="RNC o cédula del cliente" value={rncCliente} onChange={(e) => setRncCliente(e.target.value)} aria-label="RNC o cédula del cliente" />
               )}
             </div>
 
-            <div style={{display: 'flex', gap: '8px', marginBottom: '15px'}}>
-              {METODOS_PAGO.map(m => (
-                <button 
-                  key={m} 
-                  type="button"
-                  onClick={() => setMetodoPago(m)}
-                  style={{flex: 1, padding: '10px', background: metodoPago === m ? '#00f576' : '#1a1a24', color: metodoPago === m ? '#000' : '#fff', border: '1px solid #2a2a38', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer'}}
-                >
-                  {m === 'Efectivo' ? '💵 ' : m === 'Tarjeta' ? '💳 ' : '🏦 '}{m}
-                </button>
-              ))}
+            <div className="po-field">
+              <span>Método de pago</span>
+              <div className="po-options">
+                {opcionesCobro.map(({ id, Icono }) => (
+                  <button key={id} type="button" className={`po-option ${metodoPago === id ? 'is-active' : ''}`} onClick={() => setMetodoPago(id)}>
+                    <Icono size={17} />{id}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {metodoPago === 'Tarjeta' && (
-              <div style={{background: '#0a0a0f', padding: '10px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #2a2a38', textAlign: 'left'}}>
-                <label style={{fontSize: '0.8rem', color: '#00f576', display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>💳 Detalles de Tarjeta</label>
-                <div style={{display: 'flex', gap: '10px'}}>
-                  <div style={{flex: 1}}>
-                    <label style={{fontSize: '0.75rem', color: '#9494ad', display: 'block', marginBottom: '3px'}}>Marca</label>
-                    <select value={tarjetaMarca} onChange={(e) => setTarjetaMarca(e.target.value)} style={{width: '100%', padding: '8px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}}>
-                      <option value="Visa">Visa</option>
-                      <option value="Mastercard">Mastercard</option>
-                      <option value="American Express">American Express</option>
-                      <option value="Otra">Otra</option>
-                    </select>
-                  </div>
-                  <div style={{flex: 1}}>
-                    <label style={{fontSize: '0.75rem', color: '#9494ad', display: 'block', marginBottom: '3px'}}>Últimos 4 Dígitos</label>
-                    <input type="text" maxLength="4" placeholder="Ej: 4321" value={tarjetaUltimos4} onChange={(e) => setTarjetaUltimos4(e.target.value)} style={{width: '100%', padding: '8px', background: '#14141b', color: '#fff', border: '1px solid #2a2a38', borderRadius: '6px', fontSize: '0.85rem'}} />
-                  </div>
+              <div className="po-field">
+                <span>Detalles de la tarjeta</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <select className="po-input" value={tarjetaMarca} onChange={(e) => setTarjetaMarca(e.target.value)} aria-label="Marca">
+                    <option value="Visa">Visa</option>
+                    <option value="Mastercard">Mastercard</option>
+                    <option value="American Express">American Express</option>
+                    <option value="Otra">Otra</option>
+                  </select>
+                  <input className="po-input" type="text" inputMode="numeric" maxLength="4" placeholder="Últimos 4 dígitos" value={tarjetaUltimos4} onChange={(e) => setTarjetaUltimos4(e.target.value)} aria-label="Últimos 4 dígitos" />
                 </div>
               </div>
             )}
 
             {metodoPago === 'Efectivo' && (
-              <div style={{marginBottom: '20px', textAlign: 'left'}}>
-                <label style={{fontSize: '0.85rem', color: '#9494ad', display: 'block', marginBottom: '5px'}}>Monto Recibido ($)</label>
-                <input 
-                  type="text" 
-                  inputMode="decimal" 
-                  pattern="[0-9]*[.,]?[0-9]*" 
-                  placeholder="0.00" 
-                  value={montoRecibido} 
-                  onChange={(e) => manejarCambioMontoRecibido(e.target.value)} 
-                  style={{width: '100%', padding: '10px', background: '#0a0a0f', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px'}} 
+              <div className="po-field">
+                <label htmlFor="po-recibido">Monto recibido</label>
+                <input
+                  id="po-recibido"
+                  className="po-input"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*[.,]?[0-9]*"
+                  placeholder="0.00"
+                  value={montoRecibido}
+                  onChange={(e) => manejarCambioMontoRecibido(e.target.value)}
                 />
+                <div className="po-quick">
+                  <button type="button" className="px-chip" onClick={() => setMontoRecibido(String(Number(totalAPagar).toFixed(2)))}>Exacto</button>
+                  {[500, 1000, 2000, 5000].filter((v) => v >= totalAPagar).slice(0, 3).map((v) => (
+                    <button key={v} type="button" className="px-chip" onClick={() => setMontoRecibido(String(v))}>RD$ {v.toLocaleString('es-DO')}</button>
+                  ))}
+                </div>
                 {montoRecibido && cambio >= 0 && (
-                  <p style={{color: '#00f576', marginTop: '6px', fontWeight: 'bold'}}>Cambio a devolver: RD$ {formatearRD(cambio)}</p>
+                  <p className="po-change"><span>Cambio a devolver</span><span>RD$ {formatearRD(cambio)}</span></p>
                 )}
               </div>
             )}
 
-            <div style={{display: 'flex', gap: '8px'}}>
-              <button onClick={() => setMostrandoCobro(false)} style={{flex: 1, padding: '12px', background: '#1a1a24', color: '#fff', border: '1px solid #2a2a38', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'}}>Cancelar</button>
-              <button onClick={procesarFacturaDirecta} style={{flex: 1.5, padding: '12px', background: 'linear-gradient(135deg, #00f576, #00b852)', color: '#000', border: 'none', borderRadius: '8px', fontWeight: '800', cursor: 'pointer'}}>Facturar e Imprimir</button>
+            <div className="po-modal__actions">
+              <button type="button" className="px-btn px-btn--lg" onClick={() => setMostrandoCobro(false)}>Cancelar</button>
+              <button type="button" className="px-btn px-btn--gold px-btn--lg" disabled={procesandoFactura} onClick={procesarFacturaDirecta}>
+                <Receipt size={18} />{procesandoFactura ? 'Procesando…' : 'Facturar e imprimir'}
+              </button>
             </div>
-
           </div>
+        </div>
+      )}
+
+      {/* ANULACIÓN CON AUTORIZACIÓN */}
+      {anulacionPendiente && (
+        <div className="po-modal" role="presentation" onClick={() => !procesandoAnulacion && setAnulacionPendiente(null)}>
+          <section className="po-modal__card" role="dialog" aria-modal="true" aria-labelledby="anulacion-title" onClick={(e) => e.stopPropagation()}>
+            <div className="po-modal__head">
+              <div>
+                <span className="px-eyebrow" style={{ color: 'var(--px-bad)' }}>Requiere supervisor</span>
+                <h3 id="anulacion-title">Anular {anulacionPendiente.nombre}</h3>
+              </div>
+            </div>
+            <p style={{ margin: '0 0 18px', fontSize: '.86rem', color: 'var(--px-ink-3)', lineHeight: 1.5 }}>
+              {mesa.nombre_numero}. Esta acción queda registrada en auditoría y necesita la autorización de un supervisor.
+            </p>
+            <div className="po-field">
+              <label htmlFor="po-motivo">Motivo</label>
+              <textarea id="po-motivo" className="po-input" value={motivoAnulacion} onChange={(e) => setMotivoAnulacion(e.target.value)} autoFocus rows={3} />
+            </div>
+            <div className="po-field">
+              <label htmlFor="po-pin-sup">PIN de supervisor</label>
+              <input
+                id="po-pin-sup"
+                className="po-input"
+                value={pinSupervisor}
+                onChange={(e) => setPinSupervisor(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                maxLength={6}
+                type="password"
+                placeholder="••••••"
+              />
+            </div>
+            <div className="po-modal__actions">
+              <button type="button" className="px-btn px-btn--lg" onClick={() => setAnulacionPendiente(null)} disabled={procesandoAnulacion}>Cancelar</button>
+              <button type="button" className="px-btn px-btn--danger px-btn--lg" style={{ flex: 1.4 }} onClick={confirmarAnulacion} disabled={procesandoAnulacion}>
+                {procesandoAnulacion ? 'Validando…' : 'Confirmar anulación'}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>

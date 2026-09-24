@@ -1,0 +1,90 @@
+@font-face { font-family: 'Inter'; src: url('../assets/inter.woff2') format('woff2'); font-weight: 100 900; font-style: normal; }
+
+:root {
+  --ink: #060a15;
+  --ink-2: #0c1330;
+  --azul: #5b8cff;
+  --azul-suave: #9db8ff;
+  --oro: #ecbc4a;
+  --texto: #f3f6ff;
+  --tenue: rgba(228, 234, 255, 0.72);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  position: relative;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--texto);
+  background:
+    radial-gradient(1200px 700px at 85% -10%, rgba(91, 140, 255, 0.28), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(236, 188, 74, 0.16), transparent 60%),
+    linear-gradient(160deg, var(--ink-2), var(--ink) 70%);
+  -webkit-font-smoothing: antialiased;
+}
+
+.marca { position: absolute; display: flex; align-items: center; gap: 16px; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+.marca img { width: 64px; height: 64px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45); }
+
+.pildora {
+  position: absolute; display: inline-flex; align-items: center; gap: 12px;
+  padding: 10px 22px; border: 1px solid rgba(157, 184, 255, 0.35); border-radius: 999px;
+  font-size: 20px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--azul-suave);
+  background: rgba(91, 140, 255, 0.08);
+}
+.pildora::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--azul); box-shadow: 0 0 14px var(--azul); }
+
+h1 { position: absolute; font-weight: 800; letter-spacing: -0.04em; line-height: 1.02; }
+h1 em { font-style: italic; color: var(--azul); }
+.sub { position: absolute; font-size: 30px; line-height: 1.4; color: var(--tenue); font-weight: 500; }
+
+.cta {
+  position: absolute; display: inline-flex; align-items: center; gap: 14px;
+  padding: 22px 40px; border-radius: 999px; font-size: 28px; font-weight: 800; letter-spacing: -0.01em;
+  color: #06122e; background: linear-gradient(180deg, #7ba2ff, var(--azul));
+  box-shadow: 0 18px 50px rgba(91, 140, 255, 0.45);
+}
+.url { position: absolute; font-size: 26px; font-weight: 700; color: var(--texto); letter-spacing: 0.01em; }
+.url b { color: var(--oro); }
+
+.glow { position: absolute; border-radius: 50%; filter: blur(110px); opacity: 0.5; pointer-events: none; }
+
+/* Marcos de dispositivo */
+.laptop {
+  position: absolute; padding: 14px; border-radius: 26px; background: #0a0e1a;
+  box-shadow: 0 60px 120px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 255, 255, 0.07), inset 0 0 0 1.5px rgba(255, 255, 255, 0.05);
+}
+.laptop img { display: block; width: 100%; border-radius: 14px; }
+.laptop.sombra-azul { box-shadow: 0 60px 120px rgba(0, 0, 0, 0.6), 0 0 90px rgba(91, 140, 255, 0.35), 0 0 0 2px rgba(255, 255, 255, 0.07); }
+
+.phone {
+  position: absolute; padding: 16px; border-radius: 74px; background: #0a0e1a;
+  box-shadow: 0 60px 120px rgba(0, 0, 0, 0.65), 0 0 0 3px rgba(255, 255, 255, 0.09), inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+.phone img { display: block; width: 100%; border-radius: 58px; }
+.phone::before {
+  content: ''; position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
+  width: 34%; height: 30px; border-radius: 999px; background: #05070d; z-index: 2;
+}
+
+/* Etiquetas y tarjetas flotantes */
+.chip {
+  position: absolute; display: inline-flex; align-items: center; gap: 12px; padding: 14px 24px;
+  border-radius: 999px; font-size: 24px; font-weight: 700; color: var(--texto);
+  background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(10px);
+}
+.chip i { width: 12px; height: 12px; border-radius: 50%; background: var(--oro); box-shadow: 0 0 12px var(--oro); }
+
+.aviso {
+  position: absolute; display: flex; align-items: center; gap: 16px; padding: 18px 24px; border-radius: 22px;
+  background: rgba(16, 24, 52, 0.92); border: 1px solid rgba(157, 184, 255, 0.28); box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+}
+.aviso .ico { width: 52px; height: 52px; border-radius: 15px; background: var(--azul); display: grid; place-items: center; color: #06122e; font-size: 28px; font-weight: 900; }
+.aviso strong { display: block; font-size: 26px; letter-spacing: -0.01em; }
+.aviso span { font-size: 21px; color: var(--tenue); }
+
+.etiqueta { position: absolute; font-size: 26px; font-weight: 800; letter-spacing: 0.02em; text-align: center; color: var(--texto); }
+.etiqueta small { display: block; font-size: 19px; font-weight: 600; color: var(--tenue); margin-top: 4px; letter-spacing: 0.06em; text-transform: uppercase; }
+
+.nota { position: absolute; font-size: 17px; color: rgba(228, 234, 255, 0.5); }

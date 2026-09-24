@@ -1,5 +1,7 @@
 # AGENTS.md — Guía para Agentes de Código
 
+> **Estado actual del sistema y trabajo reciente: lee primero [ESTADO_DEL_SISTEMA.md](ESTADO_DEL_SISTEMA.md).**
+
 ## ChloeRestaurant POS v2.1.0+ (TypeScript/Elite)
 
 Sistema de POS especializado para restaurantes dominicanos con integración DGII, licenciamiento y gestión multi-empresa.
@@ -489,7 +491,7 @@ npm run dev 2>&1 | grep "cuentasService"
 | `src/routers/*` | Business endpoints | Feature Owners |
 | `src/services/*` | Business logic | Feature Owners |
 | `vitest.config.ts` | Test configuration | QA Lead |
-| `.eslintrc.json` | Code style | Frontend/Backend Leads |
+| `.eslintrc.json` | Code style (obsoleto → usar `eslint.config.mjs`) | Frontend/Backend Leads |
 
 ---
 

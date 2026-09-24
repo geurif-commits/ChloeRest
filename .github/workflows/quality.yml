@@ -1,0 +1,83 @@
+name: Quality Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run typecheck
+      - run: npm run test:coverage
+      - run: npm run lint
+      - run: npm run build:server
+      - run: npm run test:production-config
+
+  e2e:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: chloerest_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      DB_USER: postgres
+      DB_PASSWORD: ci
+      DB_NAME: chloerest_ci
+      NODE_ENV: development
+      APP_SESSION_SECRET: ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci
+      BOOTSTRAP_ADMIN_PIN: '123456'
+      E2E_ADMIN_PIN: '123456'
+      E2E_DEVICE_ID: ci-device-0001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - name: Herramientas de PostgreSQL 16 (pg_dump y pg_restore para la prueba de respaldos)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-16
+      - name: Migrar la base vacía (crea al administrador inicial)
+        run: npm run migrate
+      - name: Sembrar equipo activado y mesas
+        run: npm run seed:e2e
+      - name: Prueba de extremo a extremo (dinero, roles, turnos, respaldos)
+        run: npm run test:e2e
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-restaurante
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend-restaurante/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - run: npm run lint

@@ -27,6 +27,8 @@ export interface ISesionCreada {
 export interface IDuenoTokenPayload {
   rol: 'Dueno';
   exp: number;
+  /** Epoch de revocación (item 7): si no coincide con la BD, el token es inválido. */
+  ep?: number;
 }
 
 export interface ISupervisorAuthPayload {
@@ -93,10 +95,22 @@ export async function createSession(user: IUsuarioSesion): Promise<ISesionCreada
     );
     db.queryUnscoped('DELETE FROM app_sessions WHERE expira_en <= CURRENT_TIMESTAMP').catch(() => undefined);
   } catch (err) {
+    const sessionError = httpError(503, 'No se pudo iniciar la sesión. Intenta nuevamente.', 'SESSION_PERSISTENCE_ERROR');
      
     console.error('Error al guardar sesión en BD:', (err as Error).message);
+    throw sessionError;
   }
   return { token, usuario, expiraEn: expiresAt.toISOString() };
+}
+
+/**
+ * Revoca (elimina) una sesión de usuario por su token. Item 7: permite logout
+ * server-side real, invalidando el token de inmediato en vez de esperar 8 h.
+ */
+export async function deleteSession(token: string | null | undefined): Promise<void> {
+  if (!token) {return;}
+  const db = getDatabase();
+  await db.queryUnscoped('DELETE FROM app_sessions WHERE token = $1', [token]);
 }
 
 export function firmarDuenoTok(payload: IDuenoTokenPayload): string {

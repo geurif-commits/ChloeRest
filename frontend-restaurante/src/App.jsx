@@ -4,7 +4,6 @@ import MapaMesas from './components/MapaMesas';
 import PantallaKDS from './components/PantallaKDS';
 import PanelAdmin from './components/PanelAdmin';
 import BloqueoLicencia from './components/BloqueoLicencia';
-import SafeImage from './components/SafeImage.jsx';
 import ActivacionDispositivo from './components/ActivacionDispositivo';
 import ConfigurarIP from './components/ConfigurarIP';
 import PantallaCaja from './components/PantallaCaja';
@@ -15,23 +14,32 @@ import LoginScreen from './features/login/LoginScreen.jsx';
 import PanelDueno from './components/admin/PanelDueno';
 
 import ToastContainer from './components/Toast.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
 import { toastAviso } from './components/Toast.jsx';
 
-import { borrarSesion, guardarSesion, obtenerSesion } from './api.js';
-import { obtenerInfoDispositivo, obtenerDeviceId } from './utils/dispositivo.js';
+import { borrarSesion, cerrarSesionServidor, guardarSesion, obtenerSesion } from './api.js';
+import { obtenerInfoDispositivo, obtenerDeviceId, recordarActivacion, activacionRecordada } from './utils/dispositivo.js';
 
 import {
   getApiUrl,
   setApiUrl as guardarApiUrl,
   clearApiUrl,
-  esElectronApp
+  esElectronApp,
+  urlLocalElectron
 } from './configApi.js';
 
 import { aplicarPersonalizacion } from './personalizacion.js';
 
 import './ui/theme/tokens.css';
 import './App.css';
-import './ui/theme/overrides-pedido.css';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/fraunces';
+import './ui/premium/premium-tokens.css';
+import './ui/premium/premium-base.css';
+import './ui/premium/premium-modal.css';
+import './ui/premium/premium-admin.css';
+import './ui/premium/premium-gates.css';
+import './ui/premium/premium-skins.css';
 
 // Build marker: forces a fresh browser asset after deployment.
 const BUILD_MARKER = 'multiempresa-2.1.0';
@@ -71,7 +79,20 @@ function rutaUsuario(usuario) {
   return '/app';
 }
 
-import { ShieldAlert, KeyRound, Lock, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, UtensilsCrossed, WifiOff, Minus, Square, Copy, X } from 'lucide-react';
+import PinPad from './components/PinPad.jsx';
+
+function PantallaCarga({ texto }) {
+  return (
+    <div className="gate" role="status" aria-live="polite">
+      <div className="gate__loading">
+        <span className="gate__badge"><UtensilsCrossed size={26} /></span>
+        <strong style={{ fontFamily: 'var(--px-font-display)', fontSize: '1.25rem', color: 'var(--px-ink)', fontWeight: 600 }}>ChloeRestaurant POS</strong>
+        <span>{texto}</span>
+      </div>
+    </div>
+  );
+}
 
 function CambioPinObligatorio({ onGuardar }) {
   const [pin, setPin] = useState('');
@@ -79,14 +100,15 @@ function CambioPinObligatorio({ onGuardar }) {
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
 
-  const guardar = async (event) => {
-    event.preventDefault();
-    if (!/^\d{6}$/.test(pin)) {
-      setError('El nuevo PIN debe tener exactamente 6 dígitos numéricos.');
-      return;
-    }
-    if (pin !== confirmacion) {
-      setError('Los dos PIN ingresados no coinciden. Verifica e intenta de nuevo.');
+  // Paso 1: nuevo PIN. Paso 2: confirmación. Se avanza solo al completar 6 dígitos.
+  const confirmando = pin.length === 6;
+  const actual = confirmando ? confirmacion : pin;
+
+  const guardar = async (confirmado) => {
+    if (pin !== confirmado) {
+      setError('Los dos PIN no coinciden. Vuelve a intentarlo.');
+      setPin('');
+      setConfirmacion('');
       return;
     }
     setGuardando(true);
@@ -95,152 +117,58 @@ function CambioPinObligatorio({ onGuardar }) {
       await onGuardar(pin);
     } catch (e) {
       setError(e.message || 'Error al actualizar el PIN.');
+      setPin('');
+      setConfirmacion('');
     } finally {
       setGuardando(false);
     }
   };
 
+  const agregar = (digito) => {
+    if (guardando) return;
+    setError('');
+    if (!confirmando) {
+      setPin((p) => (p.length < 6 ? p + digito : p));
+      return;
+    }
+    const siguiente = confirmacion + digito;
+    if (siguiente.length > 6) return;
+    setConfirmacion(siguiente);
+    if (siguiente.length === 6) guardar(siguiente);
+  };
+
+  const borrar = () => {
+    if (guardando) return;
+    if (confirmando) {
+      if (confirmacion.length > 0) setConfirmacion((c) => c.slice(0, -1));
+      else setPin((p) => p.slice(0, -1));
+    } else {
+      setPin((p) => p.slice(0, -1));
+    }
+  };
+
   return (
-    <div className="required-pin-screen" style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'radial-gradient(circle at 50% 10%, rgba(245, 184, 61, 0.15), transparent 50%), #07090f',
-      padding: '20px'
-    }}>
-      <form
-        className="required-pin-card"
-        onSubmit={guardar}
-        style={{
-          maxWidth: '420px',
-          width: '100%',
-          background: 'rgba(15, 23, 42, 0.9)',
-          backdropFilter: 'blur(16px)',
-          border: '1px solid rgba(245, 184, 61, 0.35)',
-          borderRadius: '20px',
-          padding: '32px 28px',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px',
-          textAlign: 'center'
-        }}
-      >
-        <div style={{
-          width: '56px',
-          height: '56px',
-          borderRadius: '16px',
-          background: 'rgba(245, 184, 61, 0.15)',
-          border: '1px solid rgba(245, 184, 61, 0.4)',
-          color: 'var(--gold, #f5b842)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <ShieldAlert size={28} />
-        </div>
-
-        <div>
-          <h2 style={{ margin: '0 0 6px', fontSize: '1.35rem', fontWeight: 800, color: '#fff' }}>
-            Cambio Obligatorio de PIN
-          </h2>
-          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted, #94a3b8)', lineHeight: 1.5 }}>
-            Por razones de seguridad, debes reemplazar el PIN temporal suministrado por un <strong>PIN confidencial y secreto de 6 dígitos</strong>.
-          </p>
-        </div>
-
-        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ position: 'relative', width: '100%' }}>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-              placeholder="Nuevo PIN de 6 dígitos"
-              autoFocus
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: '#fff',
-                fontSize: '1.1rem',
-                textAlign: 'center',
-                letterSpacing: '0.2em',
-                fontFamily: 'monospace'
-              }}
-            />
-          </div>
-
-          <div style={{ position: 'relative', width: '100%' }}>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              value={confirmacion}
-              onChange={(e) => setConfirmacion(e.target.value.replace(/\D/g, ''))}
-              placeholder="Confirmar nuevo PIN"
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                borderRadius: '10px',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: '#fff',
-                fontSize: '1.1rem',
-                textAlign: 'center',
-                letterSpacing: '0.2em',
-                fontFamily: 'monospace'
-              }}
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div style={{
-            width: '100%',
-            padding: '10px 14px',
-            borderRadius: '8px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
-            fontSize: '0.78rem',
-            textAlign: 'center'
-          }}>
-            {error}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={guardando || pin.length !== 6 || confirmacion.length !== 6}
-          style={{
-            width: '100%',
-            padding: '12px 20px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #f5b842 0%, #d49524 100%)',
-            border: 'none',
-            color: '#0b0f19',
-            fontWeight: 800,
-            fontSize: '0.92rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 15px rgba(245, 184, 61, 0.3)',
-            transition: 'all 0.2s ease',
-            opacity: (guardando || pin.length !== 6 || confirmacion.length !== 6) ? 0.6 : 1
-          }}
-        >
-          <Lock size={16} />
-          {guardando ? 'Guardando nuevo PIN...' : 'Establecer y Proteger PIN'}
-        </button>
-      </form>
+    <div className="gate required-pin-screen">
+      <div className="gate__card required-pin-card">
+        <span className="gate__badge"><ShieldAlert size={28} /></span>
+        <span className="px-eyebrow">Seguridad de la cuenta</span>
+        <h2>Cambio obligatorio de PIN</h2>
+        <p className="gate__lead">
+          Por seguridad, reemplaza el PIN temporal por un <strong>PIN confidencial de 6 dígitos</strong>.
+          {' '}{confirmando ? 'Ahora confírmalo.' : 'Ingresa tu nuevo PIN.'}
+        </p>
+        <PinPad
+          value={actual}
+          length={6}
+          error={error}
+          disabled={guardando}
+          onDigit={agregar}
+          onDelete={borrar}
+        />
+        <p className="gate__note">
+          {guardando ? 'Guardando nuevo PIN…' : confirmando ? 'Paso 2 de 2 · Confirmar PIN' : 'Paso 1 de 2 · Nuevo PIN'}
+        </p>
+      </div>
     </div>
   );
 }
@@ -259,10 +187,13 @@ function AppContent() {
 
   const [usuario, setUsuario] = useState(null);
 
-  const establecerUsuario = (data) => {
+const establecerUsuario = (data) => {
     guardarSesion(data.token);
     if (data.tokenDueno) {
       localStorage.setItem('pos_owner_token', data.tokenDueno);
+      // Login unificado: el token del dueño también queda disponible para el
+      // PanelDueno (que lee POS_DUENO_TOKEN), evitando un segundo login.
+      localStorage.setItem('POS_DUENO_TOKEN', data.tokenDueno);
     }
     // Solo marcamos dispositivo como activado si es un usuario operativo del restaurante
     if (data.usuario?.rol !== 'Dueno' && !data.esDueno) {
@@ -271,9 +202,10 @@ function AppContent() {
     setUsuario({ ...data.usuario, requiereCambioPin: Boolean(data.requiereCambioPin) });
   };
 
-  const iniciarSesion = (data) => {
+  // kds: 'Cocina' | 'Bar' cuando el acceso rápido a la comandera pidió el PIN antes de abrir la pantalla.
+  const iniciarSesion = (data, kds = null) => {
     establecerUsuario(data);
-    navegarRuta(rutaUsuario(data.usuario));
+    navegarRuta(kds ? `/kds/${String(kds).toLowerCase()}` : rutaUsuario(data.usuario));
   };
 
   const cambiarPinObligatorio = async (nuevoPin) => {
@@ -338,8 +270,16 @@ function AppContent() {
   const [vistaDueno, setVistaDueno] =
     useState(() => normalizarRuta(window.location.pathname) === '/paneldueno');
 
-  const navegarRuta = (ruta) => {
-    const destino = normalizarRuta(ruta);
+const navegarRuta = (ruta) => {
+    let destino = normalizarRuta(ruta);
+    // El dueño nunca entra al sistema operativo directo; todo lo redirige al panel.
+    const esDueno = usuario && (usuario.rol === 'Dueno' || usuario.esDueno);
+    if (
+      esDueno &&
+      (destino === '/app' || destino === '/admin' || destino === '/caja' || destino.startsWith('/kds'))
+    ) {
+      destino = '/paneldueno';
+    }
     if (window.location.pathname !== destino) window.history.pushState({}, '', destino);
     setVistaDueno(destino === '/paneldueno' || destino === '/planeldueno');
     if (destino === '/formulario' || destino === '/solicitar' || destino === '/solicitar-licencia') {
@@ -364,17 +304,11 @@ function AppContent() {
     }
   };
 
-  const [redOnline, setRedOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
-
+  // Mostrar ventana en Electron al montar la app (arranque silencioso -> visible bajo demanda)
   useEffect(() => {
-    const alConectar = () => setRedOnline(true);
-    const alDesconectar = () => setRedOnline(false);
-    window.addEventListener('online', alConectar);
-    window.addEventListener('offline', alDesconectar);
-    return () => {
-      window.removeEventListener('online', alConectar);
-      window.removeEventListener('offline', alDesconectar);
-    };
+    if (esElectronApp() && window.electronPOS?.mostrarVentana) {
+      window.electronPOS.mostrarVentana();
+    }
   }, []);
 
   useEffect(() => {
@@ -383,7 +317,7 @@ function AppContent() {
     };
     window.addEventListener('popstate', alNavegar);
     return () => window.removeEventListener('popstate', alNavegar);
-  }, []);
+  }, [navegarRuta]);
 
   // ==========================================================
   // CARGAR CONFIGURACIÓN DEL SISTEMA
@@ -497,6 +431,11 @@ function AppContent() {
     return () => { cancelado = true; };
   }, [apiUrl]);
 
+  // Recuerda la activación (también cuando se activa desde el asistente o el login) para tolerar fallos del servidor al abrir.
+  useEffect(() => {
+    if (dispositivoActivado === true) recordarActivacion(true);
+  }, [dispositivoActivado]);
+
   // ==========================================================
   // REGISTRAR / VERIFICAR DISPOSITIVO
   // ==========================================================
@@ -526,14 +465,16 @@ function AppContent() {
           if (data.empresaId || data.tenantId) {
             localStorage.setItem('POS_TENANT_ID', String(data.tenantId || data.empresaId));
           }
+          recordarActivacion(Boolean(data.activado));
           setDispositivoActivado(Boolean(data.activado));
         } else {
-          setDispositivoActivado(false);
+          // Límite de solicitudes o fallo del servidor: un equipo ya activado no debe caer al LandingScreen.
+          setDispositivoActivado(activacionRecordada());
         }
       } catch (e) {
         console.error('Error verificando dispositivo:', e);
         if (!cancelado) {
-          setDispositivoActivado(false);
+          setDispositivoActivado(activacionRecordada());
         }
       } finally {
         if (!cancelado) {
@@ -548,6 +489,14 @@ function AppContent() {
       cancelado = true;
     };
   }, [apiUrl]);
+
+  // Un equipo sin activar siempre carga el LandingScreen (aunque la URL sea /login);
+  // un equipo con licencia activa entra directo al LoginScreen.
+  useEffect(() => {
+    if (verificandoDispositivo || dispositivoActivado !== false || usuario) return;
+    if (['login', 'app', 'admin', 'caja', 'kds'].includes(vistaActiva)) navegarRuta('/landingscreen');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verificandoDispositivo, dispositivoActivado, vistaActiva, usuario]);
 
   // ==========================================================
   // VERIFICAR LICENCIA (FONDO NO BLOQUEANTE)
@@ -590,8 +539,11 @@ function AppContent() {
   // CONTROL DE INACTIVIDAD
   // ==========================================================
 
+  // Las pantallas KDS (cocina/bar) casi nunca se tocan: cerrar su sesión por inactividad las dejaba sin pedidos.
+  const esPantallaKDS = Boolean(viendoKDS) || usuario?.rol === 'Cocina' || usuario?.rol === 'Bar';
+
   useEffect(() => {
-    if (!usuario) return;
+    if (!usuario || esPantallaKDS) return;
     let timer;
 
     const resetTimer = () => {
@@ -610,11 +562,12 @@ function AppContent() {
       clearTimeout(timer);
       eventos.forEach((evento) => window.removeEventListener(evento, resetTimer));
     };
-  }, [usuario]);
+  }, [usuario, esPantallaKDS]);
 
   useEffect(() => {
     const handler = () => {
       setUsuario(null);
+      setViendoKDS(null);
     };
     window.addEventListener('pos-sesion-vencida', handler);
     return () => {
@@ -646,9 +599,13 @@ function AppContent() {
   // ==========================================================
 
   const resetSesion = () => {
+    // Revoca la sesión en el servidor (item 7) antes de limpiar el cliente.
+    void cerrarSesionServidor(apiUrl);
     borrarSesion();
     setUsuario(null);
     setViendoKDS(null);
+    // Todo cierre de sesión vuelve al LoginScreen operativo, nunca a LandingScreen.
+    navegarRuta('/login');
   };
 
   // ==========================================================
@@ -658,7 +615,7 @@ function AppContent() {
   const limpiarServidor = () => {
     if (esElectronApp()) {
       clearApiUrl();
-      setApiUrl('');
+      setApiUrl(urlLocalElectron());
     } else {
       setApiUrl(window.location.origin);
     }
@@ -673,6 +630,7 @@ function AppContent() {
   useEffect(() => {
     const handler = () => {
       setUsuario(null);
+      setViendoKDS(null);
     };
     window.addEventListener('pos-sesion-vencida', handler);
     return () => {
@@ -691,6 +649,7 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <ConfigurarIP
           alGuardar={(ip) => {
             const urlFinal = guardarApiUrl(ip);
@@ -706,13 +665,13 @@ function AppContent() {
   // ==========================================================
 
   if (verificandoLicencia) {
-    return <div className="app-loading">Cargando...</div>;
+    return <PantallaCarga texto="Cargando…" />;
   }
 
   // No mostrar LoginScreen mientras todavía se resuelven el dispositivo y la
   // configuración. Evita el parpadeo de login antes de LandingScreen.
   if (verificandoDispositivo || !configCargada) {
-    return <div className="app-loading">Cargando...</div>;
+    return <PantallaCarga texto="Verificando terminal y licencia…" />;
   }
 
   // ==========================================================
@@ -730,10 +689,10 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
 
         <BloqueoLicencia
           motivo={estadoLicencia.motivo}
-          contacto={estadoLicencia.contacto}
           apiUrl={apiUrl}
           alIniciarSesionAdmin={(d) => {
 
@@ -755,6 +714,7 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
 
         <PantallaKDS
           tipo={viendoKDS}
@@ -769,7 +729,21 @@ function AppContent() {
   // USUARIO AUTENTICADO
   // ==========================================================
 
-  if (usuario) {
+if (usuario) {
+
+    if (usuario.rol === 'Dueno' || usuario.esDueno) {
+      return (
+        <>
+          <ToastContainer />
+      <UpdateBanner />
+          <PanelDueno
+            apiUrl={apiUrl}
+            config={configSistema}
+            alVolver={resetSesion}
+          />
+        </>
+      );
+    }
 
     if (usuario.requiereCambioPin) {
       return <CambioPinObligatorio onGuardar={cambiarPinObligatorio} />;
@@ -780,6 +754,7 @@ function AppContent() {
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PantallaKDS
             tipo="Cocina"
@@ -795,6 +770,7 @@ function AppContent() {
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PantallaKDS
             tipo="Bar"
@@ -810,6 +786,7 @@ function AppContent() {
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PanelAdmin
             usuario={usuario}
@@ -830,6 +807,7 @@ function AppContent() {
       return (
         <>
           <ToastContainer />
+      <UpdateBanner />
 
           <PantallaCaja
             usuario={usuario}
@@ -843,6 +821,7 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <MapaMesas
           usuario={usuario}
           alCerrarSesion={resetSesion}
@@ -861,12 +840,11 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
-        <PanelDueno
+      <UpdateBanner />
+<PanelDueno
           apiUrl={apiUrl}
           config={configSistema}
-          alVolver={() => {
-            navegarRuta('/landingscreen');
-          }}
+          alVolver={resetSesion}
         />
       </>
     );
@@ -883,6 +861,7 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <WizardSetup
           apiUrl={apiUrl}
           config={configSistema}
@@ -923,6 +902,7 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <WelcomeScreen
           apiUrl={apiUrl}
           config={configSistema}
@@ -947,6 +927,7 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
+      <UpdateBanner />
         <ActivacionDispositivo
           apiUrl={apiUrl}
           onVolver={() => navegarRuta('/landingscreen')}
@@ -988,28 +969,7 @@ function AppContent() {
   // ==========================================================
 
   if (verificandoDispositivo) {
-    return (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        background: '#0a0a0f', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', gap: '16px',
-        color: '#fff', fontFamily: 'sans-serif', zIndex: 99999
-      }}>
-        <div style={{
-          width: '54px', height: '54px', borderRadius: '16px',
-          background: 'linear-gradient(135deg, rgba(245,184,66,0.2), rgba(245,184,66,0.05))',
-          border: '1px solid rgba(245,184,66,0.3)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '1.6rem', boxShadow: '0 0 25px rgba(245,184,66,0.2)'
-        }}>
-          🍽️
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-          <span style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: '0.5px' }}>ChloeRestaurant POS</span>
-          <span style={{ fontSize: '0.78rem', color: '#9494ad' }}>Verificando terminal y licencia...</span>
-        </div>
-      </div>
-    );
+    return <PantallaCarga texto="Verificando terminal y licencia…" />;
   }
 
   // ==========================================================
@@ -1017,7 +977,7 @@ function AppContent() {
   // ==========================================================
 
   if (
-    (dispositivoActivado === true || vistaActiva === 'login') &&
+    dispositivoActivado === true &&
     vistaActiva !== 'landingscreen' &&
     vistaActiva !== 'activacion' &&
     vistaActiva !== 'paneldueno' &&
@@ -1026,18 +986,21 @@ function AppContent() {
     return (
       <>
         <ToastContainer />
-        <LoginScreen
+      <UpdateBanner />
+<LoginScreen
           apiUrl={apiUrl}
           configSistema={configSistema}
           onLogin={iniciarSesion}
-          onVerKDS={(tipo) => {
-            navegarRuta(`/kds/${String(tipo || 'Cocina').toLowerCase()}`);
-          }}
+          onVerKDS={() => {}}
           servidorOnline={servidorOnline}
           onChangeServer={limpiarServidor}
-          onVolver={() => {
-            navegarRuta('/landingscreen');
-          }}
+          onVolver={
+            dispositivoActivado === true
+              ? undefined
+              : () => {
+                  navegarRuta('/landingscreen');
+                }
+          }
         />
       </>
     );
@@ -1050,6 +1013,7 @@ function AppContent() {
   return (
     <>
       <ToastContainer />
+      <UpdateBanner />
       <LandingScreen
         config={configSistema}
         logoUrl={configNegocio?.logo_url}
@@ -1089,6 +1053,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (esElectronApp()) document.documentElement.classList.add('is-electron');
+  }, []);
+
+  useEffect(() => {
     if (!esElectronApp()) return;
     const check = () => {
       window.electronPOS?.estaMaximizada?.().then?.(setIsMaximized);
@@ -1103,40 +1071,17 @@ function App() {
       <AppContent />
 
       {!redOnline && (
-        <div style={{
-          position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)',
-          zIndex: 999999, background: 'rgba(239, 68, 68, 0.95)', color: '#fff',
-          padding: '10px 20px', borderRadius: '12px', backdropFilter: 'blur(10px)',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
-          gap: '10px', fontSize: '0.88rem', fontWeight: 600, border: '1px solid rgba(255,255,255,0.2)'
-        }}>
-          <span>📡</span>
-          <span>Sin conexión a internet — Modo de contingencia activo</span>
+        <div className="px-offline" role="alert">
+          <WifiOff size={17} />
+          <span>Sin conexión a internet — modo de contingencia activo</span>
         </div>
       )}
 
       {esElectronApp() && (
-        <div style={{
-          position: 'fixed', top: '10px', right: '10px', zIndex: 99999,
-          display: 'flex', gap: '4px', background: 'rgba(20,20,27,0.85)',
-          borderRadius: '8px', padding: '4px', border: '1px solid rgba(255,255,255,0.1)',
-          backdropFilter: 'blur(8px)', boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
-        }}>
-          <button onClick={() => window.electronPOS?.minimizarVentana()} title="Minimizar" style={{
-            width: '28px', height: '28px', borderRadius: '6px', border: 'none',
-            background: 'transparent', color: '#9494ad', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
-          }}>─</button>
-          <button onClick={() => window.electronPOS?.maximizarVentana()} title={isMaximized ? 'Restaurar' : 'Maximizar'} style={{
-            width: '28px', height: '28px', borderRadius: '6px', border: 'none',
-            background: 'transparent', color: '#9494ad', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem',
-          }}>{isMaximized ? '❐' : '□'}</button>
-          <button onClick={() => window.electronPOS?.cerrarVentana()} title="Cerrar" style={{
-            width: '28px', height: '28px', borderRadius: '6px', border: 'none',
-            background: 'transparent', color: '#ff5252', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
-          }}>✕</button>
+        <div className="px-winctl" role="group" aria-label="Controles de ventana">
+          <button type="button" onClick={() => window.electronPOS?.minimizarVentana()} title="Minimizar" aria-label="Minimizar"><Minus size={15} /></button>
+          <button type="button" onClick={() => window.electronPOS?.maximizarVentana()} title={isMaximized ? 'Restaurar' : 'Maximizar'} aria-label={isMaximized ? 'Restaurar' : 'Maximizar'}>{isMaximized ? <Copy size={13} /> : <Square size={13} />}</button>
+          <button type="button" className="px-winctl__close" onClick={() => window.electronPOS?.cerrarVentana()} title="Cerrar" aria-label="Cerrar"><X size={15} /></button>
         </div>
       )}
     </>

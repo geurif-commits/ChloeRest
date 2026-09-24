@@ -52,15 +52,16 @@ export function construirECF(params: IConstruirECFParams): any {
   const items = detalles.map((d, idx) => {
     const cantidad = Number(d.cantidad);
     const precio = Number(d.precio_unitario);
-    const tasaItbis = Number(d.tasa_itbis ?? 18);
+    const tasaItbis = Number(d.tasa_itbis ?? 0);
     const montoItem = money(cantidad * precio);
     const esExento = tasaItbis === 0;
 
     let montoGravadoItem = 0;
     let montoItbisItem = 0;
     if (!esExento) {
-      montoGravadoItem = money(montoItem / (1 + tasaItbis / 100));
-      montoItbisItem = money((montoGravadoItem * tasaItbis) / 100);
+      // Precios sin ITBIS: la base gravada es el monto de la línea y el ITBIS se suma.
+      montoGravadoItem = montoItem;
+      montoItbisItem = money((montoItem * tasaItbis) / 100);
       montoGravado += montoGravadoItem;
       totalItbis += montoItbisItem;
     } else {

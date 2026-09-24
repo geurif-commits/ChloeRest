@@ -9,8 +9,10 @@
 
 import crypto from 'node:crypto';
 import { hashPin } from '../services/authService.js';
+import { sqlNombreBebida } from '../services/destinoProducto.js';
 import { config } from '../lib/config.js';
 import { createLogger } from '../lib/logger.js';
+import { SCHEMA_BASE_SQL } from './schemaBase.js';
 import type { Database } from './index.js';
 
 const logger = createLogger('migrations');
@@ -677,6 +679,232 @@ const migrations: IMigracion[] = [{
       ALTER TABLE ingredientes ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(10,2) NOT NULL DEFAULT 0;
     `,
   },
+  {
+    id: '039_login_marca_tamano',
+    sql: `
+      -- Tamaño del logo y nombre en la pantalla de login PIN (mediano/grande/gigante).
+      ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS login_marca_tamano VARCHAR(20) NOT NULL DEFAULT 'grande';
+    `,
+  },
+  {
+    id: '040_tema_claro_universal',
+    sql: `
+      -- Retiro del tema oscuro: universal claro en todo el sistema.
+      ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'claro';
+      UPDATE configuracion_sistema SET tema_activo = 'claro' WHERE tema_activo IS DISTINCT FROM 'claro';
+      UPDATE configuracion_sistema SET login_theme = 'olive_garden' WHERE login_theme IS DISTINCT FROM 'olive_garden';
+    `,
+  },
+  {
+    id: '041_rls_licencias',
+    sql: `
+      -- La tabla fue creada durante la migración multiempresa, pero quedó
+      -- fuera de la lista dinámica que habilita RLS. Se corrige de forma
+      -- idempotente para proteger instalaciones ya migradas.
+      ALTER TABLE licencias ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE licencias FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS aislamiento_empresa ON licencias;
+      CREATE POLICY aislamiento_empresa ON licencias
+        USING (
+          current_setting('app.platform', true) = 'true'
+          OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER
+        )
+        WITH CHECK (
+          current_setting('app.platform', true) = 'true'
+          OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER
+        );
+    `,
+  },
+  {
+    id: '042_fix_ncf_unique_global_a_empresa',
+    sql: `
+      -- Los índices únicos uq_cuentas_ncf y uq_cuentas_mesa_abierta eran GLOBALES
+      -- (sin empresa_id): con RLS forzado, la tabla cuentas es multitenant, así que
+      -- dos restaurantes distintos podían colisionar con el mismo NCF (ej. empresa 4
+      -- ya emitió B0200000001 y el primer cobro de otra empresa lanzaba 409
+      -- DUPLICATE_KEY). Se sustituyen por índices únicos acotados por empresa_id.
+      DROP INDEX IF EXISTS uq_cuentas_ncf;
+      DROP INDEX IF EXISTS uq_cuentas_mesa_abierta;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_cuentas_ncf_empresa ON cuentas(empresa_id, ncf_ecf_generado) WHERE ncf_ecf_generado IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_cuentas_mesa_abierta_empresa ON cuentas(empresa_id, mesa_id) WHERE estado = 'Abierta' AND mesa_id IS NOT NULL;
+    `,
+  },
+  {
+    id: '043_norm_temas_dos_opciones',
+    sql: `
+      -- Normaliza tema_activo a los dos temas oficiales del sistema
+      -- (claro-luxury-gold y negro-brillante). Los valores legacy de la fase
+      -- tema-unico (040 normalizó a 'claro') o del sistema original ('noche',
+      -- 'oscuro', etc.) se mapean al tema claro por defecto.
+      UPDATE configuracion_sistema
+        SET tema_activo = 'claro-luxury-gold'
+        WHERE tema_activo IS NULL
+           OR tema_activo NOT IN ('claro-luxury-gold', 'negro-brillante');
+      ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'claro-luxury-gold';
+    `,
+  },
+  {
+    id: '044_seguridad_login_y_revocacion',
+    sql: `
+      -- Item 8: lockout persistente por IP y por dispositivo (sobrevive reinicios
+      -- y funciona multi-worker). No contiene datos de negocio → sin RLS.
+      CREATE TABLE IF NOT EXISTS login_intentos (
+        clave TEXT PRIMARY KEY,
+        intentos INTEGER NOT NULL DEFAULT 0,
+        bloqueado_hasta TIMESTAMP,
+        actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Item 7: revocación server-side de los tokens HMAC del Dueño. Al hacer
+      -- logout o cambiar el PIN del dueño se incrementa el epoch y todos los
+      -- tokens emitidos con el epoch anterior quedan inválidos al instante.
+      ALTER TABLE configuracion_sistema
+        ADD COLUMN IF NOT EXISTS owner_token_epoch INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
+  {
+    id: '045_aislamiento_metodos_pago',
+    sql: `
+      -- P0 Auditoría: metodos_pago no tenía empresa_id ni RLS.
+      -- Todos los tenants compartían los mismos métodos de pago (CRÍTICO).
+
+      -- 1. Agregar columna empresa_id con valor por defecto 1 (raíz).
+      ALTER TABLE metodos_pago
+        ADD COLUMN IF NOT EXISTS empresa_id INTEGER NOT NULL DEFAULT 1
+        REFERENCES empresas(id) ON DELETE CASCADE;
+
+      -- 2. Backfill: mover filas huérfanas (empresa_id default=1 ya aplicado).
+      --    Filas existentes sin empresa_id se asignan a empresa raíz.
+      UPDATE metodos_pago SET empresa_id = 1 WHERE empresa_id IS NULL;
+
+      -- 3. Índice para queries por tenant.
+      CREATE INDEX IF NOT EXISTS idx_metodos_pago_empresa ON metodos_pago(empresa_id);
+
+      -- 4. Habilitar RLS + FORCE RLS.
+      ALTER TABLE metodos_pago ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE metodos_pago FORCE ROW LEVEL SECURITY;
+
+      -- 5. Política de aislamiento: cada tenant solo ve sus métodos de pago.
+      --    Mismo patrón que la 024 (platform OR empresa_id) para que el panel
+      --    del dueño (plataforma) pueda leer/crear con app.platform=true.
+      DROP POLICY IF EXISTS aislamiento_empresa ON metodos_pago;
+      CREATE POLICY aislamiento_empresa ON metodos_pago
+        USING (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER)
+        WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
+    `,
+  }, {
+    id: '046_mseller_ecf',
+    sql: `
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS email_mseller VARCHAR(200);
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS password_mseller TEXT;
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS api_key_mseller TEXT;
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS proveedor_ecf VARCHAR(20) DEFAULT 'algoback';
+    `,
+  },
+  {
+    id: '047_turnos_empleados',
+    sql: `
+      -- Turnos y asistencia del personal (Turno 1: 10-17, Turno 2: 17-24).
+      CREATE TABLE IF NOT EXISTS turnos_empleados (
+        id SERIAL PRIMARY KEY,
+        empresa_id INTEGER NOT NULL DEFAULT 1 REFERENCES empresas(id) ON DELETE CASCADE,
+        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+        turno VARCHAR(20) NOT NULL DEFAULT 'Fuera de turno',
+        entrada TIMESTAMP NOT NULL,
+        salida TIMESTAMP,
+        entrada_ip VARCHAR(64),
+        salida_ip VARCHAR(64),
+        cerrado_auto BOOLEAN NOT NULL DEFAULT FALSE,
+        editado BOOLEAN NOT NULL DEFAULT FALSE,
+        notas VARCHAR(300),
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CHECK (salida IS NULL OR salida > entrada)
+      );
+      CREATE INDEX IF NOT EXISTS idx_turnos_empleados_empresa_entrada ON turnos_empleados(empresa_id, entrada DESC);
+      CREATE INDEX IF NOT EXISTS idx_turnos_empleados_usuario_abierto ON turnos_empleados(usuario_id) WHERE salida IS NULL;
+      -- Un empleado no puede tener dos turnos abiertos a la vez.
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_turnos_empleados_un_abierto ON turnos_empleados(usuario_id) WHERE salida IS NULL;
+
+      ALTER TABLE turnos_empleados ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE turnos_empleados FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS aislamiento_empresa ON turnos_empleados;
+      CREATE POLICY aislamiento_empresa ON turnos_empleados
+        USING (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER)
+        WITH CHECK (current_setting('app.platform', true) = 'true' OR empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER);
+    `,
+  },
+  {
+    id: '048_turnos_config',
+    sql: `
+      -- Horarios configurables de Turno 1 y Turno 2 (JSON {turno1:{inicio,fin}, turno2:{inicio,fin}, tolerancia_min, anticipacion_min}).
+      -- NULL = horarios por defecto (10:00-17:00 y 17:00-24:00). El módulo de turnos viene incluido con la licencia del sistema completo.
+      ALTER TABLE configuracion_sistema ADD COLUMN IF NOT EXISTS turnos_config JSONB;
+    `,
+  },
+  {
+    id: '049_destino_alimentos_bebidas',
+    sql: `
+      -- Alimentos → Cocina y bebidas → Bar, según el grupo de la categoría (fuente de verdad).
+      -- 1) Categorías: normaliza grupos legacy ('Cocina'/'Bar') y marca como bebidas las de nombre inequívoco (Cervezas, Vinos…).
+      UPDATE menu_categorias SET grupo = CASE WHEN lower(trim(grupo)) IN ('bar', 'bebidas') THEN 'bebidas' ELSE 'alimentos' END;
+      UPDATE menu_categorias SET grupo = 'bebidas'
+       WHERE ${sqlNombreBebida('nombre')};
+      -- 2) Productos: el destino sigue a su categoría.
+      UPDATE productos p SET tipo_destino = CASE WHEN mc.grupo = 'bebidas' THEN 'bar' ELSE 'cocina' END
+        FROM menu_categorias mc
+       WHERE lower(trim(mc.nombre)) = lower(trim(p.categoria))
+         AND mc.empresa_id = p.empresa_id;
+      -- 3) Productos sin categoría en el menú pero con nombre de categoría de bebidas.
+      UPDATE productos SET tipo_destino = 'bar'
+       WHERE ${sqlNombreBebida('categoria')};
+    `,
+  },
+  {
+    id: '050_temas_y_estilos_login',
+    sql: `
+      -- Tres temas (marfil-dorado, negro-brillante, esmeralda-oscuro) y tres estilos de login (sistema, medianoche, bosque).
+      -- El tema claro histórico 'claro-luxury-gold' pasa a 'marfil-dorado'.
+      UPDATE configuracion_sistema SET tema_activo = 'marfil-dorado'
+       WHERE tema_activo IS NULL OR tema_activo NOT IN ('marfil-dorado', 'negro-brillante', 'esmeralda-oscuro');
+      UPDATE configuracion_sistema SET login_theme = 'sistema'
+       WHERE login_theme IS NULL OR login_theme NOT IN ('sistema', 'medianoche', 'bosque');
+      ALTER TABLE configuracion_sistema ALTER COLUMN tema_activo SET DEFAULT 'marfil-dorado';
+      ALTER TABLE configuracion_sistema ALTER COLUMN login_theme SET DEFAULT 'sistema';
+    `,
+  },
+  {
+    id: '051_itbis_propina_desactivados',
+    sql: `
+      -- ITBIS y propina quedan desactivados por ahora: se pueden activar desde Datos de la Empresa.
+      -- La propina pasa a ser un porcentaje configurable por negocio (2 % a 30 %; 10 % por defecto).
+      ALTER TABLE negocio_config ADD COLUMN IF NOT EXISTS propina_porcentaje NUMERIC(5,2) NOT NULL DEFAULT 10;
+      ALTER TABLE negocio_config DROP CONSTRAINT IF EXISTS chk_negocio_propina_porcentaje;
+      ALTER TABLE negocio_config ADD CONSTRAINT chk_negocio_propina_porcentaje CHECK (propina_porcentaje >= 2 AND propina_porcentaje <= 30);
+      ALTER TABLE negocio_config ALTER COLUMN cobrar_itbis SET DEFAULT FALSE;
+      ALTER TABLE negocio_config ALTER COLUMN cobrar_propina SET DEFAULT FALSE;
+      UPDATE negocio_config SET cobrar_itbis = FALSE, cobrar_propina = FALSE;
+      -- Productos sin ITBIS ni propina (los precios del menú no los incluyen).
+      ALTER TABLE productos ALTER COLUMN aplica_itbis SET DEFAULT FALSE;
+      ALTER TABLE productos ALTER COLUMN tasa_itbis SET DEFAULT 0;
+      ALTER TABLE productos ALTER COLUMN aplica_propina SET DEFAULT FALSE;
+      ALTER TABLE productos ALTER COLUMN tasa_propina SET DEFAULT 0;
+      UPDATE productos SET aplica_itbis = FALSE, tasa_itbis = 0, aplica_propina = FALSE, tasa_propina = 0;
+    `,
+  },
+  {
+    id: '052_descuentos_y_division_cuenta',
+    sql: `
+      -- Descuento sobre la cuenta (con motivo) y cuentas nacidas de dividir otra.
+      -- cuentas.subtotal pasa a ser el subtotal DESPUÉS del descuento; el monto descontado queda en cuentas.descuento.
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento NUMERIC(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento_tipo VARCHAR(12);
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento_valor NUMERIC(12,2);
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS descuento_motivo TEXT;
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS cuenta_origen_id BIGINT;
+      ALTER TABLE cuentas DROP CONSTRAINT IF EXISTS chk_cuentas_descuento;
+      ALTER TABLE cuentas ADD CONSTRAINT chk_cuentas_descuento CHECK (descuento >= 0);
+    `,
+  },
 ];
 export async function runMigrations(pool: Database): Promise<void> {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());
@@ -687,6 +915,22 @@ export async function runMigrations(pool: Database): Promise<void> {
     // internas del runner puedan atravesar RLS sin restricciones de empresa.
     // Obligatorio desde que migration 024 habilitó Row Level Security en todas las tablas.
     await client.query("SELECT set_config('app.platform', 'true', false), set_config('app.empresa_id', '1', false)");
+
+    // Instalaciones frescas (ej. Electron): si no existen las tablas esenciales,
+    // aplicar el esquema base embebido antes de las migraciones 001+ (que solo
+    // alteran/agregan). Sin esto, la 001 falla y el servidor queda degradado.
+    // Se ejecuta sentencia por sentencia (no el lote completo de una vez).
+    const base = await client.query("SELECT to_regclass('public.usuarios') AS existe");
+    if (!base.rows[0]?.existe) {
+      const sinComentarios = SCHEMA_BASE_SQL.split('\n')
+        .filter((linea) => !linea.trim().startsWith('--'))
+        .join('\n');
+      const sentencias = sinComentarios.split(';').map((s) => s.trim()).filter(Boolean);
+      for (const sql of sentencias) {
+        await client.query(sql);
+      }
+      logger.info({ action: 'SCHEMA_BASE_APLICADO', details: { sentencias: sentencias.length } });
+    }
     
     // Garantizar tablas esenciales de caja independientemente del historial de migraciones
     await client.query(`
@@ -750,7 +994,9 @@ export async function runMigrations(pool: Database): Promise<void> {
     const esInstalacionNueva = users.rows[0].total === 0;
     if (esInstalacionNueva) {
       // Primera ejecución: crear el administrador inicial con PIN seguro (si no se proporciona uno)
-      const pinInicial = config.bootstrapAdminPin || String(Math.floor(100000 + Math.random() * 900000));
+      // Seguridad (item 10): CSPRNG en vez de Math.random. El PIN NUNCA se
+      // registra en claro en los logs; se entrega por canal seguro/entorno.
+      const pinInicial = config.bootstrapAdminPin || String(crypto.randomInt(100000, 1000000));
       await client.query(
         // empresa_id=1 es LEGACY: la empresa raíz del sistema.
         // Las demás empresas crean su admin exclusivamente en el Wizard Setup.
@@ -758,7 +1004,10 @@ export async function runMigrations(pool: Database): Promise<void> {
          VALUES (1, 'Administrador Sistema', 'Administrador', NULL, $1, 'Activo')`,
         [hashPin(pinInicial)]
       );
-      logger.info({ action: 'ADMIN_INICIAL_CREADO', details: { pinTemporal: pinInicial } });
+      logger.info({
+        action: 'ADMIN_INICIAL_CREADO',
+        usaPinDeEntorno: Boolean(config.bootstrapAdminPin),
+      });
     } else {
       logger.info({ action: 'USUARIOS_VERIFICADOS', details: { total: users.rows[0].total } });
     }

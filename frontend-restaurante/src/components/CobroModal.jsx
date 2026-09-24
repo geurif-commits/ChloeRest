@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
+import { porcentajePropina } from '../utils/dinero.js';
 import { toastAviso } from './Toast.jsx';
+import { Banknote, CreditCard, Landmark, UtensilsCrossed, ArrowLeft, ArrowRight, FileText, Check, Layers, Percent, Split, Minus, Plus } from 'lucide-react';
+import './caja/caja.css';
 
 const METODOS = [
-  { v: 'Efectivo', i: '💵', l: 'Efectivo' },
-  { v: 'Tarjeta', i: '💳', l: 'Tarjeta' },
-  { v: 'Transferencia', i: '🏦', l: 'Transferencia' },
+  { v: 'Efectivo', Icono: Banknote, l: 'Efectivo' },
+  { v: 'Tarjeta', Icono: CreditCard, l: 'Tarjeta' },
+  { v: 'Transferencia', Icono: Landmark, l: 'Transferencia' },
 ];
 
 export default function CobroModal({ config, onClose }) {
@@ -19,7 +22,9 @@ export default function CobroModal({ config, onClose }) {
     tarjetaUltimos4, setTarjetaUltimos4,
     tarjetaMarca, setTarjetaMarca,
     tasaUsd, tasaEur,
-    subtotal, itbis, propina, total,
+    subtotal, subtotalBruto, descuento = 0, itbis, propina, total,
+    descuentoCobro = { tipo: 'porcentaje', valor: '', motivo: '' }, setDescuentoCobro = () => {},
+    dividir = { activo: false, cantidades: {} }, setDividir = () => {},
     onCobroExitoso,
     onImprimirPreCheque,
     formatearRD,
@@ -43,6 +48,7 @@ export default function CobroModal({ config, onClose }) {
 
   // Estados para pago mixto
   const [pagoMixto, setPagoMixto] = useState(false);
+  const [descuentoAbierto, setDescuentoAbierto] = useState(false);
   const [metodoPago2, setMetodoPago2] = useState('');
   const [montoPago2, setMontoPago2] = useState('');
   const [bancoPago2, setBancoPago2] = useState('');
@@ -74,8 +80,6 @@ export default function CobroModal({ config, onClose }) {
   if (monedaPago2 === 'USD') montoPago2DOP = redondearMoneda(montoPago2Num * tasaUsd);
   if (monedaPago2 === 'EUR') montoPago2DOP = redondearMoneda(montoPago2Num * tasaEur);
 
-  const totalPagadoMixto = (metodoPago === 'Efectivo' ? montoEntregadoDOP : metodoPago === 'Transferencia' ? montoPago2DOP : total) +
-    (pagoMixto && metodoPago2 === 'Transferencia' ? montoPago2DOP : 0);
   const cambioDevolver = pagoMixto ? 0 : (montoEntregado !== '' ? redondearMoneda(montoEntregadoDOP - total) : 0);
 
   const handleCobro = async () => {
@@ -125,7 +129,7 @@ export default function CobroModal({ config, onClose }) {
           <div className={`cobro-slide ${animDir === 'right' ? 'cobro-slide--animating' : ''}`}>
             <div className="cobro-header">
               <div className="cobro-header__mesa">
-                <span className="cobro-header__icono">🍽️</span>
+                <span className="cobro-header__icono"><UtensilsCrossed size={22} /></span>
                 <div>
                   <h2>{mesa?.nombre_numero || 'Mesa'}</h2>
                   <p className="cobro-header__sub">Cuenta abierta · {cuentaMesa.length} artículo{cuentaMesa.length !== 1 ? 's' : ''}</p>
@@ -138,20 +142,55 @@ export default function CobroModal({ config, onClose }) {
                 {cuentaMesa.length === 0 ? (
                   <p className="cobro-detalles__vacia">No hay artículos en esta cuenta.</p>
                 ) : (
-                  cuentaMesa.map((item, i) => (
-                    <div key={i} className="cobro-detalles__item">
-                      <span className="cobro-detalles__qty">{item.cantidad}×</span>
-                      <span className="cobro-detalles__nombre">{item.nombre || item.producto || item.descripcion}</span>
-                      <span className="cobro-detalles__precio">RD$ {formatearRD(Number(item.precio || 0) * Number(item.cantidad || 1))}</span>
-                    </div>
-                  ))
+                  cuentaMesa.map((item, i) => {
+                    const seleccionada = Number(dividir.cantidades[item.id] || 0);
+                    const maximo = Number(item.cantidad || 0);
+                    const cambiar = (delta) => setDividir((d) => ({ ...d, cantidades: { ...d.cantidades, [item.id]: Math.min(maximo, Math.max(0, seleccionada + delta)) } }));
+                    return (
+                      <div key={item.id ?? i} className="cobro-detalles__item">
+                        {dividir.activo ? (
+                          <span className="cobro-stepper" role="group" aria-label={`Cantidad a cobrar de ${item.nombre || item.producto}`}>
+                            <button type="button" onClick={() => cambiar(-1)} disabled={seleccionada <= 0} aria-label="Quitar uno"><Minus size={14} /></button>
+                            <strong>{seleccionada}/{maximo}</strong>
+                            <button type="button" onClick={() => cambiar(1)} disabled={seleccionada >= maximo} aria-label="Agregar uno"><Plus size={14} /></button>
+                          </span>
+                        ) : (
+                          <span className="cobro-detalles__qty">{item.cantidad}×</span>
+                        )}
+                        <span className="cobro-detalles__nombre">{item.nombre || item.producto || item.descripcion}</span>
+                        <span className="cobro-detalles__precio">RD$ {formatearRD(Number(item.precio || 0) * Number(dividir.activo ? seleccionada : (item.cantidad || 1)))}</span>
+                      </div>
+                    );
+                  })
                 )}
               </div>
 
+              <div className="cobro-extras">
+                <button type="button" className={`cobro-extra ${dividir.activo ? 'is-on' : ''}`} aria-pressed={dividir.activo}
+                  onClick={() => setDividir((d) => ({ activo: !d.activo, cantidades: d.activo ? {} : Object.fromEntries(cuentaMesa.map((i) => [i.id, Number(i.cantidad || 0)])) }))}>
+                  <Split size={15} /> Dividir cuenta
+                </button>
+                <button type="button" className={`cobro-extra ${Number(descuentoCobro.valor) > 0 || descuentoAbierto ? 'is-on' : ''}`} aria-pressed={descuentoAbierto} onClick={() => setDescuentoAbierto((v) => !v)}>
+                  <Percent size={15} /> Descuento
+                </button>
+              </div>
+              {dividir.activo && <p className="cobro-nota">Elige qué se cobra ahora; lo demás sigue abierto en la mesa.</p>}
+              {descuentoAbierto && (
+                <div className="cobro-desc">
+                  <select aria-label="Tipo de descuento" value={descuentoCobro.tipo} onChange={(e) => setDescuentoCobro((d) => ({ ...d, tipo: e.target.value }))}>
+                    <option value="porcentaje">%</option>
+                    <option value="monto">RD$</option>
+                  </select>
+                  <input aria-label="Valor del descuento" inputMode="decimal" placeholder="0" value={descuentoCobro.valor} onChange={(e) => setDescuentoCobro((d) => ({ ...d, valor: sanitizarDecimal(e.target.value) }))} />
+                  <input aria-label="Motivo del descuento" placeholder="Motivo (obligatorio)" maxLength={120} value={descuentoCobro.motivo} onChange={(e) => setDescuentoCobro((d) => ({ ...d, motivo: e.target.value }))} />
+                </div>
+              )}
+
               <div className="cobro-totales">
-                <div className="cobro-totales__row"><span>Subtotal</span><strong>RD$ {formatearRD(subtotal)}</strong></div>
-                {configNegocio?.cobrar_itbis && <div className="cobro-totales__row"><span>ITBIS (18%)</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
-                {configNegocio?.cobrar_propina && <div className="cobro-totales__row"><span>Propina (10%)</span><strong>RD$ {formatearRD(propina)}</strong></div>}
+                <div className="cobro-totales__row"><span>Subtotal</span><strong>RD$ {formatearRD(descuento > 0 ? subtotalBruto : subtotal)}</strong></div>
+                {descuento > 0 && <div className="cobro-totales__row"><span>Descuento</span><strong>− RD$ {formatearRD(descuento)}</strong></div>}
+                {configNegocio?.cobrar_itbis && <div className="cobro-totales__row"><span>ITBIS</span><strong>RD$ {formatearRD(itbis)}</strong></div>}
+                {configNegocio?.cobrar_propina && <div className="cobro-totales__row"><span>Propina {porcentajePropina(configNegocio)}%</span><strong>RD$ {formatearRD(propina)}</strong></div>}
                 <div className="cobro-totales__row cobro-totales__row--total"><span>Total</span><strong>RD$ {formatearRD(total)}</strong></div>
               </div>
             </div>
@@ -159,9 +198,9 @@ export default function CobroModal({ config, onClose }) {
             <div className="cobro-acciones">
               <button className="cobro-btn cobro-btn--cancelar" onClick={onClose}>Cancelar</button>
               {onImprimirPreCheque && (
-                <button className="cobro-btn cobro-btn--cancelar" onClick={onImprimirPreCheque}>📄 Estado de Cuenta</button>
+                <button className="cobro-btn cobro-btn--cancelar" onClick={onImprimirPreCheque}><FileText size={17} /> Pre-cuenta</button>
               )}
-              <button className="cobro-btn cobro-btn--pagar" onClick={irAPago}>Proceder al Pago →</button>
+              <button className="cobro-btn cobro-btn--pagar" onClick={irAPago}>Proceder al pago <ArrowRight size={17} /></button>
             </div>
           </div>
           )}
@@ -170,7 +209,7 @@ export default function CobroModal({ config, onClose }) {
           {paso === 'pago' && (
           <div className={`cobro-slide ${animDir === 'left' ? 'cobro-slide--animating-left' : 'cobro-slide--animating'}`}>
             <div className="cobro-header cobro-header--tight">
-              <button className="cobro-header__back" onClick={irADetalles}>←</button>
+              <button className="cobro-header__back" onClick={irADetalles} aria-label="Volver"><ArrowLeft size={18} /></button>
               <div className="cobro-header__total">
                 <span className="cobro-header__total-label">Total</span>
                 <span className="cobro-header__total-value">RD$ {formatearRD(total)}</span>
@@ -183,11 +222,11 @@ export default function CobroModal({ config, onClose }) {
                 <div className="cobro-row__metodos">
                   {METODOS.map((m) => (
                     <button key={m.v} className={`cobro-pago__btn ${metodoPago === m.v ? 'activo' : ''}`} onClick={() => setMetodoPago(m.v)}>
-                      <span>{m.i}</span><span>{m.l}</span>
+                      <m.Icono size={18} /><span>{m.l}</span>
                     </button>
                   ))}
                 </div>
-                <select className="cobro-select cobro-select--tiny" value={monedaPago} onChange={(e) => { setMonedaPago(e.target.value); setMontoEntregado(''); }}>
+                <select aria-label="Moneda del pago" className="cobro-select cobro-select--tiny" value={monedaPago} onChange={(e) => { setMonedaPago(e.target.value); setMontoEntregado(''); }}>
                   <option value="DOP">RD$</option>
                   <option value="USD">$USD</option>
                   <option value="EUR">€EUR</option>
@@ -210,7 +249,7 @@ export default function CobroModal({ config, onClose }) {
 
               {metodoPago === 'Tarjeta' && (
                 <div className="cobro-campo cobro-campo--row">
-                  <select className="cobro-select cobro-select--tiny" value={tarjetaMarca} onChange={(e) => setTarjetaMarca(e.target.value)}>
+                  <select aria-label="Marca de la tarjeta" className="cobro-select cobro-select--tiny" value={tarjetaMarca} onChange={(e) => setTarjetaMarca(e.target.value)}>
                     <option value="Visa">Visa</option>
                     <option value="Mastercard">MC</option>
                     <option value="American Express">Amex</option>
@@ -222,7 +261,7 @@ export default function CobroModal({ config, onClose }) {
 
               {metodoPago === 'Transferencia' && (
                 <div className="cobro-campo cobro-campo--row">
-                  <select className="cobro-select cobro-select--tiny" value={bancoPago2} onChange={(e) => setBancoPago2(e.target.value)}>
+                  <select aria-label="Banco de la transferencia" className="cobro-select cobro-select--tiny" value={bancoPago2} onChange={(e) => setBancoPago2(e.target.value)}>
                     <option value="">Banco...</option>
                     {cuentasBancarias.filter(c => c.activa).map((cuenta) => (
                       <option key={cuenta.id} value={cuenta.nombre_banco}>{cuenta.nombre_banco}</option>
@@ -239,7 +278,7 @@ export default function CobroModal({ config, onClose }) {
                     setPagoMixto(e.target.checked);
                     if (!e.target.checked) { setMetodoPago2(''); setMontoPago2(''); setBancoPago2(''); }
                   }} />
-                  <span>💳 Mixto</span>
+                  <span><Layers size={15} style={{ verticalAlign: "-2px", marginRight: 6 }} />Pago mixto</span>
                 </label>
 
                 {pagoMixto && (
@@ -248,7 +287,7 @@ export default function CobroModal({ config, onClose }) {
                       <div className="cobro-row__metodos">
                         {METODOS.filter(m => m.v !== metodoPago).map((m) => (
                           <button key={m.v} className={`cobro-pago__btn cobro-pago__btn--sm ${metodoPago2 === m.v ? 'activo' : ''}`} onClick={() => setMetodoPago2(m.v)}>
-                            <span>{m.i}</span><span>{m.l}</span>
+                            <m.Icono size={18} /><span>{m.l}</span>
                           </button>
                         ))}
                       </div>
@@ -256,7 +295,7 @@ export default function CobroModal({ config, onClose }) {
 
                     {metodoPago2 === 'Transferencia' && (
                       <div className="cobro-campo cobro-campo--row cobro-campo--sm">
-                        <select className="cobro-select cobro-select--tiny" value={bancoPago2} onChange={(e) => setBancoPago2(e.target.value)}>
+                        <select aria-label="Banco de la transferencia" className="cobro-select cobro-select--tiny" value={bancoPago2} onChange={(e) => setBancoPago2(e.target.value)}>
                           <option value="">Banco...</option>
                           {cuentasBancarias.filter(c => c.activa).map((cuenta) => (
                             <option key={cuenta.id} value={cuenta.nombre_banco}>{cuenta.nombre_banco}</option>
@@ -268,7 +307,7 @@ export default function CobroModal({ config, onClose }) {
 
                     {metodoPago2 === 'Efectivo' && (
                       <div className="cobro-campo cobro-campo--row cobro-campo--sm">
-                        <select className="cobro-select cobro-select--tiny" value={monedaPago2} onChange={(e) => setMonedaPago2(e.target.value)}>
+                        <select aria-label="Moneda del segundo pago" className="cobro-select cobro-select--tiny" value={monedaPago2} onChange={(e) => setMonedaPago2(e.target.value)}>
                           <option value="DOP">RD$</option>
                           <option value="USD">$USD</option>
                           <option value="EUR">€EUR</option>
@@ -279,7 +318,7 @@ export default function CobroModal({ config, onClose }) {
 
                     {metodoPago2 === 'Tarjeta' && (
                       <div className="cobro-campo cobro-campo--row cobro-campo--sm">
-                        <select className="cobro-select cobro-select--tiny" value={tarjetaMarcaPago2} onChange={(e) => setTarjetaMarcaPago2(e.target.value)}>
+                        <select aria-label="Marca de la tarjeta del segundo pago" className="cobro-select cobro-select--tiny" value={tarjetaMarcaPago2} onChange={(e) => setTarjetaMarcaPago2(e.target.value)}>
                           <option value="Visa">Visa</option>
                           <option value="Mastercard">MC</option>
                           <option value="American Express">Amex</option>
@@ -303,8 +342,8 @@ export default function CobroModal({ config, onClose }) {
             </div>
 
             <div className="cobro-acciones cobro-acciones--tight">
-              <button className="cobro-btn cobro-btn--cancelar" onClick={irADetalles}>← Atrás</button>
-              <button className="cobro-btn cobro-btn--pagar" onClick={handleCobro}>✅ Facturar</button>
+              <button className="cobro-btn cobro-btn--cancelar" onClick={irADetalles}><ArrowLeft size={17} /> Atrás</button>
+              <button className="cobro-btn cobro-btn--pagar" onClick={handleCobro}><Check size={18} /> Facturar</button>
             </div>
           </div>
           )}

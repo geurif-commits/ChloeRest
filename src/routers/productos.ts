@@ -14,6 +14,7 @@ import { registrarAuditoria } from '../services/auditoriaService.js';
 import { upload, uploadCsv, validarImagenSubida, uploadUrl } from '../lib/uploads.js';
 import { ROLES_ADMIN } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
+import { resolverTipoDestino } from '../services/destinoProducto.js';
 
 const router = Router();
 const logger = createLogger('productosRouter');
@@ -78,8 +79,9 @@ function esFlagActivado(value: unknown): boolean {
 }
 
 function camposProducto(body: Request['body']): ICamposProducto {
-  const aplicaItbis = body.aplica_itbis !== undefined ? esVerdaderoExtendido(body.aplica_itbis) : true;
-  const aplicaPropina = body.aplica_propina !== undefined ? esVerdaderoExtendido(body.aplica_propina) : true;
+  // Por defecto los productos no llevan ITBIS ni propina (se activan explícitamente).
+  const aplicaItbis = body.aplica_itbis !== undefined ? esVerdaderoExtendido(body.aplica_itbis) : false;
+  const aplicaPropina = body.aplica_propina !== undefined ? esVerdaderoExtendido(body.aplica_propina) : false;
   const tasaItbis = aplicaItbis ? ([0, 16, 18].includes(Number(body.tasa_itbis)) ? Number(body.tasa_itbis) : 18) : 0;
   const tasaPropina = aplicaPropina ? 10 : 0;
   const tipoDestino = ['bar', 'bebida', 'bebidas'].includes(String(body.tipo_destino || '').toLowerCase()) ? 'bar' : 'cocina';
@@ -117,13 +119,15 @@ router.post('/api/productos', requireAuth, requireRoles(...ROLES_ADMIN), upload.
   const image = req.file ? uploadUrl(req, req.file) : String(req.body.imagen_url || '').trim() || null;
   const descripcion = String(req.body.descripcion || '').trim() || null;
   const campos = camposProducto(req.body);
+  const categoriaFinal = String(req.body.categoria || (campos.tipoDestino === 'bar' ? 'Bar' : 'Cocina'));
+  campos.tipoDestino = await resolverTipoDestino(db, categoriaFinal, campos.tipoDestino);
   const result = await db.query<{ id: number }>(
     `INSERT INTO productos (
       nombre, descripcion, precio, imagen_url, categoria, estado, tasa_itbis, aplica_itbis, aplica_propina, tasa_propina,
       tipo_destino, tipo_plato, es_plato_fuerte, es_entrada, es_postre, es_guarnicion, requiere_guarnicion, requiere_termino
     ) VALUES ($1, $2, $3, $4, $5, 'Activo', $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
     [
-      name, descripcion, price, image, String(req.body.categoria || (campos.tipoDestino === 'bar' ? 'Bar' : 'Cocina')),
+      name, descripcion, price, image, categoriaFinal,
       campos.tasaItbis, campos.aplicaItbis, campos.aplicaPropina, campos.tasaPropina,
       campos.tipoDestino, campos.tipoPlato, campos.esPlatoFuerte, campos.esEntrada, campos.esPostre, campos.esGuarnicion, campos.requiereGuarnicion, campos.requiereTermino,
     ]
@@ -167,25 +171,25 @@ router.post('/api/productos/importar', requireAuth, requireRoles(...ROLES_ADMIN)
     const categoria = categoriaIdx !== -1 && row[categoriaIdx] ? String(row[categoriaIdx]).trim() : 'Alimentos';
     const imagen_url = imagenIdx !== -1 && row[imagenIdx] ? String(row[imagenIdx]).trim() : null;
 
-    // Parse ITBIS
-    const itbisVal = itbisIdx !== -1 ? String(row[itbisIdx]).trim().toUpperCase() : '18';
-    let aplicaItbis = true;
-    let tasaItbis = 18;
-    if (['0', 'NO', 'FALSE', 'EXENTO'].includes(itbisVal)) {
-      aplicaItbis = false;
-      tasaItbis = 0;
-    } else if (['16', '16%'].includes(itbisVal)) {
+    // Parse ITBIS: sin columna o vacío = exento; solo 16 o 18 lo aplican.
+    const itbisVal = itbisIdx !== -1 ? String(row[itbisIdx] ?? '').trim().toUpperCase() : '';
+    let aplicaItbis = false;
+    let tasaItbis = 0;
+    if (['16', '16%'].includes(itbisVal)) {
       aplicaItbis = true;
       tasaItbis = 16;
+    } else if (['18', '18%'].includes(itbisVal)) {
+      aplicaItbis = true;
+      tasaItbis = 18;
     }
 
-    // Parse Propina Legal
-    const propinaVal = propinaIdx !== -1 ? String(row[propinaIdx]).trim().toUpperCase() : '10';
-    let aplicaPropina = true;
-    let tasaPropina = 10;
-    if (['0', 'NO', 'FALSE', 'EXENTO', '0%'].includes(propinaVal)) {
-      aplicaPropina = false;
-      tasaPropina = 0;
+    // Parse Propina Legal: sin columna o vacío = no aplica; solo un valor afirmativo la activa.
+    const propinaVal = propinaIdx !== -1 ? String(row[propinaIdx] ?? '').trim().toUpperCase() : '';
+    let aplicaPropina = false;
+    let tasaPropina = 0;
+    if (['10', '10%', 'SI', 'SÍ', 'TRUE', '1'].includes(propinaVal)) {
+      aplicaPropina = true;
+      tasaPropina = 10;
     }
 
     if (!nombre || !Number.isFinite(precio) || precio < 0) {
@@ -193,7 +197,7 @@ router.post('/api/productos/importar', requireAuth, requireRoles(...ROLES_ADMIN)
       continue;
     }
 
-    const tipoDestino = ['bar', 'bebida', 'bebidas', 'tragos', 'licores'].includes(categoria.toLowerCase()) ? 'bar' : 'cocina';
+    const tipoDestino = await resolverTipoDestino(db, categoria, 'cocina');
     insertable.push([nombre, precio, imagen_url, categoria, tasaItbis, aplicaItbis, aplicaPropina, tasaPropina, tipoDestino]);
   }
 
@@ -226,9 +230,11 @@ router.put('/api/productos/:id', requireAuth, requireRoles(...ROLES_ADMIN), uplo
   if (!name || !Number.isFinite(price) || price < 0) {throw httpError(400, 'Nombre y precio válido son obligatorios.');}
   const descripcion = String(req.body.descripcion || '').trim() || null;
   const campos = camposProducto(req.body);
+  const categoriaFinal = String(req.body.categoria || (campos.tipoDestino === 'bar' ? 'Bar' : 'Cocina'));
+  campos.tipoDestino = await resolverTipoDestino(db, categoriaFinal, campos.tipoDestino);
 
   const values: unknown[] = [
-    name, descripcion, price, String(req.body.categoria || (campos.tipoDestino === 'bar' ? 'Bar' : 'Cocina')),
+    name, descripcion, price, categoriaFinal,
     campos.tasaItbis, campos.aplicaItbis, campos.aplicaPropina, campos.tasaPropina,
     campos.tipoDestino, campos.tipoPlato, campos.esPlatoFuerte, campos.esEntrada, campos.esPostre, campos.esGuarnicion, campos.requiereGuarnicion, campos.requiereTermino, id,
   ];
@@ -264,6 +270,20 @@ router.delete('/api/productos/:id', requireAuth, requireRoles(...ROLES_ADMIN), r
   await registrarAuditoria(db, { usuarioId: req.auth!.userId, accion: 'DESACTIVAR_PRODUCTO', entidad: 'productos', entidadId: id, ip: clientIp(req) });
   logger.info({ action: 'DESACTIVAR_PRODUCTO', userId: req.auth!.userId, productoId: id });
   res.json({ mensaje: 'Producto eliminado del menú.' });
+}));
+
+// POST /api/productos/itbis (Administrador): aplica o quita el ITBIS a TODOS los productos activos.
+// Sirve para activar el ITBIS de una sola vez cuando el negocio decide cobrarlo. Body: { aplica: boolean, tasa?: 16 | 18 }.
+router.post('/api/productos/itbis', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
+  const db = getDatabase();
+  const aplica = esVerdaderoExtendido(req.body?.aplica);
+  const tasaSolicitada = Number(req.body?.tasa ?? 18);
+  if (aplica && ![16, 18].includes(tasaSolicitada)) {throw httpError(400, 'La tasa de ITBIS debe ser 16 o 18.');}
+  const tasa = aplica ? tasaSolicitada : 0;
+  const result = await db.query("UPDATE productos SET aplica_itbis = $1, tasa_itbis = $2 WHERE estado = 'Activo'", [aplica, tasa]);
+  await registrarAuditoria(db, { usuarioId: req.auth!.userId, accion: 'ITBIS_MASIVO_PRODUCTOS', entidad: 'productos', detalle: { aplica, tasa, productos: result.rowCount }, ip: clientIp(req) });
+  logger.info({ action: 'ITBIS_MASIVO_PRODUCTOS', userId: req.auth!.userId, aplica, tasa, productos: result.rowCount });
+  res.json({ mensaje: aplica ? `ITBIS ${tasa} % aplicado a ${result.rowCount} productos.` : `ITBIS quitado a ${result.rowCount} productos.`, productos: result.rowCount, aplica, tasa });
 }));
 
 export default router;

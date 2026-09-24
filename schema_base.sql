@@ -1,3 +1,5 @@
+-- empresas debe existir antes de metodos_pago (que la referencia) en instalaciones frescas.
+CREATE TABLE IF NOT EXISTS empresas (   id SERIAL PRIMARY KEY,   nombre VARCHAR(200) NOT NULL,   slug VARCHAR(120) NOT NULL UNIQUE,   estado VARCHAR(20) NOT NULL DEFAULT 'Activa',   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP );
 -- Esquema base de ChloeRest POS
 -- Tablas esenciales que runMigrations() espera (las migraciones solo alteran/agregan).
 -- Aplicar solo en instalaciones nuevas (BD vacía).

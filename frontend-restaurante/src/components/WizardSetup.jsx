@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
-import { aplicarPersonalizacion, fondoLogin } from '../personalizacion.js';
+import { useRef, useState } from 'react';
+import { aplicarTemaId, fondoLogin } from '../personalizacion.js';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
+import { ArrowLeft, ArrowRight, Building2, Check, ImagePlus, PartyPopper, Palette, Rocket, ShieldCheck } from 'lucide-react';
+import './wizard.css';
 
 const TEMAS = [
-  { id: 'noche', name: 'Noche', color: '#00f576' },
-  { id: 'oceano', name: 'Oceano', color: '#00b4d8' },
-  { id: 'lava', name: 'Lava', color: '#ff6b35' },
-  { id: 'esmeralda', name: 'Esmeralda', color: '#2dc653' },
-  { id: 'amatista', name: 'Amatista', color: '#a855f7' },
-  { id: 'claro', name: 'Claro', color: '#1a73e8' },
+  { id: 'marfil-dorado', name: 'Marfil Dorado', color: '#a9761b' },
+  { id: 'negro-brillante', name: 'Oscuro Zafiro', color: '#5e94ff' },
+  { id: 'esmeralda-oscuro', name: 'Oscuro Esmeralda', color: '#46c283' },
 ];
+
+function Campo({ etiqueta, children }) {
+  return <div className="po-field"><label>{etiqueta}</label>{children}</div>;
+}
 
 function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const urlBase = apiUrl;
@@ -18,27 +21,14 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
   const [error, setError] = useState('');
   const [nombreNegocio, setNombreNegocio] = useState(config.nombre_negocio || configRegistro?.negocio || '');
   const [slogan, setSlogan] = useState(config.slogan || '');
-  const [temaActivo, setTemaActivo] = useState(config.tema_activo || 'noche');
-  const [colorPrimario, setColorPrimario] = useState(config.color_primario || '#00f576');
-  const [colorSecundario, setColorSecundario] = useState(config.color_secundario || '');
-  const [opacidad, setOpacidad] = useState(Number(config.opacidad_fondo || 1));
+  const [temaActivo, setTemaActivo] = useState('marfil-dorado');
+  const [opacidad] = useState(Number(config.opacidad_fondo || 1));
   const [fondoArchivo, setFondoArchivo] = useState(null);
   const [logoArchivo, setLogoArchivo] = useState(null);
   const [adminNombre, setAdminNombre] = useState('');
   const [adminPin, setAdminPin] = useState('');
   const fondoRef = useRef(null);
   const logoRef = useRef(null);
-  const temaRef = useRef({ temaActivo, colorPrimario, colorSecundario });
-  const aplicarTemaDebounce = useRef(null);
-
-  useEffect(() => {
-    temaRef.current = { temaActivo, colorPrimario, colorSecundario };
-  }, [temaActivo, colorPrimario, colorSecundario]);
-
-  // Limpia el temporizador de aplicación del tema al desmontar
-  useEffect(() => () => {
-    if (aplicarTemaDebounce.current) clearTimeout(aplicarTemaDebounce.current);
-  }, []);
 
   const necesitaAdmin = !config.tiene_administrador;
   const totalPasos = necesitaAdmin ? 5 : 4;
@@ -61,8 +51,6 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
       fd.append('nombre_negocio', nombreNegocio.trim());
       fd.append('slogan', slogan.trim());
       fd.append('tema_activo', temaActivo);
-      fd.append('color_primario', colorPrimario);
-      fd.append('color_secundario', colorSecundario);
       fd.append('opacidad_fondo', opacidad);
       if (fondoArchivo) fd.append('fondo_archivo', fondoArchivo);
       if (logoArchivo) fd.append('logo_archivo', logoArchivo);
@@ -85,178 +73,120 @@ function WizardSetup({ apiUrl, config, configRegistro, alCompletado }) {
       }
       localStorage.removeItem('pos_theme');
       if (alCompletado) alCompletado(data);
-    } catch (e) {
+    } catch {
       setError('No se pudo conectar con el servidor. Verifica la red e inténtalo de nuevo.');
     } finally {
       setGuardando(false);
     }
   };
 
-  const aplicarVista = () => {
-    // Aplica el tema en vivo con debounce para no forzar recalculos de estilo
-    // en cada movimiento del color picker (evita congelamientos en Electron).
-    if (aplicarTemaDebounce.current) clearTimeout(aplicarTemaDebounce.current);
-    aplicarTemaDebounce.current = setTimeout(() => aplicarPersonalizacion(temaRef.current), 250);
-  };
-
   const pasoVisible = paso;
   const fondoVista = fondoArchivo ? URL.createObjectURL(fondoArchivo) : fondoLogin(config);
   const logoVista = logoArchivo ? URL.createObjectURL(logoArchivo) : config.logo_url;
-  const primario = colorPrimario || '#00f576';
-
-  const contenedorEstilo = {
-    width: '100vw', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    position: 'relative', overflow: 'hidden',
-  };
-  const panelEstilo = {
-    position: 'relative', zIndex: 2, width: '560px', maxWidth: '92vw', background: 'rgba(16,16,24,0.94)',
-    border: '1px solid rgba(255,255,255,0.12)', borderRadius: '24px', padding: '34px 36px',
-    boxShadow: '0 30px 80px rgba(0,0,0,0.6)', color: '#fff',
-  };
-  const inputEstilo = { width: '100%', padding: '12px', background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', borderRadius: '12px', fontSize: '0.95rem', outline: 'none' };
-  const btnEstilo = { background: `linear-gradient(135deg, ${primario}, ${colorSecundario || primario})`, color: '#000', border: 'none', padding: '12px 26px', borderRadius: '12px', fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer' };
+  const pct = Math.round(((paso + 1) / totalPasos) * 100);
 
   return (
-    <div className="setup-wizard-shell" style={contenedorEstilo} onLoad={aplicarVista}>
-      {fondoVista && (
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: `url(${fondoVista})`, backgroundSize: 'cover', backgroundPosition: 'center', opacity: 0.5, filter: 'brightness(0.5)' }} />
-      )}
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.06), transparent 60%)' }} />
+    <div className="wz">
+      {fondoVista && <div className="wz__bg" style={{ backgroundImage: `url(${fondoVista})` }} />}
 
-      <div className="setup-wizard-panel" style={panelEstilo}>
-      <div className="wizard__progress">
-          <div className="wizard__progress-header">
-            <span className="wizard__progress-label">Paso {paso + 1} de {totalPasos}</span>
-            <span className="wizard__progress-pct">{Math.round(((paso + 1) / totalPasos) * 100)}%</span>
+      <div className="wz__card" role="dialog" aria-label="Configuración inicial">
+        <div className="wz__progress">
+          <div className="wz__progress-head">
+            <span>Paso {paso + 1} de {totalPasos}</span>
+            <b>{pct}%</b>
           </div>
-          <div className="wizard__progress-track">
-            <div
-              className="wizard__progress-fill"
-              style={{ width: `${((paso + 1) / totalPasos) * 100}%`, background: primario, transition: 'width 0.4s ease' }}
-            />
-          </div>
-          <div className="wizard__steps">
+          <div className="wz__track"><i style={{ width: `${pct}%` }} /></div>
+          <div className="wz__dots">
             {Array.from({ length: totalPasos }).map((_, i) => (
-              <span
-                key={i}
-                className={`wizard__step-dot${i <= paso ? ' wizard__step-dot--active' : ''}${i === paso ? ' wizard__step-dot--current' : ''}`}
-                style={{
-                  background: i <= paso ? primario : 'rgba(255,255,255,0.15)',
-                  boxShadow: i === paso ? `0 0 8px ${primario}` : 'none',
-                  transition: 'background 0.3s, box-shadow 0.3s',
-                }}
-              />
+              <span key={i} className={`wz__dot ${i <= paso ? 'is-done' : ''} ${i === paso ? 'is-current' : ''}`}>
+                {i < paso ? <Check size={13} strokeWidth={3} /> : i + 1}
+              </span>
             ))}
           </div>
         </div>
 
         {paso === 0 && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-              {logoVista && <img src={logoVista} alt="Logo" style={{ width: '70px', height: '70px', objectFit: 'contain', background: '#fff', borderRadius: '50%', padding: '5px', marginBottom: '12px' }} />}
-              <h1 style={{ margin: 0, fontSize: '1.7rem', fontWeight: 800 }}>🚀 ¡Bienvenido a ChloeRestaurant!</h1>
-              <p style={{ color: 'rgba(255,255,255,0.7)', marginTop: '8px', lineHeight: 1.5 }}>
-                Vamos a personalizar el sistema para tu negocio en unos pocos pasos: identidad, apariencia y acceso del administrador.
-              </p>
+            <div className="wz__hero">
+              <span className="wz__badge">{logoVista ? <img src={logoVista} alt="Logo" /> : <Rocket size={26} />}</span>
+              <span className="px-eyebrow">Configuración inicial</span>
+              <h1>Bienvenido a ChloeRestaurant</h1>
+              <p>Vamos a personalizar el sistema para tu negocio en unos pocos pasos: identidad, apariencia y acceso del administrador.</p>
             </div>
-            <button onClick={siguiente} style={{ ...btnEstilo, width: '100%' }}>Comenzar configuración →</button>
+            <button type="button" className="px-btn px-btn--gold px-btn--lg wz__cta" onClick={siguiente}>Comenzar configuración <ArrowRight size={18} /></button>
           </>
         )}
 
         {pasoVisible === 1 && (
           <>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '1.3rem' }}>🏢 Datos del Negocio</h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '20px', fontSize: '0.9rem' }}>Este nombre aparecerá en la pantalla de ingreso de PIN.</p>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Nombre del Negocio</label>
-              <input style={inputEstilo} value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Ej: Restaurante El Sabor" />
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Slogan (opcional)</label>
-              <input style={inputEstilo} value={slogan} onChange={(e) => setSlogan(e.target.value)} placeholder="Ej: Cocina Dominicana de Primera" />
-            </div>
-            <button onClick={siguiente} style={{ ...btnEstilo, width: '100%' }}>Continuar →</button>
+            <div className="wz__title"><span className="wz__ico"><Building2 size={20} /></span><div><h2>Datos del negocio</h2><p>Este nombre aparecerá en la pantalla de ingreso de PIN.</p></div></div>
+            <Campo etiqueta="Nombre del negocio">
+              <input className="po-input" value={nombreNegocio} onChange={(e) => setNombreNegocio(e.target.value)} placeholder="Restaurante El Sabor" autoFocus />
+            </Campo>
+            <Campo etiqueta="Eslogan (opcional)">
+              <input className="po-input" value={slogan} onChange={(e) => setSlogan(e.target.value)} placeholder="Cocina dominicana de primera" />
+            </Campo>
+            <button type="button" className="px-btn px-btn--gold px-btn--lg wz__cta" onClick={siguiente}>Continuar <ArrowRight size={18} /></button>
           </>
         )}
 
         {pasoVisible === 2 && (
           <>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '1.3rem' }}>🎨 Apariencia del Sistema</h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '18px', fontSize: '0.9rem' }}>Elige el tema y una imagen de fondo para la pantalla de PIN.</p>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Tema</label>
-              <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="wz__title"><span className="wz__ico"><Palette size={20} /></span><div><h2>Apariencia del sistema</h2><p>Elige el tema del sistema y las imágenes de la pantalla de PIN.</p></div></div>
+            <Campo etiqueta="Tema">
+              <div className="wz__themes">
                 {TEMAS.map((t) => (
-                  <button key={t.id} title={t.name} onClick={() => { setTemaActivo(t.id); setColorPrimario(t.color); setColorSecundario(''); aplicarVista(); }} style={{ width: '40px', height: '40px', borderRadius: '50%', border: temaActivo === t.id ? `3px solid ${primario}` : '2px solid rgba(255,255,255,0.2)', background: t.color, cursor: 'pointer' }} />
+                  <button key={t.id} type="button" title={t.name} className={`wz__theme ${temaActivo === t.id ? 'is-active' : ''}`} onClick={() => { setTemaActivo(t.id); aplicarTemaId(t.id); }}>
+                    <i style={{ background: t.color }} />{t.name}
+                  </button>
                 ))}
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Color Principal</label>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <input type="color" value={colorPrimario} onChange={(e) => { setColorPrimario(e.target.value); aplicarVista(); }} style={{ width: '42px', height: '36px', border: 'none', background: 'transparent' }} />
-                  <input style={{ ...inputEstilo, padding: '8px' }} value={colorPrimario} onChange={(e) => { setColorPrimario(e.target.value); aplicarVista(); }} />
-                </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Color Secundario</label>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(colorSecundario) ? colorSecundario : primario} onChange={(e) => { setColorSecundario(e.target.value); aplicarVista(); }} style={{ width: '42px', height: '36px', border: 'none', background: 'transparent' }} />
-                  <input style={{ ...inputEstilo, padding: '8px' }} value={colorSecundario} onChange={(e) => { setColorSecundario(e.target.value); aplicarVista(); }} />
-                </div>
-              </div>
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Logo del Negocio (opcional)</label>
-              <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setLogoArchivo(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} />
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Imagen de Fondo (opcional)</label>
-              <input ref={fondoRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFondoArchivo(e.target.files[0])} style={{ color: '#fff', fontSize: '0.85rem' }} />
-            </div>
-            <button onClick={siguiente} style={{ ...btnEstilo, width: '100%' }}>Continuar →</button>
+            </Campo>
+            <Campo etiqueta="Logo del negocio (opcional)">
+              <label className="wz__file"><ImagePlus size={18} /><span>{logoArchivo ? logoArchivo.name : 'Seleccionar imagen'}</span>
+                <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setLogoArchivo(e.target.files[0])} />
+              </label>
+            </Campo>
+            <Campo etiqueta="Imagen de fondo (opcional)">
+              <label className="wz__file"><ImagePlus size={18} /><span>{fondoArchivo ? fondoArchivo.name : 'Seleccionar imagen'}</span>
+                <input ref={fondoRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFondoArchivo(e.target.files[0])} />
+              </label>
+            </Campo>
+            <button type="button" className="px-btn px-btn--gold px-btn--lg wz__cta" onClick={siguiente}>Continuar <ArrowRight size={18} /></button>
           </>
         )}
 
         {pasoVisible === 3 && necesitaAdmin && (
           <>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '1.3rem' }}>🔐 Cuenta de Administrador</h2>
-            <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '20px', fontSize: '0.9rem' }}>Crea el acceso principal del dueño del negocio. Guarda bien este PIN.</p>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>Nombre del Administrador</label>
-              <input style={inputEstilo} value={adminNombre} onChange={(e) => setAdminNombre(e.target.value)} placeholder="Ej: Juan Pérez" />
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', marginBottom: '6px', color: 'rgba(255,255,255,0.8)', fontSize: '0.85rem', fontWeight: 600 }}>PIN de Acceso (6 dígitos exactos)</label>
-              <input type="password" style={inputEstilo} maxLength="6" value={adminPin} onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))} placeholder="Ej: 123456" />
-            </div>
-            <button onClick={siguiente} style={{ ...btnEstilo, width: '100%' }}>Continuar →</button>
+            <div className="wz__title"><span className="wz__ico"><ShieldCheck size={20} /></span><div><h2>Cuenta de administrador</h2><p>Crea el acceso principal del dueño del negocio. Guarda bien este PIN.</p></div></div>
+            <Campo etiqueta="Nombre del administrador">
+              <input className="po-input" value={adminNombre} onChange={(e) => setAdminNombre(e.target.value)} placeholder="Juan Pérez" />
+            </Campo>
+            <Campo etiqueta="PIN de acceso (6 dígitos exactos)">
+              <input type="password" inputMode="numeric" className="po-input wz__pin" maxLength="6" value={adminPin} onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))} placeholder="••••••" />
+            </Campo>
+            <button type="button" className="px-btn px-btn--gold px-btn--lg wz__cta" onClick={siguiente}>Continuar <ArrowRight size={18} /></button>
           </>
         )}
 
         {paso === totalPasos - 1 && (
           <>
-            <div style={{ textAlign: 'center', marginBottom: '18px' }}>
-              <div style={{ fontSize: '2.6rem' }}>🎉</div>
-              <h2 style={{ margin: '10px 0 6px 0', fontSize: '1.4rem' }}>¡Todo listo!</h2>
-              <p style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
-                Tu sistema quedó personalizado{necesitaAdmin ? ' y la cuenta de administrador fue creada' : ''}. Ya puedes ingresar tu PIN para comenzar.
-              </p>
+            <div className="wz__hero">
+              <span className="wz__badge wz__badge--ok"><PartyPopper size={26} /></span>
+              <h1>¡Todo listo!</h1>
+              <p>Tu sistema quedó personalizado{necesitaAdmin ? ' y la cuenta de administrador fue creada' : ''}. Ya puedes ingresar tu PIN para comenzar.</p>
             </div>
-            <button onClick={terminar} disabled={guardando} style={{ ...btnEstilo, width: '100%' }}>
-              {guardando ? 'Configurando...' : 'Finalizar y entrar al sistema ✓'}
+            <button type="button" className="px-btn px-btn--gold px-btn--lg wz__cta" onClick={terminar} disabled={guardando}>
+              {guardando ? 'Configurando…' : <>Finalizar y entrar <Check size={18} /></>}
             </button>
           </>
         )}
 
-        {error && <p style={{ color: '#ff6b6b', marginTop: '14px', textAlign: 'center', fontSize: '0.9rem', fontWeight: 600 }}>⚠️ {error}</p>}
+        {error && <p className="wz__error" role="alert">{error}</p>}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18px' }}>
-          {paso > 0 && paso < totalPasos - 1 && (
-            <button onClick={() => { setError(''); setPaso((p) => p - 1); }} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', padding: '10px 18px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.85rem' }}>← Atrás</button>
-          )}
-        </div>
+        {paso > 0 && paso < totalPasos - 1 && (
+          <button type="button" className="px-btn px-btn--ghost wz__back" onClick={() => { setError(''); setPaso((p) => p - 1); }}><ArrowLeft size={16} /> Atrás</button>
+        )}
       </div>
     </div>
   );

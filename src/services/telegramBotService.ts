@@ -13,6 +13,7 @@
 /* global fetch, AbortController, clearTimeout */
 
 import { createLogger } from '../lib/logger.js';
+import { constantTimeEquals } from '../lib/core.js';
 import { runWithRequestContext } from '../db/index.js';
 
 const API_BASE = 'https://api.telegram.org';
@@ -267,7 +268,7 @@ export async function iniciarTelegramBot(opciones: IOpcionesTelegramBot = {}): P
 }
 
 export function validarWebhookSecret(value: unknown): boolean {
-  return Boolean(webhookSecret) && String(value || '') === webhookSecret;
+  return Boolean(webhookSecret) && constantTimeEquals(value, webhookSecret);
 }
 
 export async function procesarActualizacionWebhook(update: ITelegramUpdate | null | undefined): Promise<void> {
@@ -378,13 +379,14 @@ function fmtMonto(moneda: string | null | undefined, monto: unknown): string {
 }
 
 function esPropietario(chatId: string): boolean {
+  // Seguridad (H5): eliminada la auto-registración del primer chat que escribe
+  // al bot. El propietario solo se define vía TELEGRAM_OWNER_CHAT_ID (env).
   if (!ownerChatId) {
-    ownerChatId = chatId;
-    logger.info({
-      action: 'TELEGRAM_PROPIETARIO_AUTORREGISTRADO',
-      message: `Telegram: propietario auto-registrado (chat ${chatId}).`,
+    logger.warn({
+      action: 'TELEGRAM_MENSAJE_SIN_PROPIETARIO',
+      message: `Telegram: mensaje de chat ${chatId} ignorado; TELEGRAM_OWNER_CHAT_ID no configurado.`,
     });
-    return true;
+    return false;
   }
   return chatId === ownerChatId;
 }

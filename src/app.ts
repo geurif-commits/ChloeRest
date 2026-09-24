@@ -18,6 +18,7 @@ import {
   healthCheck,
 } from './middleware/requestLogger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { loginLimiter, publicLimiter, registroDispositivoLimiter } from './middleware/rateLimiter.js';
 import pingRouter from './routers/ping.js';
 import inventarioRouter from './routers/inventario.js';
 import authRouter from './routers/auth.js';
@@ -31,12 +32,14 @@ import menuConfiguracionRouter from './routers/menuConfiguracion.js';
 import dispositivosRouter from './routers/dispositivos.js';
 import duenoRouter from './routers/dueno.js';
 import cajaRouter from './routers/caja.js';
+import asistenciaRouter from './routers/asistencia.js';
 import reportesRouter from './routers/reportes.js';
 import dgiiRouter from './routers/dgii.js';
 import dgiiEcfRouter from './routers/dgiiEcf.js';
 import dgiiReportesRouter from './routers/dgiiReportes.js';
 import kdsRouter from './routers/kds.js';
 import webhookRouter from './routers/webhook.js';
+import respaldosRouter from './routers/respaldos.js';
 
 const logger = createLogger('app');
 
@@ -63,8 +66,19 @@ function resolverFrontendDist(): string | null {
 export const createApp = (): Express => {
   const app = express();
 
-  // Security middleware
-  app.use(helmet());
+  // Security middleware. Las instalaciones locales (Electron/LAN) consultan planes y métodos de pago
+  // al servidor central, así que connect-src permite además ese origen.
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'connect-src': ["'self'", 'https://chloerestaurant.lat'],
+      },
+    },
+  }));
+
+  // Detrás de Passenger/cPanel el cliente real viene en el header X-Forwarded-For
+  app.set('trust proxy', 1);
 
   // CORS (misma lista de orígenes que el legacy)
   app.use(
@@ -94,6 +108,9 @@ export const createApp = (): Express => {
       await db.query('SELECT 1');
       const migRes = await db.query('SELECT id FROM app_migrations ORDER BY ejecutada_en DESC LIMIT 1');
       const ultimaMig = migRes.rowCount ? migRes.rows[0].id : 'ninguna';
+      // Las fechas del negocio (cierres, reportes, turnos) dependen de la zona horaria de la base de datos.
+      const tzRes = await db.query("SELECT current_setting('TimeZone') AS zona");
+      const zonaHorariaBd = tzRes.rows[0]?.zona ? String(tzRes.rows[0].zona) : 'desconocida';
       let uploadsOk = true;
       try {
         const probe = path.join(config.uploadsDir, `.health-${process.pid}.tmp`);
@@ -105,9 +122,10 @@ export const createApp = (): Express => {
       const mem = process.memoryUsage();
       res.json({
         estado: 'ok',
-        version: '2.1.0',
+        version: '2.3.1',
         baseDeDatos: 'conectada',
         migracion: ultimaMig,
+        zonaHorariaBd,
         telegram: telegramActivo() ? 'activo' : 'inactivo',
         uploads: uploadsOk ? 'escribible' : 'no_escribible',
         uptimeSegundos: Math.round(process.uptime()),
@@ -121,7 +139,7 @@ export const createApp = (): Express => {
       });
       res.status(503).json({
         estado: 'error',
-        version: '2.1.0',
+        version: '2.3.1',
         baseDeDatos: 'degradada',
         telegram: telegramActivo() ? 'activo' : 'inactivo',
       });
@@ -138,6 +156,18 @@ export const createApp = (): Express => {
     })
   );
 
+  // ── Rate limiting de endpoints públicos (brute-force / abuso) ──
+  app.use('/api/login', loginLimiter);
+  app.use('/api/autorizar', loginLimiter);
+  app.use('/api/kds/autenticar', loginLimiter);
+  app.use('/api/dueno/login', loginLimiter);
+  app.use('/api/dueno/establecer-pin', loginLimiter);
+  app.use('/api/dispositivo/registrar', registroDispositivoLimiter);
+  app.use('/api/dispositivo/activar', publicLimiter);
+  app.use('/api/solicitud-licencia', publicLimiter);
+  app.use('/setup', loginLimiter);
+  app.use('/api/setup', publicLimiter);
+
   // ── Routers de negocio (cada uno protege sus propias rutas) ──
   app.use('/ping', pingRouter);
   app.use('/api/inventario', inventarioRouter);
@@ -152,12 +182,14 @@ export const createApp = (): Express => {
   app.use(dispositivosRouter);
   app.use(duenoRouter);
   app.use(cajaRouter);
+  app.use(asistenciaRouter);
   app.use(reportesRouter);
   app.use(dgiiRouter);
   app.use(dgiiEcfRouter);
   app.use(dgiiReportesRouter);
   app.use(kdsRouter);
   app.use(webhookRouter);
+  app.use(respaldosRouter);
 
   // ── Frontend compilado (SPA) en producción/dev ──
   const frontendDist = resolverFrontendDist();

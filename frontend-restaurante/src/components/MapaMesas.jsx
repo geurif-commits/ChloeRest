@@ -1,32 +1,41 @@
 import { useState, useEffect, useMemo } from 'react';
 import MenuPedido from '../components/MenuPedido';
 import { toastAviso } from '../components/Toast.jsx';
-import { obtenerSesion } from '../api.js';
+import { obtenerSesion, obtenerTicketSse } from '../api.js';
 import {
-  TableProperties, Search, ArrowRightLeft, LogOut,
-  Users, Layers, Sparkles, RefreshCw, Lock
+  TableProperties, Search, ArrowRightLeft, LogOut, RefreshCw, Lock, X, Delete, Check, Users, Clock, ChefHat, CalendarClock, Sun, Moon
 } from 'lucide-react';
+import { useTemaLocal } from '../utils/tema.js';
+import './mapa-mesas.css';
 
-function colorEstadoMesa(estado) {
-  switch (estado) {
-    case 'Disponible': return 'var(--mesa-disponible, #00f576)';
-    case 'Ocupada': return 'var(--mesa-ocupada, #ff4444)';
-    case 'Reservada': return 'var(--mesa-reservada, #d6a44d)';
-    default: return 'var(--muted)';
-  }
+const ESTADO_CLAVE = { Disponible: 'libre', Ocupada: 'ocupada', Reservada: 'reservada' };
+
+function inicialesDe(nombre = '') {
+  const partes = String(nombre).trim().split(/\s+/).filter(Boolean);
+  if (!partes.length) return '?';
+  return (partes[0][0] + (partes[1]?.[0] || '')).toUpperCase();
 }
 
-function MesaSvg({ estado }) {
-  const color = colorEstadoMesa(estado);
+const LIMITE_MESA_LARGA = 60; // minutos
+
+function formatearMinutos(m = 0) {
+  const t = Math.max(0, Math.round(Number(m) || 0));
+  const h = Math.floor(t / 60);
+  const r = t % 60;
+  if (h === 0) return `${r} min`;
+  return r === 0 ? `${h} h` : `${h} h ${r} min`;
+}
+
+function formatearMonto(n) {
+  return `RD$ ${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+/* Mesa vista desde arriba: las sillas se rellenan según la ocupación */
+function Glifo({ sillas = 4, ocupadas = 0 }) {
   return (
-    <svg width="68" height="68" viewBox="0 0 100 100" fill="none" aria-hidden="true" className="mesa-table__svg">
-      <rect x="35" y="8" width="30" height="10" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
-      <rect x="35" y="82" width="30" height="10" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
-      <rect x="8" y="35" width="10" height="30" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
-      <rect x="82" y="35" width="10" height="30" rx="4" stroke={color} strokeWidth="2.5" fill="none" />
-      <rect x="25" y="25" width="50" height="50" rx="8" stroke={color} strokeWidth="3" fill="rgba(255,255,255,0.03)" />
-      <circle cx="50" cy="50" r="3.5" fill={color} opacity="0.7" />
-    </svg>
+    <span className="mp-glyph" aria-hidden="true">
+      {[0, 1, 2, 3].map((i) => <i key={i} className={i < ocupadas ? 'on' : ''} style={i >= sillas ? { visibility: 'hidden' } : undefined} />)}
+    </span>
   );
 }
 
@@ -49,26 +58,30 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('Todas');
   const [zonaActiva, setZonaActiva] = useState('Todas');
+  const [soloMias, setSoloMias] = useState(false);
+  const { esOscuro, alternar: alternarTema } = useTemaLocal();
 
   useEffect(() => {
     let sseMesas, sseKDS, intervaloFallback, reconectarTimeout, activo = true;
 
-    const conectarSSE = () => {
+    const conectarSSE = async () => {
       try {
-        const token = encodeURIComponent(obtenerSesion() || '');
-        sseMesas = new EventSource(`${urlBase}/api/mesas/stream?token=${token}`);
-        sseKDS = new EventSource(`${urlBase}/api/kds/stream?token=${token}`);
+        // Los tickets son de un solo uso: cada stream necesita el suyo.
+        const [ticketMesas, ticketKds] = await Promise.all([obtenerTicketSse(urlBase), obtenerTicketSse(urlBase)]);
+        if (!ticketMesas || !ticketKds || !activo) return;
+        sseMesas = new EventSource(`${urlBase}/api/mesas/stream?ticket=${encodeURIComponent(ticketMesas)}`);
+        sseKDS = new EventSource(`${urlBase}/api/kds/stream?ticket=${encodeURIComponent(ticketKds)}`);
         const manejarEvento = () => { if (activo) cargarMesas(); };
         sseMesas.onmessage = manejarEvento;
         sseKDS.onmessage = manejarEvento;
-        const manejarError = (nombre) => () => {
+        const manejarError = () => {
           if (sseMesas) sseMesas.close();
           if (sseKDS) sseKDS.close();
           if (activo) reconectarTimeout = setTimeout(() => { if (activo) conectarSSE(); }, 10000);
         };
-        sseMesas.onerror = manejarError('mesas');
-        sseKDS.onerror = manejarError('kds');
-      } catch (e) { console.warn('SSE no disponible, usando polling.'); }
+        sseMesas.onerror = manejarError;
+        sseKDS.onerror = manejarError;
+      } catch { console.warn('SSE no disponible, usando polling.'); }
     };
 
     cargarMesas();
@@ -201,39 +214,61 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
     const coincideBusqueda = mesa.nombre_numero?.toLowerCase().includes(busqueda.toLowerCase());
     const coincideEstado = filtroEstado === 'Todas' || mesa.estado === filtroEstado;
     const coincideZona = zonaActiva === 'Todas' || (mesa.zona === zonaActiva);
-    return coincideBusqueda && coincideEstado && coincideZona;
+    const coincideMias = !soloMias || mesa.camarero_id === usuario?.id;
+    return coincideBusqueda && coincideEstado && coincideZona && coincideMias;
   });
 
   const kpis = useMemo(() => {
     const total = mesasVisibles.length;
-    const ocupadas = mesasVisibles.filter(m => m.estado === 'Ocupada').length;
+    const abiertas = mesasVisibles.filter(m => m.estado === 'Ocupada');
+    const ocupadas = abiertas.length;
     const disponibles = mesasVisibles.filter(m => m.estado === 'Disponible').length;
+    const reservadas = mesasVisibles.filter(m => m.estado === 'Reservada').length;
     const porcentaje = total > 0 ? Math.round((ocupadas / total) * 100) : 0;
-    return { total, ocupadas, disponibles, porcentaje };
+    const porCobrar = abiertas.reduce((a, m) => a + Number(m.total_cuenta || 0), 0);
+    const conTiempo = abiertas.filter(m => m.minutos_abierta != null);
+    const promedio = conTiempo.length ? Math.round(conTiempo.reduce((a, m) => a + Number(m.minutos_abierta), 0) / conTiempo.length) : 0;
+    return { total, ocupadas, disponibles, reservadas, porcentaje, porCobrar, promedio };
+  }, [mesasVisibles]);
+
+  /* Mesas que requieren atención: platos esperando en cocina o cuentas abiertas hace mucho */
+  const atencion = useMemo(() => {
+    const items = [];
+    mesasVisibles.forEach((m) => {
+      if (m.estado !== 'Ocupada') return;
+      const pendientes = Number(m.platos_pendientes || 0);
+      const minutos = Number(m.minutos_abierta || 0);
+      if (pendientes > 0) {
+        items.push({ mesa: m, tipo: 'cocina', prioridad: 2, titulo: m.nombre_numero, detalle: `${pendientes} ${pendientes === 1 ? 'plato' : 'platos'} en cocina · ${formatearMinutos(minutos)}`, accion: 'Ver' });
+      } else if (minutos >= LIMITE_MESA_LARGA) {
+        items.push({ mesa: m, tipo: 'larga', prioridad: 1, titulo: m.nombre_numero, detalle: `Abierta hace ${formatearMinutos(minutos)} · ${formatearMonto(m.total_cuenta)}`, accion: 'Abrir' });
+      }
+    });
+    return items.sort((a, b) => b.prioridad - a.prioridad || Number(b.mesa.minutos_abierta || 0) - Number(a.mesa.minutos_abierta || 0)).slice(0, 8);
   }, [mesasVisibles]);
 
   if (mesaPin) {
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-        <div style={{ background: 'rgba(15,23,42,0.95)', border: '1px solid rgba(245,184,61,0.3)', borderRadius: '20px', padding: '28px', width: 'min(380px, 92vw)', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(245,184,61,0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-            <Lock size={22} />
-          </div>
-          <h3 style={{ color: '#fff', margin: '0 0 4px', fontSize: '1.2rem', fontWeight: 800 }}>Mesa {mesaPin.nombre_numero}</h3>
-          <p style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '0.8rem', margin: '0 0 16px' }}>Mesa atendida por otro camarero. Ingresa PIN de autorización:</p>
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '16px' }}>
+      <div className="mp-pin" role="dialog" aria-modal="true" aria-label={`Autorizar acceso a ${mesaPin.nombre_numero}`}>
+        <div className="mp-pin__card">
+          <button type="button" className="mp-pin__close" onClick={cerrarModalPin} aria-label="Cerrar"><X size={18} /></button>
+          <div className="mp-pin__badge"><Lock size={22} /></div>
+          <span className="px-eyebrow">Acceso protegido</span>
+          <h3 className="mp-pin__title">{mesaPin.nombre_numero}</h3>
+          <p className="mp-pin__sub">Esta mesa la atiende otro camarero. Ingresa el PIN de autorización para continuar.</p>
+          <div className={`mp-pin__dots ${pinError ? 'is-error' : ''}`} aria-label={`${pinIngresado.length} de 6 dígitos`}>
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)', background: pinIngresado.length > i ? 'var(--gold, #f5b842)' : 'transparent', transition: 'all 0.15s ease' }} />
+              <span key={i} className={`mp-pin__dot ${i < pinIngresado.length ? 'is-on' : ''}`} />
             ))}
           </div>
-          {pinError && <p style={{ color: '#ef4444', fontSize: '0.78rem', margin: '0 0 10px' }}>{pinError}</p>}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', maxWidth: '240px', margin: '0 auto' }}>
-            {[1,2,3,4,5,6,7,8,9].map(n => (
-              <button key={n} type="button" onClick={() => agregarDigitoPin(String(n))} style={{ height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: '1.15rem', fontWeight: 700, cursor: 'pointer' }}>{n}</button>
+          <p className="mp-pin__error" role="alert">{pinError || ' '}</p>
+          <div className="mp-pin__pad">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+              <button key={n} type="button" className="mp-pin__key" onClick={() => agregarDigitoPin(String(n))}>{n}</button>
             ))}
-            <button type="button" onClick={cerrarModalPin} style={{ height: '46px', borderRadius: '10px', border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer' }}>✕</button>
-            <button type="button" onClick={() => agregarDigitoPin('0')} style={{ height: '46px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#fff', fontSize: '1.15rem', fontWeight: 700, cursor: 'pointer' }}>0</button>
-            <button type="button" onClick={() => setPinIngresado(p => p.slice(0, -1))} style={{ height: '46px', borderRadius: '10px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer' }}>⌫</button>
+            <button type="button" className="mp-pin__key mp-pin__key--ghost" onClick={cerrarModalPin} aria-label="Cancelar"><X size={20} /></button>
+            <button type="button" className="mp-pin__key" onClick={() => agregarDigitoPin('0')}>0</button>
+            <button type="button" className="mp-pin__key mp-pin__key--ghost" onClick={() => setPinIngresado((p) => p.slice(0, -1))} aria-label="Borrar"><Delete size={20} /></button>
           </div>
         </div>
       </div>
@@ -244,90 +279,175 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
     return <MenuPedido usuario={usuario} mesa={mesaSeleccionada} alVolver={() => { setMesaSeleccionada(null); cargarMesas(); }} apiUrl={urlBase} />;
   }
 
+  const estados = [
+    { id: 'Todas', etiqueta: 'Todas', clave: 'todas' },
+    { id: 'Disponible', etiqueta: 'Libres', clave: 'libre' },
+    { id: 'Ocupada', etiqueta: 'Ocupadas', clave: 'ocupada' },
+    { id: 'Reservada', etiqueta: 'Reservadas', clave: 'reservada' },
+  ];
+
   return (
-    <div className="mesa-workspace" style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', padding: '12px 18px', background: 'rgba(12,17,29,0.95)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div className="mp">
+      <header className="mp-top">
+        <div className="mp-brand">
           {logoComercio ? (
-            <img src={logoComercio} alt={nombreComercio} style={{ width: '38px', height: '38px', borderRadius: '8px', objectFit: 'contain', background: '#fff', padding: '2px' }} />
+            <img src={logoComercio} alt={nombreComercio} className="mp-brand__logo" />
           ) : (
-            <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(245,184,61,0.15)', color: 'var(--gold, #f5b842)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TableProperties size={20} />
-            </div>
+            <div className="mp-brand__icon">{nombreComercio.charAt(0).toUpperCase()}</div>
           )}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>{nombreComercio}</h1>
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'rgba(245,184,61,0.15)', color: 'var(--gold, #f5b842)', border: '1px solid rgba(245,184,61,0.3)' }}>
-                {kpis.porcentaje}% Ocupado ({kpis.ocupadas}/{kpis.total})
-              </span>
-            </div>
-            <small style={{ color: 'var(--admin-text-muted)', fontSize: '0.75rem' }}>
-              Salón • Camarero: <strong>{usuario?.nombre || 'Personal'}</strong> • {kpis.disponibles} libres
-            </small>
+          <div className="mp-brand__text">
+            <h1>{nombreComercio}</h1>
+            <p>{usuario?.rol || 'Camarero'} · {kpis.disponibles} {kpis.disponibles === 1 ? 'mesa libre' : 'mesas libres'}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', width: '160px' }}>
-            <input type="search" placeholder="Buscar mesa..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} style={{ width: '100%', padding: '7px 10px 7px 28px', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.78rem' }} />
-            <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+
+        <label className="mp-search">
+          <Search size={17} />
+          <input type="search" placeholder="Buscar mesa" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} aria-label="Buscar mesa" />
+        </label>
+
+        <div className="mp-actions">
+          <button type="button" className={`mp-btn ${modoTraslado ? 'is-on' : ''}`} onClick={() => { setModoTraslado(!modoTraslado); setMesaOrigen(null); }}>
+            {modoTraslado ? <Check size={17} /> : <ArrowRightLeft size={17} />}
+            <span className="mp-btn__label">{modoTraslado ? 'Terminar traslado' : 'Trasladar'}</span>
+          </button>
+          <button type="button" className="mp-btn mp-btn--icon" onClick={alternarTema} aria-label={esOscuro ? 'Tema claro' : 'Tema oscuro'} title={esOscuro ? 'Tema claro' : 'Tema oscuro'}>
+            {esOscuro ? <Sun size={17} /> : <Moon size={17} />}
+          </button>
+          <div className="mp-user" title={usuario?.nombre || 'Personal'}>
+            <span className="mp-user__avatar">{inicialesDe(usuario?.nombre)}</span>
+            <span className="mp-user__text"><strong>{usuario?.nombre || 'Personal'}</strong><small>{usuario?.rol || 'Camarero'}</small></span>
           </div>
-          <button type="button" className={`admin-btn ${modoTraslado ? 'admin-btn-primary' : 'admin-btn-secondary'}`} onClick={() => { setModoTraslado(!modoTraslado); setMesaOrigen(null); }} style={{ fontSize: '0.78rem', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ArrowRightLeft size={14} /> <span>{modoTraslado ? '✓ Cancelar Traslado' : '⇄ Trasladar'}</span>
-          </button>
-          <button type="button" onClick={alCerrarSesion} className="admin-btn admin-btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <LogOut size={14} /> <span>Salir</span>
-          </button>
+          <button type="button" className="mp-btn mp-btn--icon" onClick={alCerrarSesion} aria-label="Salir" title="Salir"><LogOut size={17} /></button>
         </div>
       </header>
 
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-        {['Todas', 'Disponible', 'Ocupada', 'Reservada'].map((estado) => {
-          const esActivo = filtroEstado === estado;
-          const conteo = estado === 'Todas' ? mesasVisibles.length : mesasVisibles.filter((m) => m.estado === estado).length;
-          return (
-            <button key={estado} type="button" onClick={() => setFiltroEstado(estado)} style={{ padding: '6px 14px', borderRadius: '8px', border: esActivo ? '1px solid var(--gold, #f5b842)' : '1px solid rgba(255,255,255,0.08)', background: esActivo ? 'rgba(245,184,61,0.15)' : 'rgba(255,255,255,0.03)', color: esActivo ? 'var(--gold, #f5b842)' : '#94a3b8', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-              <span>{estado}</span>
-              <span style={{ fontSize: '0.7rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(0,0,0,0.3)' }}>{conteo}</span>
-            </button>
-          );
-        })}
-      </div>
+      <div className="mp-layout">
+        <main className="mp-main">
+          <section className="mp-strip" aria-label="Resumen del salón">
+            <div className="mp-strip__item">
+              <div className="mp-ring" style={{ '--p': kpis.porcentaje }} role="img" aria-label={`${kpis.porcentaje} % de ocupación`}><span>{kpis.porcentaje}%</span></div>
+              <div><p className="mp-strip__label">Ocupación</p><p className="mp-strip__value">{kpis.ocupadas} de {kpis.total}</p><p className="mp-strip__note">{kpis.disponibles} {kpis.disponibles === 1 ? 'mesa libre' : 'mesas libres'}</p></div>
+            </div>
+            <div className="mp-strip__item">
+              <div><p className="mp-strip__label">Por cobrar</p><p className="mp-strip__value">{formatearMonto(kpis.porCobrar)}</p><p className="mp-strip__note">{kpis.ocupadas} {kpis.ocupadas === 1 ? 'mesa abierta' : 'mesas abiertas'}</p></div>
+            </div>
+            <div className="mp-strip__item">
+              <div><p className="mp-strip__label">Tiempo promedio</p><p className="mp-strip__value">{kpis.ocupadas ? formatearMinutos(kpis.promedio) : '—'}</p><p className="mp-strip__note">Por mesa ocupada</p></div>
+            </div>
+            <div className="mp-strip__item">
+              <div><p className="mp-strip__label">Reservadas</p><p className="mp-strip__value">{kpis.reservadas}</p><p className="mp-strip__note">Por llegar</p></div>
+            </div>
+          </section>
 
-      {modoTraslado && (
-        <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(245,184,61,0.15)', border: '1px solid rgba(245,184,61,0.3)', color: 'var(--gold, #f5b842)', fontSize: '0.8rem', fontWeight: 600 }}>
-          {mesaOrigen ? `Mesa origen: #${mesaOrigen.nombre_numero}. Ahora toca la mesa disponible de destino.` : 'Toca la mesa ocupada que deseas trasladar.'}
-        </div>
-      )}
+          <div className="mp-toolbar">
+            <div className="mp-toolbar__group">
+              {zonasDisponibles.length > 1 && (
+                <div className="mp-seg" role="tablist" aria-label="Zona">
+                  {zonasDisponibles.map((zona) => (
+                    <button key={zona} type="button" role="tab" aria-selected={zonaActiva === zona} aria-pressed={zonaActiva === zona} onClick={() => setZonaActiva(zona)}>{zona}</button>
+                  ))}
+                </div>
+              )}
+              <div className="mp-toolbar__group" role="group" aria-label="Filtrar por estado">
+                {estados.map((e) => {
+                  const conteo = e.id === 'Todas' ? mesasVisibles.length : mesasVisibles.filter((m) => m.estado === e.id).length;
+                  return (
+                    <button key={e.id} type="button" className="mp-chip" aria-pressed={filtroEstado === e.id} onClick={() => setFiltroEstado(e.id)}>
+                      {e.clave !== 'todas' && <span className="mp-dot" data-tone={e.clave} />}
+                      <span>{e.etiqueta}</span>
+                      <small>{conteo}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {!esCamarero && (
+              <label className="mp-switch">
+                <input type="checkbox" checked={soloMias} onChange={(e) => setSoloMias(e.target.checked)} />
+                <span className="mp-switch__track" />Mis mesas
+              </label>
+            )}
+          </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 2px' }}>
-        {cargando ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--admin-text-muted)' }}>
-            <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 10px' }} />
-            <p>Cargando salón de mesas...</p>
-          </div>
-        ) : mesasFiltradas.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--admin-text-muted)' }}>No hay mesas en este filtro o zona.</div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
-            {mesasFiltradas.map((mesa) => {
-              const esOrigen = mesaOrigen?.id === mesa.id;
-              const color = colorEstadoMesa(mesa.estado);
-              return (
-                <button key={mesa.id} type="button" onClick={() => hacerClicMesa(mesa)} style={{ padding: '14px 10px', borderRadius: '14px', background: esOrigen ? 'rgba(245,184,61,0.2)' : 'rgba(255,255,255,0.03)', border: `1.5px solid ${esOrigen ? 'var(--gold, #f5b842)' : 'rgba(255,255,255,0.08)'}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', cursor: 'pointer', transition: 'all 0.18s ease', boxShadow: mesa.estado === 'Ocupada' ? '0 4px 14px rgba(239,68,68,0.15)' : 'none' }}>
-                  <MesaSvg estado={mesa.estado} />
-                  <strong style={{ fontSize: '0.98rem', color: '#fff' }}>{mesa.nombre_numero}</strong>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: color }}>{mesa.estado}</span>
-                  {mesa.camarero && <small style={{ fontSize: '0.66rem', color: 'var(--admin-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{mesa.camarero}</small>}
-                </button>
-              );
-            })}
-          </div>
-        )}
+          {modoTraslado && (
+            <div className="mp-notice" role="status">
+              <ArrowRightLeft size={16} />
+              <span>{mesaOrigen ? <>Origen: <b>{mesaOrigen.nombre_numero}</b>. Toca la mesa libre de destino.</> : 'Toca la mesa ocupada que deseas trasladar.'}</span>
+            </div>
+          )}
+
+          {cargando ? (
+            <div className="mp-empty"><RefreshCw size={22} className="mp-spin" /><p>Cargando salón…</p></div>
+          ) : mesasFiltradas.length === 0 ? (
+            <div className="mp-empty"><TableProperties size={26} /><p>No hay mesas con estos filtros.</p></div>
+          ) : (
+            <div className="mp-grid">
+              {mesasFiltradas.map((mesa, i) => {
+                const clave = ESTADO_CLAVE[mesa.estado] || 'libre';
+                const esOrigen = mesaOrigen?.id === mesa.id;
+                const ajena = clave === 'ocupada' && mesa.camarero_id && usuario && mesa.camarero_id !== usuario.id && usuario.rol !== 'Administrador';
+                const minutos = Number(mesa.minutos_abierta || 0);
+                const pendientes = Number(mesa.platos_pendientes || 0);
+                const sillas = Math.min(4, Math.max(2, Number(mesa.capacidad) || 4));
+                return (
+                  <button
+                    key={mesa.id}
+                    type="button"
+                    onClick={() => hacerClicMesa(mesa)}
+                    className={`mp-table ${esOrigen ? 'is-origin' : ''} ${ajena ? 'is-other' : ''}`}
+                    data-estado={clave}
+                    style={{ '--i': Math.min(i, 24) }}
+                    aria-label={`${mesa.nombre_numero}, ${mesa.estado}`}
+                  >
+                    <span className="mp-table__head">
+                      <span>
+                        <strong className="mp-table__name">{mesa.nombre_numero}</strong>
+                        <span className="mp-table__meta">
+                          {ajena ? <Lock size={14} /> : <Users size={14} />}
+                          {mesa.capacidad} {Number(mesa.capacidad) === 1 ? 'persona' : 'personas'}{mesa.camarero ? ` · ${mesa.camarero}` : ''}
+                        </span>
+                      </span>
+                      <Glifo sillas={sillas} ocupadas={clave === 'ocupada' ? sillas : 0} />
+                    </span>
+                    <span className="mp-table__foot">
+                      {clave === 'libre' && <><span className="mp-pill" data-tone="libre">Libre</span><span className="mp-table__hint">Toca para abrir</span></>}
+                      {clave === 'reservada' && <><span className="mp-pill" data-tone="reservada"><CalendarClock size={13} />Reservada</span><span className="mp-table__hint">Reserva por confirmar</span></>}
+                      {clave === 'ocupada' && (
+                        <>
+                          <span className="mp-table__tags">
+                            <span className="mp-pill" data-tone="ocupada">Ocupada</span>
+                            {pendientes > 0 && <span className="mp-table__alert"><i />{pendientes} en cocina</span>}
+                          </span>
+                          {mesa.minutos_abierta != null && (
+                            <span className="mp-table__time"><span className="mp-bar"><i style={{ width: `${Math.min(100, Math.round((minutos / 90) * 100))}%` }} /></span>{formatearMinutos(minutos)}</span>
+                          )}
+                          <span className="mp-table__total">{formatearMonto(mesa.total_cuenta)}</span>
+                        </>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </main>
+
+        <aside className="mp-attention" aria-label="Requiere atención">
+          <h2 className="mp-attention__title">Requiere atención <span className="mp-attention__count" data-zero={atencion.length === 0}>{atencion.length}</span></h2>
+          {atencion.length === 0 ? (
+            <p className="mp-attention__empty"><Check size={18} />Todo en orden. No hay mesas esperando.</p>
+          ) : atencion.map((it) => (
+            <div key={`${it.tipo}-${it.mesa.id}`} className="mp-task" data-tone={it.tipo === 'cocina' ? 'ocupada' : 'reservada'}>
+              <span className="mp-task__icon">{it.tipo === 'cocina' ? <ChefHat size={19} /> : <Clock size={19} />}</span>
+              <div className="mp-task__text"><p className="mp-task__title">{it.titulo}</p><p className="mp-task__sub">{it.detalle}</p></div>
+              <button type="button" className="mp-btn mp-btn--sm" onClick={() => hacerClicMesa(it.mesa)}>{it.accion}</button>
+            </div>
+          ))}
+        </aside>
       </div>
     </div>
   );
 }
 
 export default MapaMesas;
-

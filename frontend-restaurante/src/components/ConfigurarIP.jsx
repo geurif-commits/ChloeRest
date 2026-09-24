@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Server, Wifi } from 'lucide-react';
+import './pinpad.css';
 import {
   getApiUrl,
   setApiUrl,
@@ -107,49 +109,11 @@ function ConfigurarIP({ alGuardar }) {
 
   if (autoDetectado) {
     return (
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: '#0d0d12',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontFamily: 'sans-serif'
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-
-          <div
-            style={{
-              fontSize: '3rem',
-              marginBottom: '15px'
-            }}
-          >
-            🍽️
-          </div>
-
-          <h2
-            style={{
-              color: '#00f576',
-              margin: 0
-            }}
-          >
-            Conectando con el servidor...
-          </h2>
-
-          <p
-            style={{
-              color: '#88889d',
-              marginTop: '10px'
-            }}
-          >
-            Servidor detectado automáticamente.
-          </p>
-
+      <div className="gate" role="status" aria-live="polite">
+        <div className="gate__loading">
+          <span className="gate__badge"><Wifi size={26} /></span>
+          <strong style={{ fontFamily: 'var(--px-font-display)', fontSize: '1.4rem', color: 'var(--px-ink)', fontWeight: 600 }}>Conectando con el servidor…</strong>
+          <span>Servidor detectado automáticamente.</span>
         </div>
       </div>
     );
@@ -160,181 +124,39 @@ function ConfigurarIP({ alGuardar }) {
   // ============================================================
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: '#0d0d12',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999,
-        fontFamily: 'sans-serif',
-        padding: '20px',
-        boxSizing: 'border-box'
-      }}
-    >
-
-      <div
-        style={{
-          background: '#181820',
-          border: '1px solid #00e5ff',
-          borderRadius: '12px',
-          padding: '30px',
-          maxWidth: '450px',
-          width: '100%',
-          textAlign: 'center',
-          boxShadow: '0 10px 30px rgba(0, 229, 255, 0.15)'
-        }}
-      >
-
-        <div
-          style={{
-            fontSize: '3rem',
-            marginBottom: '10px'
-          }}
-        >
-          🌐
-        </div>
-
-        <h2
-          style={{
-            color: '#fff',
-            fontSize: '1.5rem',
-            margin: '0 0 10px 0'
-          }}
-        >
-          Configuración de Red POS
-        </h2>
-
-        <p
-          style={{
-            color: '#88889d',
-            fontSize: '0.9rem',
-            marginBottom: '20px',
-            lineHeight: '1.5'
-          }}
-        >
-          Ingresa la dirección del servidor principal
-          del restaurante.
-          <br />
-
-          <strong style={{ color: '#00e5ff' }}>
-            Ejemplo:
-          </strong>{' '}
-
-          <code style={{ color: '#00f576' }}>
-            192.168.1.100
-          </code>
+    <div className="gate">
+      <div className="gate__card">
+        <span className="gate__badge"><Server size={26} /></span>
+        <span className="px-eyebrow">Terminal POS</span>
+        <h2>Configuración de red</h2>
+        <p className="gate__lead">
+          Ingresa la dirección del servidor principal del restaurante. Ejemplo: <code>192.168.1.100</code>
         </p>
 
-        <div
-          style={{
-            background: '#0d0d17',
-            border: '1px dashed #3e3e52',
-            borderRadius: '8px',
-            padding: '10px',
-            marginBottom: '18px',
-            fontSize: '0.82rem',
-            color: '#9494ad',
-            textAlign: 'left'
-          }}
-        >
-          💡 <strong>Servidor detectado:</strong>
-
-          <br />
-
-          <code
-            style={{
-              color: '#00e5ff',
-              wordBreak: 'break-all'
-            }}
-          >
-            {origenActual}
-          </code>
-
-          {probando && (
-            <div
-              style={{
-                marginTop: '6px',
-                color: '#88889d'
-              }}
-            >
-              Comprobando conexión...
-            </div>
-          )}
+        <div className="gate__info">
+          <h4><Wifi size={15} /> Servidor detectado</h4>
+          <p><code style={{ wordBreak: 'break-all' }}>{origenActual}</code></p>
+          {probando && <p style={{ color: 'var(--px-ink-3)' }}>Comprobando conexión…</p>}
         </div>
 
-        <form
-          onSubmit={guardarIP}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '15px',
-            textAlign: 'left'
-          }}
-        >
-
-          <div>
-
-            <label
-              style={{
-                color: '#00e5ff',
-                fontSize: '0.85rem',
-                fontWeight: 'bold',
-                display: 'block',
-                marginBottom: '5px'
-              }}
-            >
-              IP / Host del Servidor
-            </label>
-
+        <form onSubmit={guardarIP} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'left' }}>
+          <div className="po-field" style={{ marginBottom: 0 }}>
+            <label htmlFor="ip-servidor">IP / host del servidor</label>
             <input
+              id="ip-servidor"
+              className="po-input"
               type="text"
               value={ipServidor}
               onChange={(e) => setIpServidor(e.target.value)}
               required
-              placeholder="Ej: 192.168.1.100"
+              placeholder="192.168.1.100"
               autoComplete="off"
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#121217',
-                color: '#fff',
-                border: '1px solid #3e3e4f',
-                borderRadius: '6px',
-                fontSize: '1rem',
-                boxSizing: 'border-box',
-                outline: 'none'
-              }}
+              autoFocus
             />
-
           </div>
-
-          <button
-            type="submit"
-            style={{
-              background: '#00e5ff',
-              color: '#000',
-              border: 'none',
-              padding: '12px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              marginTop: '5px'
-            }}
-          >
-            💾 Conectar Terminal al Servidor
-          </button>
-
+          <button type="submit" className="px-btn px-btn--gold px-btn--lg">Conectar terminal al servidor</button>
         </form>
-
       </div>
-
     </div>
   );
 }

@@ -13,20 +13,26 @@ import { registrarAuditoria } from '../services/auditoriaService.js';
 import { upload, uploadImagenesSistema, validarImagenSubida, validarImagenesSubidas, uploadUrl } from '../lib/uploads.js';
 import { ROLES_ADMIN, ROLES_CAJA } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
+import { config } from '../lib/config.js';
+import { configTurnosAJson, configTurnosDesdeBd } from '../services/asistenciaService.js';
+import { esEstiloLoginSolicitado, esTemaSolicitado, normalizarEstiloLogin, normalizarTema } from '../lib/temas.js';
+import { PROPINA_MAX, PROPINA_MIN, propinaPorcentajeOAlDefecto, propinaPorcentajeValido } from '../lib/propina.js';
 
 const router = Router();
 const logger = createLogger('sistemaRouter');
 
-const LOGIN_THEMES_VALIDOS = [
-  'chef_noir',
-  'cyberpunk_neon',
-  'warm_cafe',
-  'nordic_clean',
-  'ocean_chef',
-  'crimson_grill',
-  'olive_garden',
-  'night_lounge',
-];
+// GET /api/app/version (público): metadatos de la última versión publicada.
+// El cliente Electron la consulta para detectar actualizaciones remotas y
+// solicitar al usuario que instale la nueva versión.
+router.get('/api/app/version', route(async (_req: Request, res: Response) => {
+  res.json({
+    version: config.appVersion,
+    downloadUrl: config.appDownloadUrl,
+    notes: config.appUpdateNotes,
+    publicadoEn: new Date().toISOString(),
+  });
+}));
+
 
 /** true si el valor es un color hexadecimal #RRGGBB (esHex del legacy). */
 function esHex(value: unknown): boolean {
@@ -59,6 +65,23 @@ async function empresaPorDeviceId(req: Request): Promise<number | null> {
     [deviceId]
   );
   if (dev.rowCount && dev.rows[0].empresa_id) {return dev.rows[0].empresa_id;}
+  return null;
+}
+
+/**
+ * Empresa del equipo que hace la petición, únicamente si su dispositivo está ACTIVADO.
+ * Devuelve null si no se envió el identificador, no existe o sigue pendiente: en ese caso los
+ * endpoints públicos no deben revelar datos del negocio (caja, cajero, dirección, teléfono, propietario).
+ */
+async function empresaDeDispositivoActivo(req: Request): Promise<number | null> {
+  const db = getDatabase();
+  const deviceId = String(req.get('x-device-id') || '').trim();
+  if (!deviceId) {return null;}
+  const dev = await db.queryUnscoped<{ empresa_id: number | null; estado: string | null }>(
+    'SELECT empresa_id, estado FROM dispositivos WHERE device_id = $1',
+    [deviceId]
+  );
+  if (dev.rowCount && dev.rows[0].estado === 'Activo') {return dev.rows[0].empresa_id || 1;}
   return null;
 }
 
@@ -99,12 +122,13 @@ async function jsonConfiguracion(
     slogan: row.slogan || null,
     logo_url: row.logo_url || alternativos?.logo_url || null,
     fondo_login_url: row.fondo_login_url || null,
-    tema_activo: row.tema_activo || 'noche',
+    tema_activo: normalizarTema(row.tema_activo),
     estilo_login: row.estilo_login || 'moderno',
     color_primario: row.color_primario || null,
     color_secundario: row.color_secundario || null,
     opacidad_fondo: Number(row.opacidad_fondo || 1),
-    login_theme: row.login_theme || 'chef_noir',
+    login_theme: normalizarEstiloLogin(row.login_theme),
+    login_marca_tamano: row.login_marca_tamano || 'grande',
     color_acento: row.color_acento || null,
     fondo_tipo: row.fondo_tipo || 'imagen',
     fondo_color: row.fondo_color || null,
@@ -113,14 +137,21 @@ async function jsonConfiguracion(
     setup_completado: !!row.setup_completado,
     tiene_administrador: (await contarAdminsActivos(empresaId)) > 0,
     owner_pin_longitud: Number(row.owner_pin_longitud || 6),
+    turnos_config: configTurnosAJson(configTurnosDesdeBd(row.turnos_config)),
   };
 }
 
 // GET /api/sistema/info (público; pantalla de login). El legacy NO usaba route()
 // y respondía 200 aunque fallara: mismo comportamiento con try/catch interno.
-router.get('/api/sistema/info', route(async (_req: Request, res: Response) => {
+router.get('/api/sistema/info', route(async (req: Request, res: Response) => {
   try {
-    await runWithRequestContext({ empresaId: 1 }, async () => {
+    const empresaId = await empresaDeDispositivoActivo(req);
+    if (empresaId === null) {
+      // Sin un equipo activado no se revelan datos del negocio.
+      res.json({ version: '2.3.1', caja: { abierta: false, monto: 0 }, sucursal: 'No disponible', provincia: null, cajera: null, horaServidor: new Date().toISOString() });
+      return;
+    }
+    await runWithRequestContext({ empresaId }, async () => {
       const db = getDatabase();
       // Caja estado
       const cajaRes = await db.query<{ estado: string | null; monto_inicial: string | null }>(
@@ -148,7 +179,7 @@ router.get('/api/sistema/info', route(async (_req: Request, res: Response) => {
       const mesasOcupadas = mesasRes.rowCount ? parseInt(mesasRes.rows[0].total, 10) : 0;
 
       res.json({
-        version: '2.1.0',
+        version: '2.3.1',
         caja: { abierta: cajaAbierta, monto: montoCaja },
         sucursal: negocio.provincia || 'No configurada',
         provincia: negocio.provincia || null,
@@ -163,7 +194,7 @@ router.get('/api/sistema/info', route(async (_req: Request, res: Response) => {
   } catch (error) {
     logger.warn({ action: 'SISTEMA_INFO_FALLBACK', error: (error as Error).message });
     res.json({
-      version: '2.1.0',
+      version: '2.3.1',
       caja: { abierta: false, monto: 0 },
       sucursal: 'No disponible',
       provincia: null,
@@ -178,7 +209,7 @@ router.get('/api/configuracion/sistema', route(async (req: Request, res: Respons
   const empresaId = await empresaPorDeviceId(req);
   const row = await configuracionSistemaDe(empresaId);
   if (!row) {
-    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', tiene_administrador: false });
+    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', login_marca_tamano: 'grande', tiene_administrador: false });
     return;
   }
   res.json(await jsonConfiguracion(row, empresaId));
@@ -188,6 +219,8 @@ router.get('/api/configuracion/sistema', route(async (req: Request, res: Respons
 router.get('/api/configuracion/completa', route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const empresaId = await empresaPorDeviceId(req);
+  // Los datos del negocio (RNC, propietario, correo, teléfono…) solo se entregan a equipos activados.
+  const equipoActivado = (await empresaDeDispositivoActivo(req)) !== null;
   const row = await configuracionSistemaDe(empresaId);
 
   let negocio: FilaConfiguracion = {};
@@ -204,7 +237,7 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
   }
 
   if (!row) {
-    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', tiene_administrador: false });
+    res.json({ setup_completado: false, tema_activo: 'noche', estilo_login: 'moderno', login_marca_tamano: 'grande', tiene_administrador: false });
     return;
   }
   res.json({
@@ -212,7 +245,7 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
       nombre_negocio: negocio.nombre_comercial,
       logo_url: negocio.logo_url,
     })),
-    negocio: {
+    negocio: !equipoActivado ? { nombre_comercial: negocio.nombre_comercial || null } : {
       nombre_comercial: negocio.nombre_comercial || null,
       razon_social: negocio.razon_social || null,
       rnc: negocio.rnc || null,
@@ -226,6 +259,7 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
       email: negocio.email || null,
       cobrar_itbis: !!negocio.cobrar_itbis,
       cobrar_propina: !!negocio.cobrar_propina,
+      propina_porcentaje: propinaPorcentajeOAlDefecto(negocio.propina_porcentaje),
       tasa_usd: Number(negocio.tasa_usd || 0),
       tasa_eur: Number(negocio.tasa_eur || 0),
       comanda_modo: negocio.comanda_modo || null,
@@ -239,17 +273,26 @@ router.get('/api/configuracion/completa', route(async (req: Request, res: Respon
 }));
 
 // GET /api/negocio/config (público; pantalla inicial pre-login)
-router.get('/api/negocio/config', route(async (_req: Request, res: Response) => {
-  await runWithRequestContext({ empresaId: 1 }, async () => {
+router.get('/api/negocio/config', route(async (req: Request, res: Response) => {
+  const empresaId = await empresaDeDispositivoActivo(req);
+  if (empresaId === null) {
+    res.json({ nombre_comercial: 'Mi Restaurante', cobrar_itbis: false, cobrar_propina: false, propina_porcentaje: propinaPorcentajeOAlDefecto(null) });
+    return;
+  }
+  await runWithRequestContext({ empresaId }, async () => {
     const db = getDatabase();
     const result = await db.query<FilaConfiguracion>(
-      `SELECT nombre_comercial AS nombre, nombre_comercial, razon_social, rnc, telefono, direccion,
-              provincia, regimen_fiscal, nombre_cocina, nombre_bar, logo_url, cobrar_itbis,
-              cobrar_propina, tasa_usd, tasa_eur, comanda_modo, ticket_font_family,
-              ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin
+      `SELECT id, empresa_id, nombre_comercial AS nombre, nombre_comercial, razon_social, rnc, telefono, direccion,
+              provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, estado_licencia,
+              licencia_bloqueada, fecha_instalacion, logo_url, cobrar_itbis, cobrar_propina, propina_porcentaje,
+              mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada, tasa_usd, tasa_eur,
+              comanda_modo, ticket_font_family, ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin
          FROM negocio_config ORDER BY id LIMIT 1`
     );
-    res.json(result.rows[0] || { nombre_comercial: 'Mi Restaurante', cobrar_itbis: true, cobrar_propina: true });
+    const fila = result.rows[0];
+    res.json(fila
+      ? { ...fila, propina_porcentaje: propinaPorcentajeOAlDefecto(fila.propina_porcentaje) }
+      : { nombre_comercial: 'Mi Restaurante', cobrar_itbis: false, cobrar_propina: false, propina_porcentaje: propinaPorcentajeOAlDefecto(null) });
   });
 }));
 
@@ -271,7 +314,8 @@ router.put(
     const logoAnterior = typeof row.logo_url === 'string' ? row.logo_url : null;
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : (body.quitar_fondo ? null : fondoAnterior);
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : (body.quitar_logo ? null : logoAnterior);
-    const tema = String(body.tema_activo || row.tema_activo || 'noche').trim();
+    // Solo los tres temas oficiales del sistema (lib/temas.ts).
+    const tema = esTemaSolicitado(body.tema_activo) ? normalizarTema(body.tema_activo) : normalizarTema(row.tema_activo);
     const primario = String(body.color_primario || '').trim() || null;
     const secundario = String(body.color_secundario || '').trim() || null;
     const opacidad = Number(body.opacidad_fondo);
@@ -280,9 +324,12 @@ router.put(
       : Number(row.opacidad_fondo || 1);
     const nombre = String(body.nombre_negocio || '').trim() || null;
     const slogan = String(body.slogan || '').trim() || null;
-    const loginTheme = LOGIN_THEMES_VALIDOS.includes(String(body.login_theme || '').trim())
-      ? String(body.login_theme).trim()
-      : String(row.login_theme || 'chef_noir');
+    const loginTheme = esEstiloLoginSolicitado(body.login_theme) ? normalizarEstiloLogin(body.login_theme) : normalizarEstiloLogin(row.login_theme);
+    const marcaTamanosValidos = ['mediano', 'grande', 'gigante'];
+    const marcaTamanoRaw = String(body.login_marca_tamano || '').trim();
+    const loginMarcaTamano = marcaTamanosValidos.includes(marcaTamanoRaw)
+      ? marcaTamanoRaw
+      : String(row.login_marca_tamano || 'grande');
     const estiloLogin = ['moderno', 'clasico'].includes(String(body.estilo_login || '').trim())
       ? String(body.estilo_login).trim()
       : String(row.estilo_login || 'moderno');
@@ -314,10 +361,10 @@ router.put(
        SET nombre_negocio = $1, slogan = $2, tema_activo = $3, color_primario = $4, color_secundario = $5,
            opacidad_fondo = $6, fondo_login_url = $7, logo_url = $8, estilo_login = $9,
            login_theme = $10, color_acento = $11, fondo_tipo = $12, fondo_color = $13,
-           fondo_gradiente = $14, fondo_blur = $15, actualizado_en = CURRENT_TIMESTAMP
+           fondo_gradiente = $14, fondo_blur = $15, login_marca_tamano = $16, actualizado_en = CURRENT_TIMESTAMP
        WHERE empresa_id = NULLIF(current_setting('app.empresa_id', true), '')::INTEGER`,
       [nombre, slogan, tema, primario, secundario, opacidadFinal, fondo, logo, estiloLogin,
-        loginTheme, acento, fondoTipo, fondoColor, fondoGradiente, fondoBlur]
+        loginTheme, acento, fondoTipo, fondoColor, fondoGradiente, fondoBlur, loginMarcaTamano]
     );
     if (nombre) {
       await db.query(
@@ -329,6 +376,12 @@ router.put(
         [nombre]
       );
     }
+    // Fuente única de logotipo: lo que se suba aquí (pantalla Logotipo y Fondo)
+    // se replica a negocio_config para que tickets, facturas y KDS usen el mismo logo.
+    await db.query(
+      'UPDATE negocio_config SET logo_url = $1 WHERE empresa_id = NULLIF(current_setting(\'app.empresa_id\', true), \'\')::INTEGER',
+      [logo]
+    );
     await registrarAuditoria(db, {
       usuarioId: req.auth!.userId,
       accion: 'ACTUALIZAR_PERSONALIZACION',
@@ -414,6 +467,12 @@ router.post(
     const ticketLogoPosition = campoTexto(body.ticket_logo_position, 'top');
     const ticketShowQr = body.ticket_show_qr === 'true' || body.ticket_show_qr === true;
     const ticketMargin = campoTexto(body.ticket_margin, 'normal');
+    // Porcentaje de propina (2 % a 30 %). Si el cliente no lo envía se conserva el actual.
+    const propinaEnviada = body.propina_porcentaje !== undefined && String(body.propina_porcentaje).trim() !== '';
+    const propinaPorcentaje = propinaEnviada ? propinaPorcentajeValido(body.propina_porcentaje) : null;
+    if (propinaEnviada && propinaPorcentaje === null) {
+      throw httpError(400, `El porcentaje de propina debe estar entre ${PROPINA_MIN} % y ${PROPINA_MAX} %.`);
+    }
 
     if (values.slice(0, 5).some((value) => !value)) {
       throw httpError(400, 'Completa los datos obligatorios del negocio.');
@@ -430,19 +489,29 @@ router.post(
              cobrar_itbis = $12, cobrar_propina = $13,
              mesa_color_disponible = $15, mesa_color_ocupada = $16, mesa_color_reservada = $17,
              comanda_modo = $18, ticket_font_family = $19, ticket_font_size = $20,
-             ticket_logo_position = $21, ticket_show_qr = $22, ticket_margin = $23
+             ticket_logo_position = $21, ticket_show_qr = $22, ticket_margin = $23,
+             propina_porcentaje = COALESCE($24::numeric, propina_porcentaje)
              ${unblock ? ', licencia_bloqueada = FALSE, fecha_instalacion = CURRENT_TIMESTAMP' : ''}
          WHERE id = $14`,
         [...values, current.rows[0].id, mesaDisp, mesaOcup, mesaRes, comandaModo, ticketFontFamily,
-          ticketFontSize, ticketLogoPosition, ticketShowQr, ticketMargin]
+          ticketFontSize, ticketLogoPosition, ticketShowQr, ticketMargin, propinaPorcentaje]
       );
     } else {
       await db.query(
         `INSERT INTO negocio_config
-         (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis, cobrar_propina, licencia_bloqueada, fecha_instalacion, mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada, comanda_modo, ticket_font_family, ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Activa', $12, $13, FALSE, CURRENT_TIMESTAMP, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+         (nombre_comercial, razon_social, rnc, telefono, direccion, provincia, regimen_fiscal, nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis, cobrar_propina, licencia_bloqueada, fecha_instalacion, mesa_color_disponible, mesa_color_ocupada, mesa_color_reservada, comanda_modo, ticket_font_family, ticket_font_size, ticket_logo_position, ticket_show_qr, ticket_margin, propina_porcentaje)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Activa', $12, $13, FALSE, CURRENT_TIMESTAMP, $14, $15, $16, $17, $18, $19, $20, $21, $22, COALESCE($23::numeric, 10))`,
         [...values, mesaDisp, mesaOcup, mesaRes, comandaModo, ticketFontFamily, ticketFontSize,
-          ticketLogoPosition, ticketShowQr, ticketMargin]
+          ticketLogoPosition, ticketShowQr, ticketMargin, propinaPorcentaje]
+      );
+    }
+    // Fuente única de logotipo: lo que se suba aquí (Datos de Empresa) se replica
+    // a configuracion_sistema para que el login y pantallas usen el mismo logo.
+    const logoFinal = logo || (current.rowCount ? (current.rows[0].logo_url || null) : null);
+    if (logoFinal) {
+      await db.query(
+        'UPDATE configuracion_sistema SET logo_url = $1 WHERE empresa_id = NULLIF(current_setting(\'app.empresa_id\', true), \'\')::INTEGER',
+        [logoFinal]
       );
     }
     await registrarAuditoria(db, {
