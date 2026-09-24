@@ -66,6 +66,7 @@ Entra con tu PIN al panel administrativo. Lo esencial:
 | "PIN incorrecto" / acceso bloqueado | Espera unos minutos. Si olvidaste tu PIN, el administrador lo restablece. |
 | El equipo muestra la pantalla de bienvenida | El equipo no está activado: pide al administrador o a soporte la clave de activación. Si ya estaba activado y el servidor no responde un momento, el sistema recuerda la activación y no debería pasar. |
 | No salen comandas en Cocina o Bar | Revisa que el KDS esté abierto con "En vivo" y que la categoría del producto sea de comida (Cocina) o de bebida (Bar). |
+| ChloeRestaurant no abre o se queda en segundo plano | Espera a que termine la pantalla "Iniciando ChloeRestaurant…" (la primera vez tarda más). Si aparece un mensaje de error, toca *Reintentar*; si persiste, envía a soporte el archivo `%APPDATA%\chloerestaurant\main.log`. |
 | No imprime | Verifica la impresora en *Datos de la Empresa → Estaciones & Despacho* y que esté encendida y con papel. |
 | "La base de datos no está actualizada" | Avisa a soporte: falta aplicar una actualización en el servidor. |
 

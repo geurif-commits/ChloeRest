@@ -4,7 +4,7 @@
  * Configurable vía variables de entorno.
  */
 
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 /** Rate limiter para endpoints de login y autenticación (más restrictivo). */
 export const loginLimiter = rateLimit({
@@ -14,7 +14,8 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   message: { ok: false, error: 'Demasiados intentos. Intenta de nuevo en unos minutos.', code: 'RATE_LIMITED' },
   keyGenerator: (req) => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    // ipKeyGenerator agrupa las direcciones IPv6 por subred: sin él, quien tenga un bloque IPv6 evade el límite.
+    const ip = ipKeyGenerator(req.ip || req.socket.remoteAddress || 'unknown');
     const deviceId = String(req.headers['x-device-id'] || '');
     return deviceId ? `${ip}:${deviceId}` : ip;
   },

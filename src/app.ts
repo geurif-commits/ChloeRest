@@ -122,7 +122,7 @@ export const createApp = (): Express => {
       const mem = process.memoryUsage();
       res.json({
         estado: 'ok',
-        version: '2.3.0',
+        version: '2.3.1',
         baseDeDatos: 'conectada',
         migracion: ultimaMig,
         zonaHorariaBd,
@@ -139,7 +139,7 @@ export const createApp = (): Express => {
       });
       res.status(503).json({
         estado: 'error',
-        version: '2.3.0',
+        version: '2.3.1',
         baseDeDatos: 'degradada',
         telegram: telegramActivo() ? 'activo' : 'inactivo',
       });

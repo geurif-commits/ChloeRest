@@ -72,6 +72,7 @@ y reiniciar la aplicación. Hacerlo antes de acumular historial (los datos ya gu
 3. **Firma de código:** sin firma, Windows SmartScreen muestra "editor desconocido". Con un certificado de firma de código (OV/EV) definir `CSC_LINK` (ruta o base64 del `.pfx`) y `CSC_KEY_PASSWORD` antes de `npm run dist`; `electron-builder` firma solo.
 4. Publicar la versión: **primero** subir el instalador y definir `APP_DOWNLOAD_URL` y `APP_UPDATE_NOTES` en el servidor central, y **después** desplegar. `/api/app/version` informa la versión del `package.json` del servidor; si se despliega antes, los equipos ya instalados muestran "hay una nueva versión" sin enlace de descarga.
 5. Probar en un equipo limpio: instalación, activación con clave, apertura de caja, cobro, impresión de ticket y respaldo (*Datos de la Empresa → Respaldos → Crear respaldo ahora*).
+6. **Si la aplicación no abre:** al arrancar aparece una pantalla de "Iniciando ChloeRestaurant…" (la primera vez puede tardar minutos porque instala la base de datos). Si algo falla se muestra una ventana con el motivo y los botones *Reintentar* y *Cerrar*; el detalle técnico queda en `%APPDATA%\chloerestaurant\main.log`. El servidor local usa el puerto **3000**; si otra aplicación lo ocupa (por ejemplo otro servidor de desarrollo) usa el siguiente libre (3001…3010) y lo anota en el log: los demás equipos de la red deben conectarse a ese puerto. La app solo abre una instancia a la vez.
 
 ## 7. Pruebas
 

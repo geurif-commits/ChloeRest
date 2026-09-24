@@ -137,6 +137,23 @@ export const normalizarUrl = (url) => {
   }
 };
 
+/*
+ * URL del servidor local de la edición Windows. El propio servidor sirve la interfaz, así que su origen
+ * indica el puerto real: normalmente 3000, pero si otra aplicación lo ocupa el instalador usa el siguiente
+ * libre. Desde el respaldo local (file://) se asume el 3000.
+ */
+export const urlLocalElectron = () => {
+  if (
+    typeof window !== 'undefined' &&
+    /^https?:$/.test(window.location.protocol) &&
+    esHostLocal(window.location.hostname) &&
+    window.location.port
+  ) {
+    return window.location.origin;
+  }
+  return `http://127.0.0.1:${PUERTO_API_LOCAL}`;
+};
+
 export const getApiUrl = () => {
 
   /*
@@ -169,7 +186,7 @@ export const getApiUrl = () => {
   // La edición Windows/Electron es autónoma: nunca debe heredar una URL
   // guardada por la edición web o por una instalación LAN anterior.
   if (esElectron()) {
-    const local = `http://127.0.0.1:${PUERTO_API_LOCAL}`;
+    const local = urlLocalElectron();
     localStorage.setItem(URL_KEY, local);
     localStorage.removeItem(LEGACY_KEYS[0]);
     return local;

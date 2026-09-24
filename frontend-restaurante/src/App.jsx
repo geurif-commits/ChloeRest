@@ -24,7 +24,8 @@ import {
   getApiUrl,
   setApiUrl as guardarApiUrl,
   clearApiUrl,
-  esElectronApp
+  esElectronApp,
+  urlLocalElectron
 } from './configApi.js';
 
 import { aplicarPersonalizacion } from './personalizacion.js';
@@ -614,7 +615,7 @@ const navegarRuta = (ruta) => {
   const limpiarServidor = () => {
     if (esElectronApp()) {
       clearApiUrl();
-      setApiUrl('http://127.0.0.1:3000');
+      setApiUrl(urlLocalElectron());
     } else {
       setApiUrl(window.location.origin);
     }
