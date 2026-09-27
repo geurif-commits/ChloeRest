@@ -355,7 +355,9 @@ const navegarRuta = (ruta) => {
           setConfigSistema(data);
           setConfigNegocio(negocioData);
           setServidorOnline(true);
-          aplicarPersonalizacion(data, negocioData);
+          // Renombrar la pestaña con el nombre del negocio solo en un equipo ya activado: en la
+          // landing pública (visitante sin activar) taparía el título pensado para buscadores.
+          aplicarPersonalizacion(data, negocioData, { renombrarPestana: dispositivoActivado === true });
         }
       } catch (e) {
         console.error('Error cargando configuración:', e);

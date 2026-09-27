@@ -61,7 +61,7 @@ export function fijarTemaSistema(id) {
  *  - tema activo (data-theme / data-paleta) y estilo del login (data-login-skin)
  *  - colores de mesa como variables CSS (:root)
  */
-export function aplicarPersonalizacion(config, negocioConfig) {
+export function aplicarPersonalizacion(config, negocioConfig, { renombrarPestana = true } = {}) {
   if (!config) return;
   temaServidor = normalizarTema(config.tema_activo || leer('POS_THEME'));
 
@@ -91,7 +91,9 @@ export function aplicarPersonalizacion(config, negocioConfig) {
     document.head.appendChild(style);
   }
 
-  if (config.nombre_negocio) {
+  // Nunca en la landing pública (equipo sin activar): pisaría el <title> pensado para buscadores
+  // ("ChloeRestaurant Multiempresa By BMTECHRD | ...") con el nombre por defecto ("Mi Restaurante").
+  if (renombrarPestana && config.nombre_negocio) {
     document.title = `${config.nombre_negocio} - Sistema de Gestión`;
   }
 
