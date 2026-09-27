@@ -19,6 +19,7 @@
     "test": "vitest run",
     "seed:e2e": "node scripts/seed-e2e.mjs",
     "verify:deploy": "node scripts/verify-deploy.mjs",
+    "seo:indexnow": "node scripts/indexnow-submit.mjs",
     "test:e2e": "npm run build:server:win && node scripts/e2e-completo.mjs",
     "test:integration": "npm run build:server:win && node scripts/integration-runner.mjs",
     "test:db-security": "node scripts/check-database-security.mjs",

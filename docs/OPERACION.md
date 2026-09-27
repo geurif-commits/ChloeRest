@@ -82,3 +82,21 @@ y reiniciar la aplicación. Hacerlo antes de acumular historial (los datos ya gu
 | `npm run test:e2e` | Extremo a extremo contra una BD **local** (dinero, roles, turnos, respaldos). Requiere `E2E_ADMIN_PIN` y `E2E_DEVICE_ID`; en CI se prepara con `npm run seed:e2e` |
 | `npm run test:db-security` / `npm run test:rls-runtime` | Todas las tablas por negocio con RLS y aislamiento real |
 | `npm run backup:verify` | Restauración de un respaldo en una base temporal |
+
+## 8. Posicionamiento en buscadores (SEO)
+
+El `<title>`, la descripción, el `sitemap.xml` y los datos estructurados viven en `frontend-restaurante/index.html` y `frontend-restaurante/public/`. Después de cualquier despliegue con cambios ahí:
+
+1. **Avisar a Bing/Yandex/Seznam/Naver (sin iniciar sesión en nada):**
+   ```bash
+   npm run seo:indexnow
+   ```
+   Envía las URLs del sitemap a [IndexNow](https://www.indexnow.org/); primero comprueba que `https://chloerestaurant.lat/01fea755e3f9d5523831d3c07fbaf9c2.txt` ya esté desplegado (si no, avisa y no envía nada). **Google no participa en IndexNow.**
+2. **Google Search Console (requiere tu cuenta de Google — no lo puede hacer un agente):**
+   - Entra a [search.google.com/search-console](https://search.google.com/search-console) con la cuenta dueña de la verificación (`google-site-verification` en `index.html`) y confirma que la propiedad `https://chloerestaurant.lat` esté verificada.
+   - *Sitemaps* → agrega `sitemap.xml`.
+   - *Inspección de URLs* → pega `https://chloerestaurant.lat/` → **Solicitar indexación**.
+3. **Bing Webmaster Tools** (opcional, además de IndexNow): [bing.com/webmasters](https://www.bing.com/webmasters) → puedes importar la propiedad directamente desde Google Search Console.
+4. **Al menos un enlace entrante real** (redes sociales, Google Business Profile, un directorio de negocios): sin ningún enlace apuntando al dominio, a los buscadores les cuesta mucho más encontrarlo por su cuenta.
+
+Ver `docs/AUDITORIA_FINAL_2026-09-21.md` y el hallazgo del 2026-09-27 en `ESTADO_DEL_SISTEMA.md` §12e: el `<title>` de SEO se pisaba con "Mi Restaurante - Sistema de Gestión" en cualquier visitante (no solo equipos activados), lo que probablemente impedía indexar el título real. Ya está corregido; falta desplegarlo.
