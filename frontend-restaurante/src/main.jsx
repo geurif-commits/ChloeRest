@@ -11,17 +11,6 @@ instalarFetchAutenticado()
 // foco del S.O. y el tecleo manual en cualquier campo deja de registrarse. El renderer
 // no puede recuperar ese foco por script (Chromium lo bloquea), así que se pide la
 // reactivación real al proceso principal y se reintenta el foco del elemento activo.
-const encontrarElementoEnfocable = () => {
-  const candidatos = document.querySelectorAll('input, textarea, select, button, [tabindex]:not([tabindex="-1"])');
-  for (const el of candidatos) {
-    const estilo = window.getComputedStyle(el);
-    if (el.disabled || el.hidden || estilo.display === 'none' || estilo.visibility === 'hidden' || estilo.opacity === '0') continue;
-    const rect = el.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) return el;
-  }
-  return null;
-};
-
 // Guarda el elemento activo antes de que alert() lo pierda
 let _elementoAntesDeLlamada = null;
 const reintentarFoco = () => {
@@ -39,13 +28,13 @@ const reintentarFoco = () => {
     }
     // 3. Foca el body como último recurso para devolver control al DOM
     document.body.focus();
-  } catch (e) { /* ignorar */ }
+  } catch { /* ignorar */ }
 };
 
 const restaurarFoco = () => {
   try {
     if (window.electronPOS?.reenfocarVentana) window.electronPOS.reenfocarVentana();
-  } catch (e) { /* ignorar */ }
+  } catch { /* ignorar */ }
   reintentarFoco();
   setTimeout(reintentarFoco, 100);
   setTimeout(reintentarFoco, 300);

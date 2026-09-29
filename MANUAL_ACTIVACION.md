@@ -14,8 +14,8 @@ El sistema se activa por **dispositivo**. Cada pantalla/terminal debe ingresar s
 
 | Dato | Valor | Dónde se configura |
 |------|-------|--------------------|
-| **PIN del Propietario** (acceso universal del dueño) | `012011` | Variable `OWNER_PIN` en el `.env` |
-| **Clave Maestra** (firma base de la instalación) | `CHLOE-8VQ5K-R9CK9-8H8B8-FTGUA` | Variable `LICENSE_ACTIVATION_KEY` en el `.env` |
+| **PIN del Propietario** (acceso universal del dueño) | Definido por el cliente | Variable `OWNER_PIN` en el `.env` |
+| **Clave Maestra** (firma base de la instalación) | Definida por el cliente | Variable `LICENSE_ACTIVATION_KEY` en el `.env` |
 
 > **PIN del Propietario**: se usa desde el botón **"Propietario"** de la pantalla
 > de inicio. Con él entras al panel universal del dueño (planes, precios, claves,
@@ -42,10 +42,10 @@ Estas claves fueron **generadas con la firma real de tu instalación**
 | 6 meses | `6M` | `CHLOE-6M-347AA-44FCB-B1011-19864` |
 | 12 meses (1 año) | `12M` | `CHLOE-12M-3608B-B09E6-9B819-86320` |
 | 24 meses (2 años) | `24M` | `CHLOE-24M-1FFDD-8CDBE-BA18B-0315F` |
-| **Vitalicia** (Clave Maestra) | `L` | `CHLOE-L-398E1-F163A-1088A-1ECFD` |
+| **Vitalicia** (Clave Maestra) | `L` | (se genera en el Panel del Propietario) |
 
-> La **Clave Maestra** `CHLOE-8VQ5K-R9CK9-8H8B8-FTGUA` también funciona y equivale
-> a la **Vitalicia** `CHLOE-L-398E1-F163A-1088A-1ECFD`.
+> La **Clave Maestra** (la que defines en `LICENSE_ACTIVATION_KEY`) también funciona y equivale
+> a la **Vitalicia** (que se genera una sola vez en el Panel del Propietario).
 
 ---
 
@@ -53,7 +53,7 @@ Estas claves fueron **generadas con la firma real de tu instalación**
 
 1. Instala ChloeRestaurant en la terminal (escritorio o web).
 2. En la pantalla de inicio, haz clic en **"Propietario"**.
-3. Ingresa el **PIN del Propietario**: `012011`.
+3. Ingresa el **PIN del Propietario** (el definido en `OWNER_PIN`).
 4. Ve a la pestaña **"Generar claves"**, elige la duración y pulsa **Generar clave**.
 5. Copia la clave y pégala (o escríbela) en el dispositivo que quieras activar.
 6. En el dispositivo nuevo, ingresa la clave cuando el sistema la solicite.
@@ -97,9 +97,9 @@ CHLOE-12M-3608B-B09E6-9B819-86320
 ## 6. Resumen rápido (instalador / soporte)
 
 ```
-PIN del Propietario ......... 012011
-Clave Maestra ................ CHLOE-8VQ5K-R9CK9-8H8B8-FTGUA
-Clave Vitalicia .............. CHLOE-L-398E1-F163A-1088A-1ECFD
+PIN del Propietario ......... <definido por el cliente (OWNER_PIN)>
+Clave Maestra ................ <definida por el cliente (LICENSE_ACTIVATION_KEY)>
+Clave Vitalicia .............. <se genera una sola vez en el Panel del Propietario>
 Clave 1 año .................. CHLOE-12M-3608B-B09E6-9B819-86320
 Contacto ..................... (829) 969-8604 · geurig@yahoo.com
 ```

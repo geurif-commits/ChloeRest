@@ -6,7 +6,7 @@
 
 import crypto from 'node:crypto';
 import { Router, Request, Response } from 'express';
-import { route, httpError, clientIp } from '../lib/core.js';
+import { route, httpError, clientIp, constantTimeEquals } from '../lib/core.js';
 import { config } from '../lib/config.js';
 import { ROLES_ADMIN, ROLES_CAJA } from '../lib/roles.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
@@ -199,7 +199,7 @@ router.post('/api/solicitud-licencia/:id/confirmar-pago', route(async (req: Requ
     [id]
   );
   if (!sol.rowCount) {throw httpError(404, 'Solicitud no encontrada.');}
-  if (!sol.rows[0].token_pago || sol.rows[0].token_pago !== token) {
+  if (!sol.rows[0].token_pago || !constantTimeEquals(sol.rows[0].token_pago, token)) {
     throw httpError(403, 'Token de pago inválido.');
   }
   const met = await db.queryUnscoped<{ nombre: string }>(

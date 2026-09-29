@@ -15,6 +15,7 @@ import {
   assertValidPin,
   assertSixDigitPin,
   createSession,
+  deleteSession,
   firmarDuenoTok,
   hashPin,
   signSupervisorAuthorization,
@@ -23,59 +24,21 @@ import {
 import { ROLES_OPERACION } from '../lib/roles.js';
 import { UserRole } from '../types/index.js';
 import { createLogger } from '../lib/logger.js';
+import { crearTicketSse } from '../lib/sseTickets.js';
+import { getDuenoEpoch, bumpDuenoEpoch, verificarBloqueo, registrarFallo, registrarExito } from '../services/seguridadService.js';
 
 const router = Router();
 const logger = createLogger('authRouter');
 
-// ── Limitador de intentos de PIN (anti fuerza bruta) ──
-// Puerto local del loginLimiter de server.js; mismo umbral por IP que el
-// legacy: config.login.maxAttempts / windowMinutes / lockoutMinutes.
-interface IIntentoRecord {
-  count: number;
-  primerIntento: number;
-  bloqueadoHasta: number | null;
+/** Extrae el token crudo del header Authorization o de ?token=. */
+function extractRawToken(req: Request): string {
+  const header = req.get('authorization') || '';
+  if (header.startsWith('Bearer ')) {return header.slice(7);}
+  return header || String(req.query?.token || '');
 }
 
-const loginLimiter = {
-  intentos: new Map<string | null, IIntentoRecord>(),
-  maxAttempts: config.login.maxAttempts,
-  windowMs: config.login.windowMinutes * 60 * 1000,
-  lockoutMs: config.login.lockoutMinutes * 60 * 1000,
-  limpiarVencidos(): void {
-    const now = Date.now();
-    for (const [key, record] of this.intentos) {
-      if (record.bloqueadoHasta && record.bloqueadoHasta <= now) {
-        this.intentos.delete(key);
-      } else if (!record.bloqueadoHasta && now - record.primerIntento > this.windowMs) {
-        this.intentos.delete(key);
-      }
-    }
-  },
-};
-
-function verificarRateLimit(ip: string | null): void {
-  loginLimiter.limpiarVencidos();
-  const record = loginLimiter.intentos.get(ip);
-  if (!record || !record.bloqueadoHasta) {return;}
-  const restanteMin = Math.ceil((record.bloqueadoHasta - Date.now()) / 60000);
-  throw httpError(429, `Demasiados intentos fallidos. Reintenta en ${restanteMin} min.`);
-}
-
-function registrarIntentoFallido(ip: string | null): void {
-  const now = Date.now();
-  const record = loginLimiter.intentos.get(ip) || { count: 0, primerIntento: now, bloqueadoHasta: null };
-  record.count += 1;
-  if (record.count >= loginLimiter.maxAttempts) {
-    record.bloqueadoHasta = now + loginLimiter.lockoutMs;
-    record.count = 0;
-    logger.warn({ action: 'IP_BLOQUEADA_LOGIN', ip: ip || 'unknown', intentos: loginLimiter.maxAttempts });
-  }
-  loginLimiter.intentos.set(ip, record);
-}
-
-function registrarIntentoExitoso(ip: string | null): void {
-  loginLimiter.intentos.delete(ip);
-}
+// ── Anti fuerza bruta persistente (item 8): lockout en BD por IP y dispositivo ──
+// Sustituye al limitador en memoria (se perdía al reiniciar y no cubría cuenta).
 
 interface IUsuarioLoginFila {
   id: number;
@@ -109,8 +72,15 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
   const deviceId = String(req.get('x-device-id') || req.body.deviceId || '').trim();
   const pin = String(req.body.pin || '').trim();
 
-  // 1. Verificación universal del Dueño / Propietario: sin rate-limit y sin
-  // alterar el estado del dispositivo.
+  // Claves de lockout persistente: por IP y por dispositivo (item 8).
+  const claves = ['ip:' + (ip || 'unknown'), deviceId ? 'dev:' + deviceId : null];
+
+  // El PIN del propietario también debe pasar por el mismo límite. De lo
+  // contrario, el acceso universal permitiría probar PINs indefinidamente.
+  await verificarBloqueo(claves);
+
+  // 1. Verificación universal del Dueño / Propietario, sin alterar el estado
+  // del dispositivo.
   const cfg = await db.queryUnscoped<{ owner_pin_hash: string | null }>(
     'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
   );
@@ -119,7 +89,7 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
     (storedOwnerHash && verifyPin(pin, storedOwnerHash));
 
   if (esPinDueno) {
-    registrarIntentoExitoso(ip);
+    await registrarExito(claves);
     const duenoUser = {
       id: 0,
       nombre: 'Propietario / Dueño',
@@ -127,17 +97,27 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
       empresa_id: 1,
       device_id: deviceId || 'temp-owner-session',
     };
-    const session = await createSession(duenoUser);
+    // El dueño no es un registro de `usuarios` (su id virtual es 0), por lo
+    // que no debe intentar insertarse en `app_sessions`. El frontend usa
+    // `token` como credencial principal, así que ambos campos deben contener
+    // el token firmado del dueño.
+    const expiraEn = new Date(Date.now() + 12 * 3600 * 1000);
+    const tokenDueno = firmarDuenoTok({ rol: 'Dueno', exp: expiraEn.getTime(), ep: await getDuenoEpoch() });
     res.json({
-      ...session,
+      token: tokenDueno,
+      usuario: {
+        id: duenoUser.id,
+        nombre: duenoUser.nombre,
+        rol: duenoUser.rol,
+      },
+      expiraEn: expiraEn.toISOString(),
       esDueno: true,
       requiereCambioPin: false,
-      tokenDueno: firmarDuenoTok({ rol: 'Dueno', exp: Date.now() + 12 * 3600 * 1000 }),
+      tokenDueno,
     });
     return;
   }
 
-  verificarRateLimit(ip);
   assertValidPin(pin);
   if (!deviceId) {throw httpError(400, 'Identificador de dispositivo requerido.');}
 
@@ -156,11 +136,11 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
     );
     const legacyMatches = legacyAdminResult.rows.filter((candidate) => verifyPin(pin, candidate.pin_hash));
     if (!legacyMatches.length) {
-      registrarIntentoFallido(ip);
+      await registrarFallo(claves);
       res.status(401).json({ error: 'PIN de administrador inválido o dispositivo no activado.' });
       return;
     }
-    registrarIntentoExitoso(ip);
+    await registrarExito(claves);
     const admin = legacyMatches[0];
     const session = await createSession({
       id: admin.id,
@@ -182,16 +162,16 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
   // Bug-for-bug con el legacy: aquí se compara el PIN crudo del body (sin trim).
   const matches = result.rows.filter((candidate) => verifyPin(req.body.pin, candidate.pin_hash));
   if (!matches.length) {
-    registrarIntentoFallido(ip);
+    await registrarFallo(claves);
     res.status(401).json({ error: 'PIN incorrecto.' });
     return;
   }
   if (matches.length > 1) {
-    registrarIntentoFallido(ip);
+    await registrarFallo(claves);
     res.status(401).json({ error: 'PIN duplicado. Contacta al administrador.' });
     return;
   }
-  registrarIntentoExitoso(ip);
+  await registrarExito(claves);
   const user = matches[0];
   const session = await createSession({
     id: user.id,
@@ -217,6 +197,29 @@ router.get('/api/sesion/validar', requireAuth, route(async (req: Request, res: R
   });
 }));
 
+// POST /api/logout — revoca la sesión actual de inmediato (item 7).
+router.post('/api/logout', requireAuth, route(async (req: Request, res: Response) => {
+  if (req.auth!.isDueno) {
+    await bumpDuenoEpoch();
+  } else {
+    await deleteSession(extractRawToken(req));
+  }
+  res.json({ ok: true });
+}));
+
+// POST /api/sse/ticket — ticket efímero de un solo uso para EventSource (item 9).
+router.post('/api/sse/ticket', requireAuth, route(async (req: Request, res: Response) => {
+  const a = req.auth!;
+  const ticket = crearTicketSse({
+    empresaId: a.empresaId,
+    userId: a.userId,
+    nombre: a.nombre,
+    userRole: a.userRole,
+    isDueno: a.isDueno,
+  });
+  res.json({ ticket, expiraEn: new Date(Date.now() + 60000).toISOString() });
+}));
+
 // PATCH /api/usuarios/mi-pin (cambio de PIN del usuario en sesión)
 router.patch('/api/usuarios/mi-pin', requireAuth, route(async (req: Request, res: Response) => {
   const db = getDatabase();
@@ -232,7 +235,8 @@ router.patch('/api/usuarios/mi-pin', requireAuth, route(async (req: Request, res
 router.post('/api/autorizar', requireAuth, requireRoles(...ROLES_OPERACION), route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const ip = clientIp(req);
-  verificarRateLimit(ip);
+  const claves = ['ip:' + (ip || 'unknown')];
+  await verificarBloqueo(claves);
   const detailId = positiveInteger(req.body.detalle_id, 'Detalle');
   assertSixDigitPin(req.body.pin);
 
@@ -241,11 +245,11 @@ router.post('/api/autorizar', requireAuth, requireRoles(...ROLES_OPERACION), rou
   );
   const supervisor = result.rows.find((candidate) => verifyPin(req.body.pin, candidate.pin_hash));
   if (!supervisor) {
-    registrarIntentoFallido(ip);
+    await registrarFallo(claves);
     res.status(403).json({ error: 'PIN inválido o sin permisos de supervisor.' });
     return;
   }
-  registrarIntentoExitoso(ip);
+  await registrarExito(claves);
   const token = signSupervisorAuthorization({ supervisorId: supervisor.id, action: 'ANULAR_DETALLE', detailId });
   await registrarAuditoria(db, {
     usuarioId: supervisor.id,

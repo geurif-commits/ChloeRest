@@ -1,0 +1,448 @@
+<title>Recorrido ChloeRestaurant</title>
+<style>
+:root{
+  color-scheme:dark;
+  --night:#0a1024; --night-2:#131d40; --night-border:#2a3765;
+  --cream:#f4f1ea; --cream-2:#fbfaf6; --cream-border:#e0d9c8;
+  --ink:#111a33; --ink-muted:#4a5470; --ink-dim:#5c6480;
+  --fog:#f3f6ff; --fog-2:#b9c4e6; --fog-3:#8f9bc0;
+  --blue-light:#2f5fe0; --blue-dark:#5b8cff; --gold:#ecbc4a;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--night);font-family:'Inter',Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.player{position:relative;height:100dvh;width:100%;overflow:hidden}
+.stage{position:absolute;inset:0}
+.frame{position:absolute;inset:0;display:flex;align-items:center;opacity:0;pointer-events:none;transform:translateY(14px) scale(.99);transition:opacity .7s ease,transform .7s ease}
+.frame.active{opacity:1;pointer-events:auto;transform:translateY(0) scale(1)}
+.frame--dark{background:radial-gradient(circle at 85% 10%,#1f3373,var(--night) 62%);color:var(--fog)}
+.frame--light{background:var(--cream);color:var(--ink)}
+.frame-inner{width:100%;max-width:1180px;max-height:100%;overflow-y:auto;margin:0 auto;padding:0 6vw 96px;display:flex;flex-direction:column;gap:22px;scrollbar-width:none}
+.frame-inner::-webkit-scrollbar{display:none}
+.frame-row{display:flex;align-items:center;gap:56px;flex-wrap:wrap}
+.frame-row .txt{flex:1;min-width:280px;display:flex;flex-direction:column;gap:18px}
+.eyebrow{font-size:13px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+.frame--dark .eyebrow{color:var(--blue-dark)}
+.frame--light .eyebrow{color:var(--blue-light)}
+h1.display{font-size:clamp(30px,5vw,58px);font-weight:800;line-height:1.08;letter-spacing:-1px;margin:0}
+h1.display em{font-style:italic;color:var(--gold)}
+.frame--dark h1.display{color:var(--fog)}
+.frame--light h1.display{color:var(--ink)}
+p.lede{font-size:clamp(16px,1.6vw,20px);line-height:1.5;margin:0;max-width:640px}
+.frame--dark p.lede{color:var(--fog-2)}
+.frame--light p.lede{color:var(--ink-muted)}
+.script{display:flex;align-items:flex-start;gap:14px;font-size:clamp(15px,1.35vw,18px);line-height:1.55;max-width:660px;padding-top:6px}
+.frame--dark .script{color:var(--fog-2)}
+.frame--light .script{color:var(--ink-muted)}
+.eq{display:flex;gap:3px;align-items:flex-end;height:18px;flex:none;margin-top:5px;opacity:0}
+.frame.active .eq.speaking{opacity:1}
+.eq span{width:3px;background:var(--gold);border-radius:2px;animation:eq 1s ease-in-out infinite}
+.eq span:nth-child(1){height:6px;animation-delay:0s}
+.eq span:nth-child(2){height:14px;animation-delay:.15s}
+.eq span:nth-child(3){height:9px;animation-delay:.3s}
+.eq span:nth-child(4){height:16px;animation-delay:.1s}
+@keyframes eq{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+.hero-wrap{flex:none;width:min(46vw,560px);border-radius:20px;overflow:hidden;box-shadow:0 30px 70px rgba(10,16,36,.4)}
+.frame--light .hero-wrap{border:1px solid var(--cream-border)}
+.frame--dark .hero-wrap{border:1px solid var(--night-border)}
+.hero-wrap img{display:block;width:100%;height:100%;object-fit:cover;animation:kenburns 20s ease-in-out infinite alternate}
+@media (prefers-reduced-motion:reduce){.hero-wrap img{animation:none}}
+@keyframes kenburns{from{transform:scale(1.06)}to{transform:scale(1.16) translate(-1.5%,-1.5%)}}
+.cards{display:flex;gap:18px;flex-wrap:wrap}
+.card{flex:1;min-width:180px;border-radius:18px;padding:26px;display:flex;flex-direction:column;gap:10px}
+.frame--light .card{background:var(--cream-2);border:1px solid var(--cream-border)}
+.frame--dark .card{background:var(--night-2);border:1px solid var(--night-border)}
+.card .num{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+.frame--light .card .num{background:var(--blue-light);color:#fff}
+.frame--dark .card .num{background:var(--gold);color:#2a1c02}
+.card h3{margin:0;font-size:19px;font-weight:700}
+.card p{margin:0;font-size:14.5px;line-height:1.4}
+.frame--light .card p{color:var(--ink-dim)}
+.frame--dark .card p{color:var(--fog-2)}
+.dual-img{display:flex;gap:20px}
+.dual-img figure{margin:0;flex:1;display:flex;flex-direction:column;gap:8px}
+.dual-img img{width:100%;border-radius:14px;border:1px solid var(--night-border);display:block;object-fit:cover;height:220px}
+.dual-img figcaption{font-size:13px;color:var(--fog-2)}
+.pricetag{display:flex;gap:14px;flex-wrap:wrap}
+.plan{padding:16px 20px;border-radius:14px;background:var(--cream-2);border:1px solid var(--cream-border);min-width:120px}
+.plan b{display:block;font-size:15px}
+.plan span{font-size:13px;color:var(--ink-dim);font-style:italic}
+.logo-row{display:flex;align-items:center;gap:14px}
+.logo-row img{width:44px;height:44px;border-radius:12px}
+.logo-row b{font-size:18px}
+.badge{display:inline-flex;align-self:flex-start;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:1px solid;border-radius:999px;padding:7px 16px}
+.frame--dark .badge{color:var(--blue-dark);border-color:var(--night-border)}
+.progress-rail{position:absolute;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,.12);z-index:20}
+.progress-fill{height:100%;width:0%;background:var(--gold);transition:width .15s linear}
+.gate{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:var(--night);text-align:center;padding:24px}
+.gate.hidden{display:none}
+.gate p{margin:0;color:var(--fog-3);font-size:14px;max-width:420px}
+.gate-title{color:var(--fog);font-size:clamp(24px,4vw,38px);font-weight:800;max-width:600px;line-height:1.2}
+.btn-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.play-btn{background:var(--gold);color:#2a1c02;border:none;border-radius:999px;padding:18px 34px;font-size:17px;font-weight:800;cursor:pointer}
+.play-btn:hover{filter:brightness(1.07)}
+.ghost-btn{background:transparent;color:var(--fog);border:1px solid var(--night-border);border-radius:999px;padding:18px 30px;font-size:15px;font-weight:600;cursor:pointer}
+.ghost-btn:hover{background:rgba(255,255,255,.06)}
+.controls{position:absolute;left:0;right:0;bottom:0;z-index:20;display:flex;align-items:center;gap:14px;padding:16px 24px;background:linear-gradient(to top,rgba(10,16,36,.92),rgba(10,16,36,0));transform:translateY(0);transition:transform .3s ease}
+.controls[hidden]{display:none}
+.iconbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#fff;width:40px;height:40px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}
+.iconbtn:hover{background:rgba(255,255,255,.16)}
+.chapter-label{color:var(--fog);font-size:13px;white-space:nowrap}
+.chapter-label b{color:var(--fog)}
+.spacer{flex:1}
+.dots{display:flex;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);border:none;cursor:pointer;padding:0}
+.dot.on{background:var(--gold);width:20px;border-radius:4px;transition:width .2s ease}
+.hint{position:absolute;top:18px;right:22px;z-index:20;font-size:11px;color:var(--fog-3);letter-spacing:1px;text-transform:uppercase;opacity:.7}
+@media (max-height:620px){
+  .frame-inner{gap:14px}
+  h1.display{font-size:clamp(24px,4.2vw,40px)}
+  .hero-wrap{display:none}
+}
+@media (max-width:760px){
+  .frame-row{gap:26px}
+  .frame-row .txt{order:2}
+  .hero-wrap{order:1;width:100%;max-height:38vh}
+  .frame-inner{padding:0 22px;gap:14px}
+  .controls{flex-wrap:wrap;padding:12px 16px}
+  .chapter-label{order:5;width:100%;text-align:center}
+  .hint{display:none}
+}
+</style>
+
+<div class="player" id="player">
+  <div class="progress-rail" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="hint">Recorrido narrado</div>
+
+  <div class="stage" id="stage">
+
+    <section class="frame frame--dark" data-title="Apertura">
+      <div class="frame-inner">
+        <div class="logo-row"><img src="/_blob/99e3854734dd5bcaa0bee4c44dbb24e4" alt=""><b>ChloeRestaurant</b></div>
+        <span class="badge">POS integral para restaurantes</span>
+        <h1 class="display">Tu restaurante, <em>bajo control</em> desde la primera mesa.</h1>
+        <div class="frame-row">
+          <div class="txt">
+            <div class="script"><span data-narr>ChloeRestaurant es un sistema punto de venta pensado para restaurantes dominicanos: mesas, comandas, cocina y bar, caja y reportes, todo en un solo lugar. Te muestro cómo funciona.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+          </div>
+          <div class="hero-wrap"><img src="/_blob/04515ffccb90c7a4eaacfee428ee26d7" alt="Mapa de mesas de ChloeRestaurant en tema oscuro zafiro"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="frame frame--light" data-title="El problema">
+      <div class="frame-inner">
+        <p class="eyebrow">El punto de partida</p>
+        <h1 class="display" style="max-width:820px">Donde se pierde tiempo y dinero en el día a día</h1>
+        <div class="cards">
+          <div class="card"><div class="num">1</div><h3>Comandas que se pierden</h3><p>Pedidos en papel o de palabra: se olvidan y llegan tarde a la cocina.</p></div>
+          <div class="card"><div class="num">2</div><h3>Cocina y bar desconectados</h3><p>Sin una pantalla por área, cada plato depende de que alguien avise.</p></div>
+          <div class="card"><div class="num">3</div><h3>Caja y reportes a mano</h3><p>Cuadres, comprobantes y reportes fiscales que consumen horas del dueño.</p></div>
+        </div>
+        <div class="script"><span data-narr>En el día a día de un restaurante se pierde tiempo y dinero en tres frentes: las comandas que se olvidan o se entienden mal, la cocina y el bar que dependen de que alguien avise, y los cuadres de caja y reportes fiscales que consumen horas del dueño cada semana.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+      </div>
+    </section>
+
+    <section class="frame frame--dark" data-title="La solución">
+      <div class="frame-inner">
+        <p class="eyebrow">La solución</p>
+        <h1 class="display" style="max-width:900px">Un solo sistema, del pedido al cierre</h1>
+        <div class="cards">
+          <div class="card"><h3>Mesas y comandero</h3><p>Mapa en vivo y pedidos desde PC, tablet o celular.</p></div>
+          <div class="card"><h3>Cocina y bar</h3><p>Cada comanda llega a su pantalla, sola.</p></div>
+          <div class="card"><h3>Caja</h3><p>Efectivo, tarjeta o transferencia, con NCF.</p></div>
+          <div class="card"><h3>Reportes</h3><p>Ventas, cierres y 606 / 607 para la DGII.</p></div>
+        </div>
+        <div class="script"><span data-narr>ChloeRestaurant conecta todo el recorrido de una venta: la mesa, la comanda, la cocina o el bar, el cobro y el reporte. Cada tarjeta de estas es un módulo que verás a continuación.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+      </div>
+    </section>
+
+    <section class="frame frame--light" data-title="Mesas y comandas">
+      <div class="frame-inner">
+        <div class="frame-row">
+          <div class="txt">
+            <p class="eyebrow">Mesas y comandas</p>
+            <h1 class="display">Del salón a la cocina en un toque</h1>
+            <div class="script"><span data-narr>Cada mesa muestra si está libre, ocupada o reservada, cuánto tiempo lleva abierta y cuánto se ha consumido. El camarero arma el pedido por categorías, con el término de cocción, la guarnición o una nota. Funciona igual en una computadora, una tablet o el celular del mesero.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+          </div>
+          <div class="hero-wrap"><img src="/_blob/bd8cccc000adb15927eb47b7ebb72231" alt="Mapa de mesas en tema marfil dorado"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="frame frame--dark" data-title="Cocina y bar">
+      <div class="frame-inner">
+        <p class="eyebrow">Cocina y bar</p>
+        <h1 class="display">Cada área con su propia pantalla</h1>
+        <div class="dual-img">
+          <figure><img src="/_blob/bc1da4f92b371a0af2f49ef788308012" alt="Pantalla de Cocina con comandas pendientes"><figcaption>KDS Cocina · alimentos</figcaption></figure>
+          <figure><img src="/_blob/f7bce9ee015c9b91ca32ebd72044b08c" alt="Pantalla de Bar con bebidas pendientes"><figcaption>KDS Bar · bebidas</figcaption></figure>
+        </div>
+        <div class="script"><span data-narr>Cada comanda se separa sola: lo que es comida llega a la pantalla de Cocina, lo que es bebida llega a la de Bar. Cada área ve el tiempo de espera y despacha plato por plato o la mesa completa, en vivo.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+      </div>
+    </section>
+
+    <section class="frame frame--light" data-title="Caja y fiscalidad">
+      <div class="frame-inner">
+        <div class="frame-row">
+          <div class="txt">
+            <p class="eyebrow">Caja y fiscalidad</p>
+            <h1 class="display">Caja y cumplimiento fiscal dominicano</h1>
+            <div class="script"><span data-narr>La caja se abre con un fondo inicial y no permite cobrar sin abrirla. El cobro acepta efectivo, tarjeta, transferencia o pago mixto, en pesos, dólares o euros. Se puede dividir la cuenta y aplicar un descuento con motivo registrado, y los comprobantes y los reportes 606 y 607 quedan listos para la DGII.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+          </div>
+          <div class="hero-wrap"><img src="/_blob/5f167085ef5243b86ebb3badbfff3061" alt="Panel administrativo con el centro de mando"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="frame frame--dark" data-title="Tu equipo">
+      <div class="frame-inner">
+        <div class="frame-row">
+          <div class="hero-wrap"><img src="/_blob/283f18477ad73f55ee224461cc6120c1" alt="Pantalla de acceso con el modo Marcar turno"></div>
+          <div class="txt">
+            <p class="eyebrow">Tu equipo</p>
+            <h1 class="display">Personal con control</h1>
+            <div class="script"><span data-narr>Cada empleado ficha su entrada y su salida con su propio PIN, desde la misma pantalla de acceso. El sistema asigna el turno uno o el turno dos según la hora y avisa si alguien llega tarde. Tres roles: administrador, cajero y camarero, cada uno con lo suyo.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="frame frame--light" data-title="Personalización y seguridad">
+      <div class="frame-inner">
+        <p class="eyebrow">Personalización y seguridad</p>
+        <h1 class="display" style="max-width:920px">Se ve como tu negocio, protegido por dentro</h1>
+        <div class="cards">
+          <div class="card"><h3>Tres temas</h3><p>Marfil Dorado, Oscuro Zafiro y Oscuro Esmeralda, con tu logo y tu fondo.</p></div>
+          <div class="card"><h3>PIN cifrado</h3><p>Se guarda con hash scrypt, nunca en texto plano.</p></div>
+          <div class="card"><h3>Datos aislados</h3><p>Seguridad por fila: cada negocio ve solo lo suyo.</p></div>
+        </div>
+        <div class="script"><span data-narr>El sistema se ve como tu negocio: tres temas, tu logo, tu fondo y hasta un protector de pantalla propio. Por dentro, la seguridad está en el diseño: PIN cifrados, bloqueo por intentos fallidos, y cada negocio aislado de los demás.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+      </div>
+    </section>
+
+    <section class="frame frame--dark" data-title="Modelo de licencias">
+      <div class="frame-inner">
+        <p class="eyebrow">Modelo de licencias</p>
+        <h1 class="display">Licencias simples, por equipo</h1>
+        <div class="pricetag">
+          <div class="plan"><b>Mensual</b><span>Consultar</span></div>
+          <div class="plan"><b>Trimestral</b><span>Consultar</span></div>
+          <div class="plan"><b>Semestral</b><span>Consultar</span></div>
+          <div class="plan"><b>Anual</b><span>Consultar</span></div>
+          <div class="plan"><b>Bianual</b><span>Consultar</span></div>
+          <div class="plan"><b>Vitalicia</b><span>Consultar</span></div>
+        </div>
+        <div class="script"><span data-narr>Cada equipo se activa con su propia clave, y el propietario puede renovar, revocar o reactivar licencias desde su panel. Hay seis planes, de mensual a vitalicio, con precio preferencial de lanzamiento: pregúntale a tu asesor comercial.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+      </div>
+    </section>
+
+    <section class="frame frame--light" data-title="Distribución e instalación">
+      <div class="frame-inner">
+        <p class="eyebrow">Propuesta y despliegue</p>
+        <h1 class="display" style="max-width:920px">De un restaurante piloto a todo el país</h1>
+        <div class="cards">
+          <div class="card"><h3>Piloto y aliados</h3><p>Un primer grupo de restaurantes, luego distribuidores por zona.</p></div>
+          <div class="card"><h3>En Windows</h3><p>Instalador con servidor y base de datos locales, e impresión térmica.</p></div>
+          <div class="card"><h3>En el navegador</h3><p>PC, tablet o celular dentro de la red del negocio.</p></div>
+        </div>
+        <div class="script"><span data-narr>La idea es ir por fases: un piloto con los primeros restaurantes, aliados por zona en todo el país y soporte con manual y mesa de ayuda. La instalación es sencilla: en Windows con servidor propio, o desde el navegador en cualquier equipo de la red del negocio.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+      </div>
+    </section>
+
+    <section class="frame frame--dark" data-title="Cierre">
+      <div class="frame-inner">
+        <div class="logo-row"><img src="/_blob/99e3854734dd5bcaa0bee4c44dbb24e4" alt=""><b>ChloeRestaurant</b></div>
+        <h1 class="display" style="max-width:1000px">Llevemos <em>ChloeRestaurant</em> a todo el país.</h1>
+        <div class="frame-row">
+          <div class="txt">
+            <p class="lede">Hablemos de tu zona y de tu primer restaurante piloto.</p>
+            <div style="border-left:3px solid var(--gold);padding-left:20px;display:flex;flex-direction:column;gap:4px">
+              <b style="font-size:20px">chloerestaurant.lat</b>
+              <span style="color:var(--fog-2);font-size:14px">Solicita una demostración con tu asesor comercial</span>
+            </div>
+            <div class="script"><span data-narr>Si quieres llevar ChloeRestaurant a tu zona, hablemos de tu primer restaurante piloto. Visítanos en chloerestaurant punto lat y solicita una demostración con tu asesor comercial. Gracias por tu tiempo.</span><span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span></div>
+          </div>
+          <div class="hero-wrap" style="width:min(30vw,300px)"><img src="/_blob/98ff51677fad2c276c4301965ee46f17" alt="Comandero móvil en el celular" style="height:420px"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="gate" id="gate">
+    <div class="gate-title">Recorrido narrado de ChloeRestaurant</div>
+    <p>Once escenas, con la voz de tu navegador leyendo cada una. También puedes verlo sin sonido: todo el texto queda visible en pantalla.</p>
+    <div class="btn-row">
+      <button class="play-btn" id="startBtn">Reproducir con narración</button>
+      <button class="ghost-btn" id="startSilentBtn">Ver sin voz</button>
+    </div>
+  </div>
+
+  <div class="controls" id="controls" hidden>
+    <button class="iconbtn" id="prevBtn" aria-label="Anterior">‹</button>
+    <button class="iconbtn" id="playPauseBtn" aria-label="Pausar">❚❚</button>
+    <button class="iconbtn" id="nextBtn" aria-label="Siguiente">›</button>
+    <div class="chapter-label"><b id="chapIdx">1</b> / <span id="chapTotal">11</span> · <span id="chapTitle">Apertura</span></div>
+    <div class="spacer"></div>
+    <div class="dots" id="dots"></div>
+    <button class="iconbtn" id="muteBtn" aria-label="Silenciar">🔊</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var frames = Array.prototype.slice.call(document.querySelectorAll('.frame'));
+  var total = frames.length;
+  document.getElementById('chapTotal').textContent = total;
+  var dotsEl = document.getElementById('dots');
+  frames.forEach(function(f, i){
+    var d = document.createElement('button');
+    d.className = 'dot';
+    d.setAttribute('aria-label', 'Ir a ' + (f.dataset.title || ('escena ' + (i + 1))));
+    d.addEventListener('click', function(){ goTo(i, true); });
+    dotsEl.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(dotsEl.children);
+
+  var idx = 0, playing = false, muted = false, voiceReady = false, chosenVoice = null;
+  var fallbackTimer = null, progressRaf = null, progressStart = 0, progressDur = 6000;
+  var gate = document.getElementById('gate');
+  var controls = document.getElementById('controls');
+  var progressFill = document.getElementById('progressFill');
+  var playPauseBtn = document.getElementById('playPauseBtn');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var speechOk = 'speechSynthesis' in window;
+
+  function loadVoices(){
+    if (!speechOk) return;
+    var voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
+    var es = voices.filter(function(v){ return /^es/i.test(v.lang); });
+    chosenVoice = es.find(function(v){ return /419|us|do|mx/i.test(v.lang + v.name); }) || es[0] || null;
+    voiceReady = true;
+  }
+  if (speechOk) {
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  function render(){
+    frames.forEach(function(f, i){ f.classList.toggle('active', i === idx); });
+    dots.forEach(function(d, i){ d.classList.toggle('on', i === idx); });
+    document.getElementById('chapIdx').textContent = idx + 1;
+    document.getElementById('chapTitle').textContent = frames[idx].dataset.title || '';
+    var eqs = frames[idx].querySelectorAll('.eq');
+    eqs.forEach(function(e){ e.classList.toggle('speaking', playing && !muted); });
+  }
+
+  function stopProgress(){
+    if (progressRaf) cancelAnimationFrame(progressRaf);
+    progressRaf = null;
+  }
+  function startProgress(durMs){
+    stopProgress();
+    progressStart = performance.now();
+    progressDur = durMs;
+    progressFill.style.width = '0%';
+    function tick(t){
+      var pct = Math.min(100, ((t - progressStart) / progressDur) * 100);
+      progressFill.style.width = pct + '%';
+      if (pct < 100 && playing) progressRaf = requestAnimationFrame(tick);
+    }
+    progressRaf = requestAnimationFrame(tick);
+  }
+
+  function speakOrTime(){
+    var text = frames[idx].querySelector('[data-narr]').textContent.trim();
+    var wordMs = Math.max(4200, Math.min(15000, (text.split(/\s+/).length / 150) * 60000));
+    if (speechOk && !muted) {
+      try {
+        window.speechSynthesis.cancel();
+        var utt = new SpeechSynthesisUtterance(text);
+        utt.lang = 'es-419';
+        if (chosenVoice) utt.voice = chosenVoice;
+        utt.rate = 1;
+        utt.onend = function(){ if (playing) advance(); };
+        utt.onerror = function(){ if (playing) advance(); };
+        window.speechSynthesis.speak(utt);
+        startProgress(Math.max(wordMs, 3000));
+        return;
+      } catch (e) { /* fall through to timer */ }
+    }
+    startProgress(wordMs);
+    fallbackTimer = setTimeout(function(){ if (playing) advance(); }, wordMs);
+  }
+
+  function clearAudio(){
+    if (speechOk) { try { window.speechSynthesis.cancel(); } catch(e){} }
+    if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+    stopProgress();
+  }
+
+  function advance(){
+    clearAudio();
+    if (idx >= total - 1) { pause(); return; }
+    idx += 1;
+    render();
+    if (playing) speakOrTime();
+  }
+
+  function goTo(i, userInitiated){
+    clearAudio();
+    idx = Math.max(0, Math.min(total - 1, i));
+    render();
+    if (playing || userInitiated) {
+      if (!playing) play();
+      else speakOrTime();
+    }
+  }
+
+  function play(){
+    playing = true;
+    playPauseBtn.textContent = '❚❚';
+    playPauseBtn.setAttribute('aria-label', 'Pausar');
+    render();
+    speakOrTime();
+  }
+  function pause(){
+    playing = false;
+    clearAudio();
+    playPauseBtn.textContent = '▶';
+    playPauseBtn.setAttribute('aria-label', 'Reproducir');
+    render();
+  }
+  function togglePlay(){ playing ? pause() : play(); }
+
+  document.getElementById('prevBtn').addEventListener('click', function(){ goTo(idx - 1, true); });
+  document.getElementById('nextBtn').addEventListener('click', function(){ goTo(idx + 1, true); });
+  document.getElementById('playPauseBtn').addEventListener('click', togglePlay);
+  document.getElementById('muteBtn').addEventListener('click', function(){
+    muted = !muted;
+    this.textContent = muted ? '🔇' : '🔊';
+    if (speechOk) { try { window.speechSynthesis.cancel(); } catch(e){} }
+    if (playing) speakOrTime();
+    render();
+  });
+
+  function begin(withVoice){
+    muted = !withVoice;
+    document.getElementById('muteBtn').textContent = muted ? '🔇' : '🔊';
+    gate.classList.add('hidden');
+    controls.hidden = false;
+    render();
+    play();
+  }
+  document.getElementById('startBtn').addEventListener('click', function(){ begin(true); });
+  document.getElementById('startSilentBtn').addEventListener('click', function(){ begin(false); });
+
+  document.addEventListener('keydown', function(e){
+    if (gate && !gate.classList.contains('hidden')) return;
+    if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowRight') goTo(idx + 1, true);
+    else if (e.key === 'ArrowLeft') goTo(idx - 1, true);
+  });
+
+  render();
+})();
+</script>

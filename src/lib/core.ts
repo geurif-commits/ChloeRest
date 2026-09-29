@@ -3,6 +3,7 @@
  * Universal helpers: error handling, money, validators
  */
 
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
 import { IErrorResponse, IMoney } from '../types/index.js';
 
@@ -252,10 +253,31 @@ export function money(value: unknown): number {
 }
 
 /**
+ * Compara dos textos en tiempo constante (secretos y tokens): el tiempo de respuesta no revela
+ * cuántos caracteres coinciden. Quien la use debe descartar antes los valores vacíos.
+ */
+export function constantTimeEquals(a: unknown, b: unknown): boolean {
+  const ha = createHash('sha256').update(String(a ?? '')).digest();
+  const hb = createHash('sha256').update(String(b ?? '')).digest();
+  return timingSafeEqual(ha, hb);
+}
+
+/**
  * IP del cliente desde la petición (req.ip respeta 'trust proxy'). Puerto de lib/core.js.
  */
 export function clientIp(req: Request): string | null {
   return req.ip || req.socket.remoteAddress || null;
+}
+
+/**
+ * true si la petición llega por el propio equipo (loopback) y no a través de un proxy.
+ * Protege operaciones de instalación inicial que no deben abrirse a la red. Un proxy en el mismo
+ * equipo que no envíe X-Forwarded-For parecería local: en un servidor así se define OWNER_PIN.
+ */
+export function esPeticionLocal(req: Request): boolean {
+  const origen = req.socket?.remoteAddress || '';
+  const esLoopback = /^(::1|127(\.\d{1,3}){3}|::ffff:127(\.\d{1,3}){3})$/.test(origen);
+  return esLoopback && !req.headers['x-forwarded-for'] && !req.headers.forwarded;
 }
 
 /**

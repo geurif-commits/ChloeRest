@@ -135,6 +135,8 @@ ChloeRestaurant/
 
 ### Fiscal Integration (DGII)
 
+> **Estado regulatorio:** la integración DGII/ECF está implementada técnicamente, pero permanece **pendiente de certificación y homologación oficial ante la DGII**. No debe presentarse como certificada ni utilizarse como sustituto de la validación fiscal oficial hasta completar ese proceso.
+
 - Report 606 (purchases)
 - Report 607 (sales)
 - ECF (Electronic Control Fiscal)

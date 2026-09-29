@@ -1,0 +1,329 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   CHLOE PREMIUM — sistema de diseño (tokens de los tres temas)
+   Se carga al final y expone la escala --px-* que consumen las pantallas.
+   Temas (ver personalizacion.js):
+     · Marfil Dorado   → data-theme="claro-luxury-gold"        (claro)
+     · Oscuro Zafiro   → data-theme="negro-brillante"          (oscuro)
+     · Oscuro Esmeralda→ data-theme="negro-brillante" data-paleta="esmeralda"
+   "gold" es el color de marca de cada tema; se conserva el nombre por compatibilidad
+   con temas guardados y con la personalización por negocio.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --font-family: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: var(--font-family);
+  --px-font-ui: var(--font-family);
+  --px-font-display: var(--font-display);
+
+  --px-r-xs: 8px;
+  --px-r-sm: 12px;
+  --px-r-md: 18px;
+  --px-r-lg: 24px;
+  --px-r-xl: 28px;
+  --px-r-pill: 999px;
+
+  --px-ease: cubic-bezier(.22, 1, .36, 1);
+  --px-t-fast: 140ms var(--px-ease);
+  --px-t: 240ms var(--px-ease);
+  --px-t-slow: 420ms var(--px-ease);
+
+  --px-topbar-h: 72px;
+  --px-gutter: clamp(16px, 2.4vw, 32px);
+}
+
+/* ───────────────────────── CLARO · Marfil Dorado ───────────────────────── */
+:root[data-theme="claro-luxury-gold"] {
+  color-scheme: light;
+  --bg-base: #f2ede3;
+  --bg-primary: #f8f4ec;
+  --bg-secondary: #eee7d9;
+  --bg-panel: #fffdf9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #fbf6ea;
+  --bg-hover: #f6efdf;
+  --bg-tertiary: #ece3d1;
+  --bg-input-hover: #fbf7ee;
+  --bg-overlay: rgba(36, 26, 10, .48);
+  --bg-gradient:
+    radial-gradient(1100px 520px at 12% -8%, rgba(222, 176, 82, .16), transparent 62%),
+    radial-gradient(900px 480px at 100% 0%, rgba(166, 116, 40, .07), transparent 58%),
+    var(--bg-base);
+
+  --white: #1d1810;
+  --text-primary: #1d1810;
+  --text-secondary: #55473a;
+  --text-muted: #726450;
+  --text-dim: #766b58;
+  --text-dimmed: #766b58;
+  --dim: #766b58;
+  --text-disabled: #bdb2a0;
+
+  --border-subtle: rgba(64, 44, 12, .08);
+  --border-light: rgba(64, 44, 12, .12);
+  --border-medium: rgba(64, 44, 12, .19);
+  --border-strong: rgba(64, 44, 12, .32);
+  --border-focus: #a9761b;
+  --border-gold: rgba(169, 118, 27, .42);
+
+  --gold: #835b15;
+  --gold-light: #c9962f;
+  --gold-bright: #e6bc5a;
+  --gold-dark: #7d5510;
+  --gold-deep: #6a460b;
+  --gold-soft: rgba(169, 118, 27, .10);
+  --gold-glow: rgba(201, 150, 47, .28);
+  --gold-champagne: #b98a2f;
+  --text-on-accent: #ffffff;
+  --accent: #835b15;
+  --accent-hover: #6a460b;
+
+  --green: #166a49; --green-light: #2f9a72; --green-dark: #135b3f; --green-soft: rgba(28, 124, 87, .10);
+  --red: #a8332a; --red-light: #d24f44; --red-dark: #8f2820; --red-soft: rgba(184, 58, 48, .09);
+  --orange: #b7791f; --orange-soft: rgba(183, 121, 31, .11);
+  --blue: #2f5f9a; --blue-light: #4a7bb8; --blue-soft: rgba(47, 95, 154, .09);
+  --success: var(--green); --danger: var(--red); --warning: var(--orange);
+
+  --shadow-xs: 0 1px 2px rgba(60, 40, 10, .06);
+  --shadow-sm: 0 2px 8px rgba(60, 40, 10, .07), 0 1px 2px rgba(60, 40, 10, .05);
+  --shadow-md: 0 10px 28px rgba(60, 40, 10, .10), 0 2px 6px rgba(60, 40, 10, .05);
+  --shadow-lg: 0 22px 56px rgba(60, 40, 10, .14), 0 4px 12px rgba(60, 40, 10, .06);
+  --shadow-gold: 0 8px 24px rgba(201, 150, 47, .24);
+
+  --px-canvas: #f2ede3;
+  --px-surface: #fffdf9;
+  --px-surface-2: #f7f1e5;
+  --px-raised: #ffffff;
+  --px-ink: #1d1810;
+  --px-ink-2: #55473a;
+  --px-ink-3: #726450;
+  --px-line: rgba(64, 44, 12, .10);
+  --px-line-2: rgba(64, 44, 12, .18);
+  --px-gold: #835b15;
+  --px-gold-ink: #6a460b;
+  --px-gold-soft: rgba(169, 118, 27, .10);
+  --px-gold-grad: #986a18;
+  --px-gold-grad-hover: #7d5510;
+  --px-on-gold: #ffffff;
+  --px-ok: #166a49;
+  --px-warn: #b7791f;
+  --px-bad: #b83a30;
+  --px-info: #2f5f9a;
+  --px-glass: rgba(255, 253, 249, .8);
+  --px-hero: radial-gradient(900px 420px at 88% -10%, rgba(226, 180, 90, .26), transparent 60%), linear-gradient(180deg, #fbf7ee 0%, #f2ede3 100%);
+  --px-shadow-1: 0 1px 2px rgba(60, 40, 10, .06), 0 1px 1px rgba(60, 40, 10, .04);
+  --px-shadow-2: 0 14px 30px -14px rgba(60, 40, 10, .22);
+  --px-shadow-3: 0 30px 70px -24px rgba(60, 40, 10, .32);
+  --px-inset: inset 0 1px 0 rgba(255, 255, 255, .9);
+
+  --brand-ink: #2b2010;
+  --kpi-gold: var(--gold); --kpi-green: var(--green); --kpi-red: var(--red); --kpi-blue: var(--blue); --kpi-cyan: var(--blue); --kpi-amber: var(--orange);
+
+  --mesa-disponible: #1c7c57;
+  --mesa-ocupada: #b83a30;
+  --mesa-reservada: #b7791f;
+  --mesa-tone-mix: black;
+  --mesa-tone-pct: 10%;
+}
+
+/* ───────────────────────── OSCURO · Zafiro ─────────────────────────────── */
+:root[data-theme="negro-brillante"] {
+  color-scheme: dark;
+
+  --bg-base: #081022;
+  --bg-primary: #0b1530;
+  --bg-secondary: #14213f;
+  --bg-panel: #0f1a36;
+  --bg-card: #0f1a36;
+  --bg-card-hover: #14213f;
+  --bg-hover: #182848;
+  --bg-elevated: #14213f;
+  --bg-tertiary: #1c2d52;
+  --bg-input: #0a1329;
+  --bg-input-hover: #0f1a36;
+  --bg-overlay: rgba(3, 6, 16, .8);
+  --bg-gradient:
+    radial-gradient(900px 420px at 100% -6%, #10265c, transparent 70%),
+    var(--bg-base);
+
+  --white: #e8eefc;
+  --text-primary: #e8eefc;
+  --text-secondary: #b1bfdc;
+  --text-muted: #8b9cc0;
+  --text-dim: #8a9abf;
+  --text-dimmed: #8a9abf;
+  --dim: #4d5e84;
+  --text-disabled: #364566;
+
+  --border-subtle: rgba(170, 195, 255, .06);
+  --border-light: rgba(170, 195, 255, .10);
+  --border-medium: rgba(170, 195, 255, .15);
+  --border-strong: rgba(170, 195, 255, .26);
+  --border-focus: #7aa8ff;
+  --border-gold: rgba(94, 148, 255, .5);
+
+  /* "gold" = color de marca: zafiro */
+  --gold: #5e94ff;
+  --gold-light: #8fb4ff;
+  --gold-bright: #b5cdff;
+  --gold-dark: #3a72e8;
+  --gold-deep: #244fb0;
+  --gold-soft: #14295c;
+  --gold-glow: rgba(94, 148, 255, .3);
+  --gold-champagne: #8fb4ff;
+  --text-on-accent: #051233;
+  --accent: #5e94ff;
+  --accent-hover: #8fb4ff;
+
+  --green: #4fd6a0; --green-light: #7fe6be; --green-dark: #2fb383; --green-soft: #0f3026;
+  --red: #ff8f85; --red-light: #ffb0a8; --red-dark: #e66b60; --red-soft: #3a1c22;
+  --orange: #f3b95f; --orange-soft: #3a2c14;
+  --blue: #86a9ff; --blue-light: #a9c2ff; --blue-soft: #16295c;
+  --success: var(--green); --danger: var(--red); --warning: var(--orange);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .45);
+  --shadow-md: 0 14px 30px -14px rgba(0, 0, 0, .75);
+  --shadow-lg: 0 30px 64px -20px rgba(0, 0, 0, .8);
+  --shadow-gold: 0 10px 26px -10px rgba(94, 148, 255, .45);
+
+  --px-canvas: #081022;
+  --px-surface: #0f1a36;
+  --px-surface-2: #14213f;
+  --px-raised: #14213f;
+  --px-ink: #e8eefc;
+  --px-ink-2: #b1bfdc;
+  --px-ink-3: #8b9cc0;
+  --px-line: rgba(170, 195, 255, .10);
+  --px-line-2: rgba(170, 195, 255, .22);
+  --px-gold: #5e94ff;
+  --px-gold-ink: #8fb4ff;
+  --px-gold-soft: #14295c;
+  --px-gold-grad: #5e94ff;
+  --px-gold-grad-hover: #8fb4ff;
+  --px-on-gold: #051233;
+  --px-ok: #4fd6a0;
+  --px-warn: #f3b95f;
+  --px-bad: #ff8f85;
+  --px-info: #86a9ff;
+  --px-glass: rgba(15, 26, 54, .82);
+  --px-hero: radial-gradient(900px 420px at 100% -6%, #10265c, transparent 70%), #081022;
+  --px-shadow-1: 0 1px 2px rgba(0, 0, 0, .45);
+  --px-shadow-2: 0 14px 30px -14px rgba(0, 0, 0, .75);
+  --px-shadow-3: 0 34px 70px -24px rgba(0, 0, 0, .85);
+  --px-inset: inset 0 1px 0 rgba(255, 255, 255, .04);
+
+  --brand-ink: #0b1a3d;
+  --kpi-gold: var(--gold); --kpi-green: var(--green); --kpi-red: var(--red); --kpi-blue: var(--blue); --kpi-cyan: var(--blue); --kpi-amber: var(--orange);
+
+  --mesa-disponible: #4fd6a0;
+  --mesa-ocupada: #ffb066;
+  --mesa-reservada: #c39bff;
+  --mesa-tone-mix: white;
+  --mesa-tone-pct: 8%;
+}
+
+/* ───────────────────────── OSCURO · Esmeralda ──────────────────────────── */
+:root[data-theme="negro-brillante"][data-paleta="esmeralda"] {
+  --bg-base: #0e1411;
+  --bg-primary: #111914;
+  --bg-secondary: #1b2720;
+  --bg-panel: #16201a;
+  --bg-card: #16201a;
+  --bg-card-hover: #1b2720;
+  --bg-hover: #1f2c24;
+  --bg-elevated: #1b2720;
+  --bg-tertiary: #24332a;
+  --bg-input: #101813;
+  --bg-input-hover: #16201a;
+  --bg-overlay: rgba(4, 8, 6, .78);
+  --bg-gradient:
+    radial-gradient(900px 420px at 100% -6%, #173425, transparent 70%),
+    var(--bg-base);
+
+  --white: #eef4ef;
+  --text-primary: #eef4ef;
+  --text-secondary: #b3c1b8;
+  --text-muted: #90a196;
+  --text-dim: #90a196;
+  --text-dimmed: #90a196;
+  --dim: #55665c;
+  --text-disabled: #3a4a41;
+
+  --border-subtle: rgba(238, 244, 239, .05);
+  --border-light: rgba(238, 244, 239, .09);
+  --border-medium: rgba(238, 244, 239, .14);
+  --border-strong: rgba(238, 244, 239, .24);
+  --border-focus: #6aa7ff;
+  --border-gold: rgba(70, 194, 131, .45);
+
+  --gold: #46c283;
+  --gold-light: #6fdba1;
+  --gold-bright: #9be8bf;
+  --gold-dark: #2fa06a;
+  --gold-deep: #1f7a4f;
+  --gold-soft: #173425;
+  --gold-glow: rgba(70, 194, 131, .28);
+  --gold-champagne: #6fdba1;
+  --text-on-accent: #052112;
+  --accent: #46c283;
+  --accent-hover: #6fdba1;
+
+  --green: #66d99b; --green-light: #8ae6b4; --green-dark: #3fb578; --green-soft: #153020;
+  --red: #ff8f85; --red-light: #ffb0a8; --red-dark: #e66b60; --red-soft: #3a1c1a;
+  --orange: #f3b95f; --orange-soft: #3a2c12;
+  --blue: #86a9ff; --blue-light: #a9c2ff; --blue-soft: #172448;
+
+  --shadow-gold: 0 10px 26px -10px rgba(70, 194, 131, .4);
+
+  --px-canvas: #0e1411;
+  --px-surface: #16201a;
+  --px-surface-2: #1b2720;
+  --px-raised: #1b2720;
+  --px-ink: #eef4ef;
+  --px-ink-2: #b3c1b8;
+  --px-ink-3: #90a196;
+  --px-line: rgba(238, 244, 239, .09);
+  --px-line-2: rgba(238, 244, 239, .2);
+  --px-gold: #46c283;
+  --px-gold-ink: #6fdba1;
+  --px-gold-soft: #173425;
+  --px-gold-grad: #46c283;
+  --px-gold-grad-hover: #6fdba1;
+  --px-on-gold: #052112;
+  --px-ok: #66d99b;
+  --px-warn: #f3b95f;
+  --px-bad: #ff8f85;
+  --px-info: #86a9ff;
+  --px-glass: rgba(22, 32, 26, .8);
+  --px-hero: radial-gradient(900px 420px at 100% -6%, #173425, transparent 70%), #0e1411;
+
+  --brand-ink: #0f2a1b;
+
+  --mesa-disponible: #66d99b;
+  --mesa-ocupada: #86a9ff;
+  --mesa-reservada: #f3b95f;
+}
+
+
+/* Sin data-theme (primer pintado): escala oscura para evitar destellos */
+:root:not([data-theme]) {
+  --px-canvas: #081022; --px-surface: #0f1a36; --px-surface-2: #14213f; --px-raised: #14213f;
+  --px-ink: #e8eefc; --px-ink-2: #b1bfdc; --px-ink-3: #8b9cc0;
+  --px-line: rgba(170, 195, 255, .10); --px-line-2: rgba(170, 195, 255, .22);
+  --px-gold: #5e94ff; --px-gold-ink: #8fb4ff; --px-gold-soft: #14295c;
+  --px-gold-grad: #5e94ff; --px-gold-grad-hover: #8fb4ff;
+  --px-on-gold: #051233; --px-ok: #4fd6a0; --px-warn: #f3b95f; --px-bad: #ff8f85; --px-info: #86a9ff;
+  --px-shadow-1: 0 1px 2px rgba(0, 0, 0, .45); --px-shadow-2: 0 14px 30px -14px rgba(0, 0, 0, .75); --px-shadow-3: 0 34px 70px -24px rgba(0, 0, 0, .85);
+  --px-inset: inset 0 1px 0 rgba(255, 255, 255, .04);
+  --px-glass: rgba(15, 26, 54, .82);
+  --px-hero: #081022;
+  --mesa-tone-mix: white; --mesa-tone-pct: 8%;
+}
+
+:root[data-theme="claro-luxury-gold"],
+:root[data-theme="negro-brillante"] {
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text-primary);
+}
+

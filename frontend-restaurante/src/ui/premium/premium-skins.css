@@ -1,0 +1,35 @@
+/* Estilos de la pantalla de login y del PinPad (tres opciones).
+   Se activan con <html data-login-skin="sistema|medianoche|bosque"> (ver personalizacion.js).
+   "sistema" es el diseño base y sigue el tema activo; "medianoche" (azul noche) y "bosque" (verde) fuerzan su propia paleta oscura. */
+
+:root[data-login-skin="medianoche"] :is(.lg, .gate) {
+  color-scheme: dark;
+  --px-canvas: #070b18; --px-surface: #0d1426; --px-surface-2: #121b33; --px-raised: #121b33;
+  --px-ink: #eaf0ff; --px-ink-2: #b4c0e0; --px-ink-3: #7e8db3;
+  --px-line: rgba(160, 185, 255, .10); --px-line-2: rgba(160, 185, 255, .22);
+  --px-ok: #5fe0b0; --px-warn: #f3b95f; --px-bad: #ff8f85; --px-info: #9db8ff;
+  --px-shadow-1: 0 1px 2px rgba(0, 0, 0, .5); --px-shadow-2: 0 14px 30px -14px rgba(0, 0, 0, .75); --px-shadow-3: 0 34px 70px -24px rgba(0, 0, 0, .85);
+  --gold: #5b8cff; --gold-light: #9db8ff; --gold-dark: #3f6fe6; --gold-soft: rgba(91, 140, 255, .14);
+  --text-on-accent: #061024; --brand-ink: #0a1024;
+  --bg-tertiary: #1a2542; --bg-overlay: rgba(2, 4, 12, .8);
+  --green-soft: rgba(95, 224, 176, .12); --blue-soft: rgba(157, 184, 255, .14); --orange-soft: rgba(243, 185, 95, .13); --red-soft: rgba(255, 143, 133, .13);
+  --green: #5fe0b0; --blue: #9db8ff; --orange: #f3b95f; --red: #ff8f85;
+}
+:root[data-login-skin="medianoche"] .lg-brand { --b-text: #e6ecff; --b-text-2: #97a8d6; --b-acc: #9db8ff; }
+:root[data-login-skin="medianoche"] .lg-brand::before,
+:root[data-login-skin="medianoche"] .lg-brand::after { border-color: rgba(157, 184, 255, .12); }
+
+:root[data-login-skin="bosque"] :is(.lg, .gate) {
+  color-scheme: dark;
+  --px-canvas: #0e1411; --px-surface: #16201a; --px-surface-2: #1b2720; --px-raised: #1b2720;
+  --px-ink: #eef4ef; --px-ink-2: #b3c1b8; --px-ink-3: #83948a;
+  --px-line: rgba(238, 244, 239, .09); --px-line-2: rgba(238, 244, 239, .2);
+  --px-ok: #66d99b; --px-warn: #f3b95f; --px-bad: #ff8f85; --px-info: #86a9ff;
+  --px-shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --px-shadow-2: 0 14px 30px -14px rgba(0, 0, 0, .7); --px-shadow-3: 0 34px 70px -24px rgba(0, 0, 0, .8);
+  --gold: #46c283; --gold-light: #6fdba1; --gold-dark: #2fa06a; --gold-soft: #173425;
+  --text-on-accent: #052112; --brand-ink: #0f2a1b;
+  --bg-tertiary: #24332a; --bg-overlay: rgba(4, 8, 6, .78);
+  --green-soft: #153020; --blue-soft: #172448; --orange-soft: #3a2c12; --red-soft: #3a1c1a;
+  --green: #66d99b; --blue: #86a9ff; --orange: #f3b95f; --red: #ff8f85;
+}
+:root[data-login-skin="bosque"] .lg-brand { --b-text: #e8f3ec; --b-text-2: #a9c4b4; --b-acc: #66d99b; }

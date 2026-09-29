@@ -29,6 +29,7 @@ interface IFacturaConItemsFila {
   camarero_nombre: string | null;
   cajero_nombre: string | null;
   subtotal: string | null;
+  descuento: string | null;
   itbis: string | null;
   propina: string | null;
   total: string | null;
@@ -148,6 +149,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
       u.nombre AS camarero_nombre,
       j.nombre AS cajero_nombre,
       c.subtotal,
+      c.descuento,
       c.itbis,
       c.propina,
       c.total,
@@ -276,7 +278,7 @@ router.get('/api/reportes/cierre', requireAuth, requireRoles(...ROLES_CAJA), rou
       "SELECT COALESCE(monto_inicial, 0) AS monto_inicial FROM aperturas_caja WHERE fecha::date = CURRENT_DATE AND estado = 'Abierta' ORDER BY id DESC LIMIT 1"
     ),
   ]);
-  const montoInicial = Number(apertura.rows[0].monto_inicial || 0);
+  const montoInicial = Number(apertura.rows[0]?.monto_inicial || 0);
   res.json({
     totalesGenerales: totals.rows[0],
     desgloseMetodos: methods.rows,

@@ -28,9 +28,10 @@ describe('construirECF', () => {
     expect(enc.IdDoc.eNCF).toBe('E320000000001');
     expect(enc.Emisor.RNCEmisor).toBe('131000001');
     expect(enc.Comprador.RNCComprador).toBe('40212345678');
-    expect(enc.Totales.MontoGravadoTotal).toBe(169.49);
-    expect(enc.Totales.TotalITBIS).toBe(30.51);
-    expect(enc.Totales.MontoTotal).toBe(200);
+    // Precios sin ITBIS: 2 x 100 = 200 gravado + 18 % de ITBIS.
+    expect(enc.Totales.MontoGravadoTotal).toBe(200);
+    expect(enc.Totales.TotalITBIS).toBe(36);
+    expect(enc.Totales.MontoTotal).toBe(236);
     expect(eCF.ECF.DetallesItems.Item.length).toBe(1);
   });
 

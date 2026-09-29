@@ -41,11 +41,15 @@ try {
      VALUES (1, 1, FALSE) ON CONFLICT (id) DO NOTHING`,
   );
   const owner = await db.queryUnscoped('SELECT owner_pin_hash FROM configuracion_sistema WHERE id = 1');
-  const ownerHash = owner.rows[0]?.owner_pin_hash || hashPin(config.ownerPin || config.bootstrapAdminPin || '012011');
+  // Sin fallback hardcodeado: si no hay PIN en env, se genera uno aleatorio de 6 dígitos
+  // (se imprime para que el operador pueda ingresar; nunca un valor por defecto conocido).
+  const ownerPin = config.ownerPin || String(100000 + Math.floor(Math.random() * 900000));
+  const ownerHash = owner.rows[0]?.owner_pin_hash || hashPin(ownerPin);
   await db.queryUnscoped(
     'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2 WHERE id = 1',
-    [ownerHash, String(config.ownerPin || config.bootstrapAdminPin || '012011').length],
+    [ownerHash, String(ownerPin).length],
   );
+  const adminPin = config.bootstrapAdminPin || String(100000 + Math.floor(Math.random() * 900000));
   await db.queryUnscoped(
     `INSERT INTO empresas (id, nombre, slug, estado)
      VALUES (1, 'LEGACY', 'legacy', 'Activa')
@@ -54,8 +58,10 @@ try {
   await db.queryUnscoped(
     `INSERT INTO usuarios (empresa_id, nombre, rol, pin, pin_hash, requiere_cambio_pin, estado)
      VALUES (1, 'Administrador Sistema', 'Administrador', NULL, $1, FALSE, 'Activo')`,
-    [hashPin(config.bootstrapAdminPin || '012011')],
+    [hashPin(adminPin)],
   );
+  if (!config.ownerPin) {console.log(`PIN PROPIETARIO generado: ${ownerPin}`);}
+  if (!config.bootstrapAdminPin) {console.log(`PIN ADMINISTRADOR generado: ${adminPin}`);}
   console.log('RESET_OK: datos operativos eliminados; empresa LEGACY y administrador preservados.');
 } finally {
   await db.end?.();

@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sanitizarEntero } from '../utils/input.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
 import {
   FileText, Send, History, Settings, Save, ArrowLeft, Pencil, Trash2,
-  Plus, AlertCircle, CheckCircle, Clock, RefreshCw, Download, BarChart3, Database
+  Plus, AlertCircle, CheckCircle, Clock, RefreshCw, Download, BarChart3
 } from 'lucide-react';
 
 function GestionNCF({ alVolver, apiUrl }) {
@@ -35,14 +35,17 @@ function GestionNCF({ alVolver, apiUrl }) {
     proveedor_ecf: 'algoback',
     algoback_api_key: '',
     algoback_url: 'https://api-dgii.algoback.com/ecf/procesar-factura',
-    algoback_ambiente: 'TEST'
+    algoback_ambiente: 'TEST',
+    email_mseller: '',
+    password_mseller: '',
+    api_key_mseller: ''
   });
   const [guardandoEcf, setGuardandoEcf] = useState(false);
 
   const [cuentaIdEcf, setCuentaIdEcf] = useState('');
   const [enviandoEcf, setEnviandoEcf] = useState(false);
   const [historialEcf, setHistorialEcf] = useState([]);
-  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [, setCargandoHistorial] = useState(false);
   const [subPestañaEcf, setSubPestañaEcf] = useState('config');
 
   const [reporteAnio, setReporteAnio] = useState(new Date().getFullYear());
@@ -67,23 +70,30 @@ function GestionNCF({ alVolver, apiUrl }) {
     }
   };
 
-  const descargarReporte607Txt = () => {
-    const token = localStorage.getItem('token') || '';
-    window.open(`${urlBase}/api/dgii/reporte-607?anio=${reporteAnio}&mes=${reporteMes}&formato=txt&token=${token}`, '_blank');
+  // Descarga autenticada por header (item 9): sin token en la URL.
+  const descargarReporte = async (tipo) => {
+    try {
+      const res = await fetch(`${urlBase}/api/dgii/reporte-${tipo}?anio=${reporteAnio}&mes=${reporteMes}&formato=txt`);
+      if (!res.ok) { toastError('No se pudo descargar el reporte.'); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte-${tipo}-${reporteAnio}-${String(reporteMes).padStart(2, '0')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toastError('Error de red al descargar el reporte.');
+    }
   };
 
-  const descargarReporte606Txt = () => {
-    const token = localStorage.getItem('token') || '';
-    window.open(`${urlBase}/api/dgii/reporte-606?anio=${reporteAnio}&mes=${reporteMes}&formato=txt&token=${token}`, '_blank');
-  };
+  const descargarReporte607Txt = () => descargarReporte('607');
 
-  useEffect(() => {
-    cargarSecuencias();
-    cargarConfigEcf();
-    cargarHistorialEcf();
-  }, []);
+  const descargarReporte606Txt = () => descargarReporte('606');
 
-  const cargarHistorialEcf = async () => {
+  const cargarHistorialEcf = useCallback(async () => {
     setCargandoHistorial(true);
     try {
       const res = await fetch(urlBase + '/api/dgii/ecf/historial');
@@ -91,12 +101,12 @@ function GestionNCF({ alVolver, apiUrl }) {
         const data = await res.json();
         setHistorialEcf(Array.isArray(data) ? data : []);
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar historial e-CF:", error);
     } finally {
       setCargandoHistorial(false);
     }
-  };
+  }, [urlBase]);
 
   const enviarEcf = async () => {
     if (!cuentaIdEcf) return toastAviso("Ingresa el ID de la cuenta.");
@@ -115,38 +125,44 @@ function GestionNCF({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al enviar e-CF.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error de conexión al enviar e-CF.");
     } finally {
       setEnviandoEcf(false);
     }
   };
 
-  const cargarSecuencias = async () => {
+  const cargarSecuencias = useCallback(async () => {
     try {
       const res = await fetch(urlBase + '/api/dgii/secuencias');
       if (res.ok) {
         const data = await res.json();
         setSecuencias(Array.isArray(data) ? data : []);
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar secuencias NCF:", error);
     } finally {
       setCargando(false);
     }
-  };
+  }, [urlBase]);
 
-  const cargarConfigEcf = async () => {
+  const cargarConfigEcf = useCallback(async () => {
     try {
       const res = await fetch(urlBase + '/api/dgii/config');
       if (res.ok) {
         const data = await res.json();
         setConfigEcf((prev) => ({ ...prev, ...data }));
       }
-    } catch (error) {
+    } catch {
       console.error("Error al cargar config e-CF DGII:", error);
     }
-  };
+  }, [urlBase]);
+
+  useEffect(() => {
+    cargarSecuencias();
+    cargarConfigEcf();
+    cargarHistorialEcf();
+  }, [cargarSecuencias, cargarConfigEcf, cargarHistorialEcf]);
 
   const guardarSecuencia = async (e) => {
     e.preventDefault();
@@ -176,7 +192,7 @@ function GestionNCF({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error);
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error al guardar secuencia NCF.");
     }
   };
@@ -197,7 +213,7 @@ function GestionNCF({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al guardar configuración e-CF.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error de conexión al guardar configuración e-CF.");
     } finally {
       setGuardandoEcf(false);
@@ -220,7 +236,7 @@ function GestionNCF({ alVolver, apiUrl }) {
       try {
         const res = await fetch(urlBase + '/api/dgii/secuencias/' + id, { method: 'DELETE' });
         if (res.ok) { cargarSecuencias(); }
-      } catch (error) { toastAviso("Error al eliminar secuencia."); }
+      } catch { toastAviso("Error al eliminar secuencia."); }
     }});
   };
 
@@ -255,9 +271,13 @@ function GestionNCF({ alVolver, apiUrl }) {
     return 'RD$ ' + Number(monto).toFixed(2);
   };
 
-  const ecfAmbienteBadgeClass = configEcf.algoback_ambiente === 'PROD'
-    ? 'admin-badge admin-badge-success'
-    : 'admin-badge admin-badge-warning';
+  const ecfAmbienteBadgeClass = configEcf.proveedor_ecf === 'mseller'
+    ? (configEcf.ambiente === 'Producción' || configEcf.ambiente === 'Certificacion' ? 'admin-badge admin-badge-success' : 'admin-badge admin-badge-warning')
+    : configEcf.algoback_ambiente === 'PROD'
+      ? 'admin-badge admin-badge-success'
+      : 'admin-badge admin-badge-warning';
+
+  const nombreProveedor = configEcf.proveedor_ecf === 'mseller' ? 'MSeller ECF' : 'AlgoBack';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
@@ -430,7 +450,7 @@ function GestionNCF({ alVolver, apiUrl }) {
                             <button onClick={() => editar(item)} className="admin-btn admin-btn-secondary" style={{ padding: '5px 10px', fontSize: '0.8rem', marginRight: '6px' }}>
                               <Pencil size={14} /> Editar
                             </button>
-                            <button onClick={() => eliminar(item.id)} className="admin-btn admin-btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem' }}>
+                            <button onClick={() => eliminar(item.id)} aria-label="Eliminar secuencia" className="admin-btn admin-btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem' }}>
                               <Trash2 size={14} />
                             </button>
                           </td>
@@ -451,11 +471,13 @@ function GestionNCF({ alVolver, apiUrl }) {
                 <Settings size={20} /> Facturación Electrónica e-CF (DGII)
               </h2>
               <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0', fontSize: '0.85rem' }}>
-                Configura AlgoBack, envía comprobantes y consulta su estado.
+                Configura el proveedor de facturación electrónica ({nombreProveedor}), envía comprobantes y consulta su estado.
               </p>
             </div>
             <span className={ecfAmbienteBadgeClass}>
-              AlgoBack {configEcf.algoback_ambiente || 'TEST'}
+              {configEcf.proveedor_ecf === 'mseller'
+                ? `MSeller ${configEcf.ambiente || 'TesteCF'}`
+                : `AlgoBack ${configEcf.algoback_ambiente || 'TEST'}`}
             </span>
           </div>
 
@@ -502,6 +524,22 @@ function GestionNCF({ alVolver, apiUrl }) {
                 </div>
               </div>
 
+              <div className="admin-form-group">
+                <label className="admin-label">Proveedor de Facturación Electrónica</label>
+                <select
+                  className="admin-input"
+                  value={configEcf.proveedor_ecf}
+                  onChange={(e) => setConfigEcf({ ...configEcf, proveedor_ecf: e.target.value })}
+                >
+                  <option value="algoback">AlgoBack</option>
+                  <option value="mseller">MSeller ECF (2.º proveedor)</option>
+                </select>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '5px 0 0 0' }}>
+                  El proveedor seleccionado se usará para enviar y consultar los e-CF.
+                </p>
+              </div>
+
+              {configEcf.proveedor_ecf !== 'mseller' && (
               <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                 <h4 style={{ color: 'var(--blue)', margin: '0 0 12px 0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Settings size={16} /> AlgoBack - API Facturación Electrónica
@@ -539,11 +577,60 @@ function GestionNCF({ alVolver, apiUrl }) {
                   />
                 </div>
               </div>
+              )}
+
+              {configEcf.proveedor_ecf === 'mseller' && (
+                <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
+                  <h4 style={{ color: 'var(--blue)', margin: '0 0 12px 0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Settings size={16} /> MSeller ECF - API Facturación Electrónica
+                  </h4>
+                  <div className="admin-form-row">
+                    <div className="admin-form-group" style={{ flex: 1 }}>
+                      <label className="admin-label">Email de MSeller</label>
+                      <input
+                        type="email"
+                        className="admin-input"
+                        placeholder="cuenta@mseller.app"
+                        value={configEcf.email_mseller}
+                        onChange={(e) => setConfigEcf({ ...configEcf, email_mseller: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-form-group" style={{ flex: 1 }}>
+                      <label className="admin-label">Password de MSeller</label>
+                      <input
+                        type="password"
+                        className="admin-input"
+                        placeholder="••••••••"
+                        value={configEcf.password_mseller}
+                        onChange={(e) => setConfigEcf({ ...configEcf, password_mseller: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="admin-form-group" style={{ marginTop: '10px' }}>
+                    <label className="admin-label">API Key de MSeller</label>
+                    <input
+                      type="password"
+                      className="admin-input"
+                      placeholder="X-API-KEY. Ej: MSELLER-0000-..."
+                      value={configEcf.api_key_mseller}
+                      onChange={(e) => setConfigEcf({ ...configEcf, api_key_mseller: e.target.value })}
+                    />
+                  </div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '10px 0 0 0', lineHeight: '1.5' }}>
+                    El entorno (TesteCF / CerteCF / eCF) se deriva del campo <b>Ambiente DGII</b> (Pruebas &#8594; TesteCF).
+                    Al guardar, los campos en blanco conservan los valores ya guardados en el servidor.
+                  </p>
+                </div>
+              )}
 
               <div style={{ background: 'var(--bg-base)', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <AlertCircle size={16} style={{ color: 'var(--blue)', marginTop: '2px', flexShrink: 0 }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', lineHeight: '1.4' }}>
-                  Registrarse en <a href="https://algoback.com" target="_blank" rel="noopener" style={{ color: 'var(--blue)' }}>algoback.com</a> &#8594; subir certificado .p12 &#8594; generar API Key &#8594; pegar arriba. Los comprobantes se envían vía POST con tu API Key.
+                  {configEcf.proveedor_ecf === 'mseller' ? (
+                    <>Registrarse en <a href="https://mseller.app" target="_blank" rel="noopener" style={{ color: 'var(--blue)' }}>mseller.app</a> &#8594; crear cuenta y generar API Key &#8594; pegarla arriba. El envío se realiza contra <code style={{ color: 'var(--blue)' }}>ecf.api.mseller.app</code> usando tu token de autenticación.</>
+                  ) : (
+                    <>Registrarse en <a href="https://algoback.com" target="_blank" rel="noopener" style={{ color: 'var(--blue)' }}>algoback.com</a> &#8594; subir certificado .p12 &#8594; generar API Key &#8594; pegar arriba. Los comprobantes se envían vía POST con tu API Key.</>
+                  )}
                 </p>
               </div>
 
@@ -562,7 +649,7 @@ function GestionNCF({ alVolver, apiUrl }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ background: 'var(--bg-base)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
                 <h4 style={{ color: 'var(--green)', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Send size={18} /> Enviar Comprobante e-CF a AlgoBack
+                  <Send size={18} /> Enviar Comprobante e-CF ({nombreProveedor})
                 </h4>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 15px 0' }}>
                   Ingresa el ID de una cuenta cerrada con tipo de comprobante <b style={{ color: 'var(--blue)' }}>e-CF</b> para enviarla como comprobante electrónico.
@@ -593,7 +680,7 @@ function GestionNCF({ alVolver, apiUrl }) {
               <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '10px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <AlertCircle size={16} style={{ color: 'var(--kpi-gold)', marginTop: '2px', flexShrink: 0 }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', lineHeight: '1.5' }}>
-                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a AlgoBack &#8594; 4) AlgoBack firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
+                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a {nombreProveedor} &#8594; 4) {nombreProveedor} firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
                 </p>
               </div>
             </div>
@@ -745,7 +832,7 @@ function GestionNCF({ alVolver, apiUrl }) {
             <div className="admin-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>
-                  📊 Vista Previa de Ventas Reportadas (Período: {datos607.periodo}) — RNC Emisor: {datos607.rncEmisor || 'N/D'}
+                  Vista Previa de Ventas Reportadas (Período: {datos607.periodo}) — RNC Emisor: {datos607.rncEmisor || 'N/D'}
                 </h4>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                   Total Registros: <strong>{datos607.totalRegistros}</strong>

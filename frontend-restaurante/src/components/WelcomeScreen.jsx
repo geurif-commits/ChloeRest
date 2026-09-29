@@ -3,23 +3,27 @@ import { URL_CENTRAL } from '../configApi.js';
 import {
   Building2,
   CheckCircle2,
-  CreditCard,
   KeyRound,
-  Landmark,
   Mail,
   MapPin,
   Phone,
-  Send,
   ShieldCheck,
-  Utensils,
   Wallet,
   ChevronRight,
   Loader2,
   User,
-  ArrowLeft,
-  Sparkles
+  ArrowLeft
 } from 'lucide-react';
 import './WelcomeScreen.css';
+
+const PLANES_FALLBACK = [
+  { id: 'mensual', nombre: 'Mensual', duracion_codigo: '30D', moneda: 'RD$', precio: 29 },
+  { id: 'trimestral', nombre: 'Trimestral', duracion_codigo: '90D', moneda: 'RD$', precio: 79 },
+  { id: 'semestral', nombre: 'Semestral', duracion_codigo: '6M', moneda: 'RD$', precio: 149 },
+  { id: 'anual', nombre: 'Anual', duracion_codigo: '12M', moneda: 'RD$', precio: 249, destacado: true },
+  { id: 'bianual', nombre: 'Bianual', duracion_codigo: '24M', moneda: 'RD$', precio: 449 },
+  { id: 'vitalicia', nombre: 'Vitalicia', duracion_codigo: 'L', moneda: 'RD$', precio: 499 },
+];
 
 const PROVINCIAS = [
   'Distrito Nacional', 'Azua', 'Bahoruco', 'Barahona', 'Dajabón', 'Duarte',
@@ -43,15 +47,15 @@ const etiquetaDuracion = (codigo) => {
 
 const formatearPrecio = (plan) => {
   const valor = Number(plan?.precio || 0);
-  const cifra = valor.toLocaleString('es-DO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const cifra = valor.toLocaleString('es-DO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return `${plan?.moneda || 'RD$'} ${cifra}`;
 };
 
-function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado }) {
+function WelcomeScreen({ apiUrl, alVolver, planSeleccionado }) {
   const [form, setForm] = useState({ propietario: '', negocio: '', telefono: '', email: '', provincia: 'La Romana' });
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
-  const [planes, setPlanes] = useState([]);
+  const [planes, setPlanes] = useState(PLANES_FALLBACK);
   const [plan, setPlan] = useState(planSeleccionado || null);
   const [solicitudEnviada, setSolicitudEnviada] = useState(false);
   const [metodosPago, setMetodosPago] = useState([]);
@@ -70,7 +74,7 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
       setPlanesAgotado(false);
       for (let intento = 0; intento <= 3 && !cancelado; intento += 1) {
         try {
-          const r = await fetch(`${URL_CENTRAL}/api/planes`);
+          const r = await fetch(`${apiUrl}/api/planes`);
           const d = r.ok ? await r.json() : null;
           if (cancelado) return;
           if (d && Array.isArray(d.planes) && d.planes.length > 0) {
@@ -248,10 +252,10 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
               </div>
             )}
 
-            {error && <p className="welcome-form-error" style={{ marginTop: '14px' }}>⚠️ {error}</p>}
+            {error && <p className="welcome-form-error" style={{ marginTop: '14px' }}>{error}</p>}
             {pagoConfirmado && (
               <div style={{ color: '#00f576', marginTop: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                <CheckCircle2 size={16} /> ¡Pago registrado correctamente!
+                <CheckCircle2 size={16} /> Pago reportado, pendiente de verificación
               </div>
             )}
 
@@ -317,7 +321,6 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
                   planes
                     .filter((p) => p.activo !== false)
                     .sort((a, b) => (b.destacado ? 1 : 0) - (a.destacado ? 1 : 0))
-                    .slice(0, 4)
                     .map((p) => {
                       const esSeleccionado = plan?.id === p.id;
                       return (
@@ -328,7 +331,7 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
                           className={`welcome-plan-card ${p.destacado ? 'plan-highlight' : ''} ${esSeleccionado ? 'selected' : ''}`}
                         >
                           {esSeleccionado ? (
-                            <span className="welcome-plan-badge selected" style={{ background: '#f5b842', color: '#000', fontWeight: 800 }}>✓ Seleccionado</span>
+                            <span className="welcome-plan-badge selected" style={{ background: 'var(--gold)', color: '#000', fontWeight: 800 }}>✓ Seleccionado</span>
                           ) : p.destacado ? (
                             <span className="welcome-plan-badge">Popular</span>
                           ) : null}
@@ -374,7 +377,7 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
                   </button>
                 </div>
               ) : (
-                <div className="welcome-no-plan-notice" style={{ background: 'rgba(245, 184, 61, 0.08)', border: '1px dashed rgba(245, 184, 61, 0.35)', padding: '10px 14px', borderRadius: '8px', color: '#f5b842', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <div className="welcome-no-plan-notice" style={{ background: 'color-mix(in srgb, var(--gold) 8%, transparent)', border: '1px dashed color-mix(in srgb, var(--gold) 35%, transparent)', padding: '10px 14px', borderRadius: '8px', color: 'var(--gold)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                   <KeyRound size={15} style={{ flexShrink: 0 }} />
                   <span>Favor seleccionar el plan que más se ajuste a sus necesidades en la lista.</span>
                 </div>
@@ -475,7 +478,7 @@ function WelcomeScreen({ apiUrl, config, alContinuar, alVolver, planSeleccionado
                   </div>
                 </div>
 
-                {error && <div className="welcome-form-error">⚠️ {error}</div>}
+                {error && <div className="welcome-form-error">{error}</div>}
 
                 <button type="submit" disabled={guardando} className="welcome-btn-submit">
                   {guardando ? (

@@ -1,0 +1,335 @@
+<title>Guía ChloeRestaurant</title>
+<style>
+:root{
+  --cream:#f4f1ea; --cream-2:#ffffff; --cream-border:#e3ddcf;
+  --ink:#111a33; --ink-2:#2c3554; --ink-muted:#5c6480; --ink-dim:#7d84a0;
+  --blue:#2451c9; --blue-bg:#eaf0ff;
+  --gold:#a4770c; --gold-bg:#fbf1d9;
+  --teal:#0f7a6c; --teal-bg:#e4f5f1;
+  --navy:#111a33; --navy-bg:#e8eaf2;
+  --gray:#5c6480; --gray-bg:#eceef4;
+  --danger:#b3261e; --danger-bg:#fdecea;
+  --page-bg:var(--cream); --panel-bg:var(--cream-2); --border:var(--cream-border);
+  --text:var(--ink); --text-muted:var(--ink-muted);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --page-bg:#0a1024; --panel-bg:#131d40; --border:#2a3765;
+    --text:#f3f6ff; --text-muted:#b9c4e6;
+    --blue-bg:#1a2550; --gold-bg:#3a2e10; --teal-bg:#0f2e29; --navy-bg:#1c2648; --gray-bg:#1c2648; --danger-bg:#3a1414;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --page-bg:#0a1024; --panel-bg:#131d40; --border:#2a3765;
+  --text:#f3f6ff; --text-muted:#b9c4e6;
+  --blue-bg:#1a2550; --gold-bg:#3a2e10; --teal-bg:#0f2e29; --navy-bg:#1c2648; --gray-bg:#1c2648; --danger-bg:#3a1414;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page-bg);color:var(--text);font-family:'Inter',Arial,sans-serif;padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+h1,h2,h3{text-wrap:balance;margin:0}
+.shell{display:flex;min-height:100vh}
+.side{width:288px;flex:none;border-right:1px solid var(--border);padding:24px 16px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:var(--gold)}
+.brand b{font-size:15px}
+.brand span{font-size:12px;color:var(--text-muted)}
+.search{position:relative}
+.search input{width:100%;padding:10px 14px 10px 34px;border-radius:10px;border:1px solid var(--border);background:var(--panel-bg);color:var(--text);font-size:14px}
+.search input:focus{outline:2px solid var(--blue);outline-offset:1px}
+.search svg{position:absolute;left:11px;top:11px;width:15px;height:15px;stroke:var(--text-muted)}
+nav.groups{display:flex;flex-direction:column;gap:4px}
+.navitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;cursor:pointer;border:none;background:transparent;color:var(--text);font-size:13.5px;text-align:left;width:100%;font-family:inherit}
+.navitem:hover{background:var(--panel-bg)}
+.navitem.active{background:var(--blue-bg);color:var(--blue)}
+:root[data-theme="dark"] .navitem.active,@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .navitem.active{color:#9db8ff}}
+.navitem .ic{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
+.navitem .lbl{flex:1}
+.pill{font-size:10px;font-weight:700;letter-spacing:.3px;padding:3px 8px;border-radius:999px;flex:none}
+.role-todos{background:var(--gray-bg);color:var(--gray)}
+.role-camarero{background:var(--blue-bg);color:var(--blue)}
+.role-cajero{background:var(--gold-bg);color:var(--gold)}
+.role-cocina{background:var(--teal-bg);color:var(--teal)}
+.role-admin{background:var(--navy-bg);color:var(--text)}
+.theme-toggle{margin-top:auto;display:flex;gap:6px;padding:0 8px}
+.theme-toggle button{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:var(--panel-bg);color:var(--text-muted);font-size:12px;cursor:pointer;font-family:inherit}
+.theme-toggle button.on{color:var(--text);border-color:var(--blue)}
+main{flex:1;min-width:0;padding:44px 6vw 90px;max-width:900px}
+.mod{display:none;flex-direction:column;gap:26px}
+.mod.active{display:flex}
+.mod-head{display:flex;flex-direction:column;gap:10px}
+.mod-head .pill{align-self:flex-start}
+.mod-head h1{font-size:clamp(26px,3.4vw,36px);font-weight:800;letter-spacing:-.5px}
+.mod-head p{font-size:16px;color:var(--text-muted);line-height:1.55;max-width:640px;margin:0}
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px;counter-reset:step}
+ol.steps li{display:flex;gap:16px;padding:18px 20px;border-radius:14px;background:var(--panel-bg);border:1px solid var(--border)}
+ol.steps li::before{counter-increment:step;content:counter(step);flex:none;width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+ol.steps li .body b{display:block;font-size:15px;margin-bottom:3px}
+ol.steps li .body span{font-size:14px;color:var(--text-muted);line-height:1.5}
+.note{display:flex;gap:12px;padding:16px 18px;border-radius:12px;font-size:14px;line-height:1.5}
+.note.info{background:var(--blue-bg);color:var(--text)}
+.note.warn{background:var(--gold-bg);color:var(--text)}
+.where{font-size:13px;color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.where code{background:var(--panel-bg);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-family:inherit;font-size:12.5px}
+.faq{border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column}
+.faq details{border-bottom:1px solid var(--border);padding:14px 0}
+.faq summary{cursor:pointer;font-size:15px;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary .chev{transition:transform .2s ease;flex:none;stroke:var(--text-muted)}
+.faq details[open] summary .chev{transform:rotate(180deg)}
+.faq p{font-size:14px;color:var(--text-muted);line-height:1.55;margin:10px 0 0}
+.empty{padding:40px 0;color:var(--text-muted);font-size:14px}
+.mob-nav{display:none}
+@media (max-width:860px){
+  .shell{flex-direction:column}
+  .side{position:relative;width:100%;height:auto;border-right:none;border-bottom:1px solid var(--border);flex-direction:row;flex-wrap:nowrap;align-items:center;overflow-x:auto;padding:14px 16px}
+  .side .brand,.side .search,.theme-toggle{display:none}
+  nav.groups{flex-direction:row;gap:6px}
+  .navitem{white-space:nowrap;width:auto}
+  .navitem .lbl{display:none}
+  main{padding:28px 20px 70px}
+  .mob-nav{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .mob-nav select{flex:1;padding:9px 10px;border-radius:9px;border:1px solid var(--border);background:var(--panel-bg);color:var(--text);font-size:14px}
+}
+</style>
+
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="dot"></span><b>ChloeRestaurant</b><span>· Guía</span></div>
+    <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+      <input id="search" type="search" placeholder="Buscar en la guía…" aria-label="Buscar en la guía">
+    </div>
+    <nav class="groups" id="nav"></nav>
+    <div class="theme-toggle">
+      <button data-theme-btn="system" class="on">Sistema</button>
+      <button data-theme-btn="light">Claro</button>
+      <button data-theme-btn="dark">Oscuro</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="mob-nav"><select id="mobSelect" aria-label="Ir a un módulo"></select></div>
+    <div id="modules"></div>
+    <div class="empty" id="emptyState" hidden>No hay resultados para esa búsqueda.</div>
+  </main>
+</div>
+
+<script>
+var ICONS = {
+  play: '<path d="M6 4l14 8-14 8V4z"/>',
+  table: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>',
+  chef: '<circle cx="12" cy="8" r="4"/><path d="M6 21v-6a6 6 0 0112 0v6"/>',
+  cash: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/>',
+  close: '<path d="M4 6h16M6 6v14h12V6M9 10v6M15 10v6"/>',
+  percent: '<circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/><path d="M19 5L5 19"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  users: '<circle cx="9" cy="8" r="3.2"/><path d="M2 20c0-3.6 3-6 7-6s7 2.4 7 6"/><path d="M17 8a3 3 0 110 6"/><path d="M22 20c0-2.6-1.7-4.6-4-5.4"/>',
+  doc: '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M4.2 7.8l1.7 1M18 15l1.7 1M4.2 16.2l1.7-1M18 9l1.7-1M3 12h2M19 12h2"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.6-2.5 1.8-2.5 3.5M12 17h.01"/>'
+};
+function icon(name){ return '<svg class="ic" viewBox="0 0 24 24">' + (ICONS[name]||'') + '</svg>'; }
+
+var MODULES = [
+  { id:'primer-dia', title:'Primer día', role:'Todos', icon:'play',
+    summary:'Activar el equipo, entrar con tu PIN y fichar tu turno.',
+    steps:[
+      ['Activa el equipo','Si es un equipo nuevo, ábrelo y activa ChloeRestaurant con la clave que te entregaron. Un equipo activado pasa directo a la pantalla de acceso; uno sin activar siempre muestra la pantalla de bienvenida.'],
+      ['Ficha tu entrada','En la pantalla de acceso, toca «Fichar entrada o salida», escribe tu PIN de 6 dígitos y confirma. El sistema asigna el Turno 1 o el Turno 2 según la hora y avisa si llegas tarde.'],
+      ['Inicia sesión para trabajar','Escribe tu PIN en el teclado numérico. Cinco PIN incorrectos seguidos bloquean el acceso unos minutos.'],
+      ['Ficha tu salida','Al terminar, vuelve a fichar salida. Si la olvidas, el sistema la cierra solo a las 16 horas y lo marca para el administrador.']
+    ],
+    note:{type:'info', text:'Tu PIN es personal e intransferible: no lo compartas con otro compañero.'} },
+
+  { id:'mesas', title:'Mesas y comandas', role:'Camarero', icon:'table',
+    summary:'El mapa de mesas y cómo armar y enviar un pedido.',
+    steps:[
+      ['Revisa el mapa de mesas','Cada mesa muestra si está libre, ocupada o reservada, cuánto tiempo lleva abierta y cuánto se ha consumido.'],
+      ['Abre una mesa','Toca una mesa libre para abrirla y empezar el pedido.'],
+      ['Arma el pedido','Elige la categoría y toca el plato para agregarlo (tócalo de nuevo para más unidades). Si el plato pide término de cocción, guarnición o una nota como «sin cebolla», se abre una ventana para indicarlo.'],
+      ['Envía la comanda','«Enviar comanda» manda lo nuevo a Cocina (comidas) y a Bar (bebidas) al instante. Lo ya enviado no se puede quitar sin autorización de un supervisor.'],
+      ['Imprime la pre-cuenta','Muestra la cuenta al cliente antes de cobrar, sin cerrarla.']
+    ],
+    note:{type:'info', text:'Solo ves las mesas que abriste tú; para volver a una mesa ocupada tuya se te pide de nuevo tu PIN.'} },
+
+  { id:'kds', title:'Cocina y Bar (KDS)', role:'Cocina · Bar', icon:'chef',
+    summary:'Las pantallas de despacho de cada área.',
+    steps:[
+      ['Entra a tu pantalla','Elige KDS Cocina o KDS Bar en el acceso y escribe tu PIN. Cada área ve solo lo suyo: comidas en Cocina, bebidas en Bar, según la categoría del producto.'],
+      ['Lee cada comanda','Muestra la mesa, el tiempo de espera y las notas del camarero.'],
+      ['Despacha','Toca «Listo» en cada plato, o «Despachar mesa completa» cuando todo está listo.']
+    ],
+    note:{type:'info', text:'La pantalla se actualiza sola; el punto «En vivo» confirma que está conectada.'} },
+
+  { id:'caja', title:'Cobrar en caja', role:'Cajero', icon:'cash',
+    summary:'Abrir caja, cobrar una cuenta, dividirla o aplicar un descuento.',
+    steps:[
+      ['Abre la caja','Al entrar se pide el fondo inicial (el efectivo con que empiezas). Sin caja abierta el sistema no permite cobrar.'],
+      ['Elige la cuenta','Toca la mesa en «Cuentas abiertas» y revisa los artículos y totales.'],
+      ['Procede al pago','Efectivo (calcula el cambio; acepta RD$, USD y EUR con la tasa configurada), tarjeta (últimos 4 dígitos), transferencia (elige el banco) o pago mixto combinando dos métodos.'],
+      ['Elige el comprobante','Consumidor final u otro tipo, y el RNC o cédula si el cliente lo pide. Pulsa «Facturar».']
+    ],
+    note:{type:'warn', text:'Dividir cuenta: toca «Dividir cuenta» y elige con − / + qué se cobra ahora; el resto sigue abierto y se cobra después con su propio comprobante. Descuento: toca «Descuento», elige porcentaje o monto y escribe el motivo (obligatorio, queda registrado); reduce la base del ITBIS y de la propina.'} },
+
+  { id:'cierre-caja', title:'Cerrar caja', role:'Cajero', icon:'close',
+    summary:'El arqueo y el reporte de fin de turno.',
+    steps:[
+      ['Cuenta el efectivo','Al terminar el turno, entra a «Cierre de caja» y escribe el efectivo contado.'],
+      ['Revisa el reporte','El sistema muestra ventas, propina y la diferencia entre lo esperado y lo contado, y guarda el reporte del turno.']
+    ] },
+
+  { id:'itbis-propina', title:'ITBIS y propina', role:'Administrador', icon:'percent',
+    summary:'Cómo están configurados por defecto y dónde cambiarlos.',
+    steps:[
+      ['Por defecto están apagados','Los precios del menú no incluyen ITBIS ni propina; se activan en «Datos de la Empresa → Fiscal & Cuentas».'],
+      ['Si activas el ITBIS','Se suma al subtotal de cada línea según la tasa del producto (16 % o 18 %). Hay un botón para aplicarlo o quitarlo a todos los productos de una vez.'],
+      ['Ajusta la propina','Se puede fijar entre 2 % y 30 %; se calcula sobre el subtotal después de cualquier descuento.']
+    ],
+    where:'Equipo → Datos de la Empresa → Fiscal & Cuentas' },
+
+  { id:'catalogo', title:'Catálogo de menú', role:'Administrador', icon:'menu',
+    summary:'Crear productos, precios y categorías, o importarlos.',
+    steps:[
+      ['Crea o edita productos','Nombre, precio, imagen y categoría. Las categorías de bebidas envían el producto al KDS Bar; las demás, a Cocina.'],
+      ['Importa el menú','Si ya tienes un archivo, «Importar CSV» carga varios productos a la vez.']
+    ],
+    where:'Operaciones → Catálogo de Menú' },
+
+  { id:'personal', title:'Personal y turnos', role:'Administrador', icon:'users',
+    summary:'Empleados, PIN, horarios y asistencia.',
+    steps:[
+      ['Agrega empleados','Nombre, rol (Administrador, Cajero o Camarero) y su PIN.'],
+      ['Configura los horarios de turno','Turno 1 y Turno 2 traen un horario por defecto (10:00–17:00 y 17:00–24:00) que puedes ajustar.'],
+      ['Revisa la asistencia','Consulta entradas, salidas y tardanzas de todo el equipo.']
+    ],
+    where:'Equipo → Personal y Accesos · Equipo → Turnos y Asistencia' },
+
+  { id:'dgii', title:'Comprobantes DGII', role:'Administrador', icon:'doc',
+    summary:'Secuencias de NCF y los reportes 606 y 607.',
+    steps:[
+      ['Configura las secuencias','Define los rangos de comprobantes fiscales (NCF) por tipo.'],
+      ['Exporta los reportes','606 (compras) y 607 (ventas) quedan listos para la DGII desde el historial de facturas.']
+    ],
+    where:'Equipo → Comprobantes DGII · Ventas → Historial de facturas' },
+
+  { id:'sistema', title:'Tema, logo y respaldos', role:'Administrador', icon:'gear',
+    summary:'La imagen del sistema y la copia de seguridad de tus datos.',
+    steps:[
+      ['Personaliza la imagen','Cambia el tema, el logo, el fondo y el protector de pantalla en «Sistema».'],
+      ['Revisa los respaldos','El sistema respalda solo cada noche y verifica cada copia. Entra a «Respaldos» una vez por semana, descarga el más reciente y guárdalo fuera del equipo (USB o la nube).']
+    ],
+    where:'Sistema → Tema y Colores · Equipo → Datos de la Empresa → Respaldos',
+    note:{type:'warn', text:'Un respaldo que solo vive en este equipo se pierde si el equipo falla: guarda siempre una copia aparte.'} }
+];
+
+var FAQ = [
+  ['«La caja está cerrada» al cobrar', 'El cajero debe abrir la caja con el fondo inicial antes de poder cobrar cualquier cuenta.'],
+  ['«PIN incorrecto» o acceso bloqueado', 'Espera unos minutos: el bloqueo es temporal. Si olvidaste tu PIN, pide al administrador que te lo restablezca.'],
+  ['El equipo muestra la pantalla de bienvenida', 'El equipo no está activado: pide al administrador o a soporte la clave de activación. Si ya estaba activado y el servidor no respondió un momento, el sistema recuerda la activación y no debería volver a pasar.'],
+  ['No salen comandas en Cocina o Bar', 'Revisa que el KDS esté abierto con «En vivo» y que la categoría del producto sea de comida (Cocina) o de bebida (Bar).'],
+  ['No imprime', 'Verifica la impresora en «Datos de la Empresa → Estaciones & Despacho», y que esté encendida y con papel.'],
+  ['«La base de datos no está actualizada»', 'Avisa a soporte: falta aplicar una actualización en el servidor.']
+];
+
+var navEl = document.getElementById('nav');
+var modulesEl = document.getElementById('modules');
+var mobSelect = document.getElementById('mobSelect');
+var emptyState = document.getElementById('emptyState');
+var roleClass = { 'Todos':'role-todos', 'Camarero':'role-camarero', 'Cajero':'role-cajero', 'Cocina · Bar':'role-cocina', 'Administrador':'role-admin' };
+
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function buildNav(){
+  MODULES.forEach(function(m){
+    var b = document.createElement('button');
+    b.className = 'navitem'; b.dataset.id = m.id;
+    b.innerHTML = icon(m.icon) + '<span class="lbl">' + esc(m.title) + '</span><span class="pill ' + roleClass[m.role] + '">' + esc(m.role) + '</span>';
+    b.addEventListener('click', function(){ go(m.id); });
+    navEl.appendChild(b);
+
+    var o = document.createElement('option');
+    o.value = m.id; o.textContent = m.title;
+    mobSelect.appendChild(o);
+  });
+  var faqOpt = document.createElement('option');
+  faqOpt.value = 'faq'; faqOpt.textContent = 'Si algo falla';
+  mobSelect.appendChild(faqOpt);
+  var faqBtn = document.createElement('button');
+  faqBtn.className = 'navitem'; faqBtn.dataset.id = 'faq';
+  faqBtn.innerHTML = icon('help') + '<span class="lbl">Si algo falla</span>';
+  faqBtn.addEventListener('click', function(){ go('faq'); });
+  navEl.appendChild(faqBtn);
+}
+
+function buildModules(){
+  MODULES.forEach(function(m){
+    var sec = document.createElement('section');
+    sec.className = 'mod'; sec.id = 'mod-' + m.id;
+    var html = '<div class="mod-head"><span class="pill ' + roleClass[m.role] + '">' + esc(m.role) + '</span>' +
+      '<h1>' + esc(m.title) + '</h1><p>' + esc(m.summary) + '</p>' +
+      (m.where ? '<div class="where">Dónde: ' + m.where.split(' · ').map(function(w){ return '<code>' + esc(w) + '</code>'; }).join('') + '</div>' : '') +
+      '</div><ol class="steps">' +
+      m.steps.map(function(s){ return '<li><div class="body"><b>' + esc(s[0]) + '</b><span>' + esc(s[1]) + '</span></div></li>'; }).join('') +
+      '</ol>' +
+      (m.note ? '<div class="note ' + m.note.type + '">' + esc(m.note.text) + '</div>' : '');
+    sec.innerHTML = html;
+    modulesEl.appendChild(sec);
+  });
+
+  var faqSec = document.createElement('section');
+  faqSec.className = 'mod'; faqSec.id = 'mod-faq';
+  faqSec.innerHTML = '<div class="mod-head"><span class="pill role-todos">Todos</span><h1>Si algo falla</h1><p>Las causas más comunes y qué hacer.</p></div>' +
+    '<div class="faq">' + FAQ.map(function(f){
+      return '<details><summary>' + esc(f[0]) + '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></summary><p>' + esc(f[1]) + '</p></details>';
+    }).join('') + '</div>';
+  modulesEl.appendChild(faqSec);
+}
+
+var current = null;
+function go(id){
+  current = id;
+  document.querySelectorAll('.mod').forEach(function(s){ s.classList.toggle('active', s.id === 'mod-' + id); });
+  document.querySelectorAll('.navitem').forEach(function(b){ b.classList.toggle('active', b.dataset.id === id); });
+  mobSelect.value = id;
+  if (history.replaceState) history.replaceState(null, '', '#' + id);
+  window.scrollTo(0, 0);
+}
+
+mobSelect.addEventListener('change', function(){ go(this.value); });
+
+document.getElementById('search').addEventListener('input', function(e){
+  var q = e.target.value.trim().toLowerCase();
+  var any = false;
+  document.querySelectorAll('.navitem').forEach(function(b){
+    if (b.dataset.id === 'faq') { b.style.display = ''; return; }
+    var m = MODULES.find(function(x){ return x.id === b.dataset.id; });
+    var hay = !q || (m.title + ' ' + m.summary + ' ' + m.steps.map(function(s){return s.join(' ');}).join(' ')).toLowerCase().indexOf(q) !== -1;
+    b.style.display = hay ? '' : 'none';
+    if (hay) any = true;
+  });
+  emptyState.hidden = any || !q;
+});
+
+var THEME_KEY = 'chloerest-guia-tema';
+function applyTheme(v){
+  document.documentElement.removeAttribute('data-theme');
+  if (v === 'light' || v === 'dark') document.documentElement.setAttribute('data-theme', v);
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){ b.classList.toggle('on', b.dataset.themeBtn === v); });
+  try { localStorage.setItem(THEME_KEY, v); } catch(e){}
+}
+document.querySelectorAll('[data-theme-btn]').forEach(function(b){
+  b.addEventListener('click', function(){ applyTheme(this.dataset.themeBtn); });
+});
+try {
+  var saved = localStorage.getItem(THEME_KEY);
+  if (saved) applyTheme(saved);
+} catch(e){}
+
+buildNav();
+buildModules();
+var startId = (location.hash || '').replace('#', '');
+var valid = MODULES.some(function(m){ return m.id === startId; }) || startId === 'faq';
+go(valid ? startId : MODULES[0].id);
+</script>

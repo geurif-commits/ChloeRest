@@ -10,6 +10,7 @@ import { route, httpError } from '../lib/core.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { uploadImagenesSistema, validarImagenesSubidas, uploadUrl } from '../lib/uploads.js';
 import { assertSixDigitPin, hashPin } from '../services/authService.js';
+import { normalizarTema } from '../lib/temas.js';
 
 const router = Router();
 
@@ -46,6 +47,14 @@ router.post('/api/setup/registro', route(async (req: Request, res: Response) => 
   // el contexto por defecto del middleware global de dispositivo del legacy.
   await runWithRequestContext({ empresaId: 1 }, async () => {
     const db = getDatabase();
+    // Seguridad: el registro del wizard solo aplica mientras el setup no esté
+    // completado; después, los datos del negocio se editan desde el panel.
+    const setupPrevio = await db.query<{ setup_completado: boolean | null }>(
+      'SELECT setup_completado FROM configuracion_sistema WHERE empresa_id = 1 LIMIT 1'
+    );
+    if (setupPrevio.rowCount && setupPrevio.rows[0].setup_completado) {
+      throw httpError(403, 'El setup ya fue completado. Usa el panel de administración con tu sesión.');
+    }
     const current = await db.query<IFilaId>('SELECT id FROM negocio_config ORDER BY id LIMIT 1');
     if (current.rowCount) {
       await db.query(
@@ -63,7 +72,7 @@ router.post('/api/setup/registro', route(async (req: Request, res: Response) => 
           nombre_cocina, nombre_bar, duracion_meses, logo_url, estado_licencia, cobrar_itbis,
           cobrar_propina, licencia_bloqueada, fecha_instalacion, propietario, email, fecha_registro)
          VALUES ($1, $1, '', $3, '', $5, 'Ordinario', 'Cocina', 'Bar', 0, NULL, 'Activa',
-                 TRUE, TRUE, FALSE, CURRENT_TIMESTAMP, $2, $4, CURRENT_TIMESTAMP)`,
+                 FALSE, FALSE, FALSE, CURRENT_TIMESTAMP, $2, $4, CURRENT_TIMESTAMP)`,
         [nombreComercial, propietario, telefono, email, provincia]
       );
     }
@@ -89,11 +98,22 @@ router.post(
     }
     const empresaId = device.rows[0]?.empresa_id || 1;
 
+    // Seguridad: el wizard solo puede ejecutarse mientras el setup esté
+    // incompleto. Una vez completado, cualquier cambio de administrador
+    // (incluido el PIN) requiere sesión autenticada con su rol.
+    const setupPrevio = await db.queryUnscoped<{ setup_completado: boolean | null }>(
+      'SELECT setup_completado FROM configuracion_sistema WHERE empresa_id = $1 LIMIT 1',
+      [empresaId]
+    );
+    if (setupPrevio.rowCount && setupPrevio.rows[0].setup_completado) {
+      throw httpError(403, 'El setup ya fue completado. Usa el panel de administración con tu sesión.');
+    }
+
     const fondoArchivo = archivoDeCampo(req, 'fondo_archivo');
     const logoArchivo = archivoDeCampo(req, 'logo_archivo');
     const fondo = fondoArchivo ? uploadUrl(req, fondoArchivo) : null;
     const logo = logoArchivo ? uploadUrl(req, logoArchivo) : null;
-    const tema = String(req.body.tema_activo || 'noche').trim();
+    const tema = normalizarTema(req.body.tema_activo);
     const primario = String(req.body.color_primario || '').trim() || null;
     const secundario = String(req.body.color_secundario || '').trim() || null;
     const opacidad = Number(req.body.opacidad_fondo);

@@ -5,9 +5,10 @@ import TicketTermico from './TicketTermico';
 import CobroModal from './CobroModal';
 import AperturaModal from './AperturaModal';
 import ConfirmModal from './ConfirmModal';
-import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
+import { redondearMoneda } from '../utils/input.js';
+import { calcularTotales, porcentajePropina } from '../utils/dinero.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
-import './caja-modern.css';
+import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote } from 'lucide-react';
 import './caja/caja.css';
 
 import MesaGridPanel from './caja/MesaGridPanel';
@@ -42,8 +43,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
     direccion: 'República Dominicana',
     telefono: '',
     logo_url: '',
-    cobrar_itbis: true,
-    cobrar_propina: true,
+    cobrar_itbis: false,
+    cobrar_propina: false,
+    propina_porcentaje: 10,
     comanda_modo: 'kds',
     ticket_font_family: 'monospace',
     ticket_font_size: '12',
@@ -59,19 +61,13 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [tasaUsd, setTasaUsd] = useState(60.00);
   const [tasaEur, setTasaEur] = useState(65.00);
 
-  const [tipoComprobante, setTipoComprobante] = useState('B02');
+  const [tipoComprobante] = useState('B02');
   const [rncCliente, setRncCliente] = useState('');
   const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   const [tarjetaMarca, setTarjetaMarca] = useState('Visa');
 
-  const [pagoMixto, setPagoMixto] = useState(false);
-  const [metodoPago2, setMetodoPago2] = useState('');
-  const [montoPago2, setMontoPago2] = useState('');
-  const [bancoPago2, setBancoPago2] = useState('');
-
   const [ultimaFacturaEmitida, setUltimaFacturaEmitida] = useState(null);
   const [ticketPrechequeModal, setTicketPrechequeModal] = useState(null);
-  const [mostrandoTicket, setMostrandoTicket] = useState(false);
   const [montoEntregado, setMontoEntregado] = useState('');
 
   const [efectivoFisico, setEfectivoFisico] = useState('');
@@ -80,6 +76,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [notasArqueo, setNotasArqueo] = useState('');
 
   const [cajaAbierta, setCajaAbierta] = useState(true);
+  // Descuento y cobro parcial (dividir cuenta) del cobro en curso.
+  const [descuentoCobro, setDescuentoCobro] = useState({ tipo: 'porcentaje', valor: '', motivo: '' });
+  const [dividir, setDividir] = useState({ activo: false, cantidades: {} });
   const [montoApertura, setMontoApertura] = useState('');
   const [notasApertura, setNotasApertura] = useState('');
   const [mostrandoModalApertura, setMostrandoModalApertura] =
@@ -272,7 +271,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
             'Error al registrar la apertura de caja.'
         );
       }
-    } catch (err) {
+    } catch {
       toastError(
         'Error de conexion al registrar la apertura de caja.'
       );
@@ -333,10 +332,13 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           '',
 
         cobrar_itbis:
-          data.cobrar_itbis ?? true,
+          data.cobrar_itbis ?? false,
 
         cobrar_propina:
-          data.cobrar_propina ?? true,
+          data.cobrar_propina ?? false,
+
+        propina_porcentaje:
+          porcentajePropina(data),
 
         comanda_modo:
           data.comanda_modo || 'kds',
@@ -462,8 +464,6 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         }
       );
 
-      const data = await res.json();
-
       if (res.ok) {
         setMostrandoPinVerificacion(false);
         setPinVerificacion('');
@@ -578,38 +578,29 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           `Error al abrir la mesa: ${errData.error}`
         );
       }
-    } catch (error) {
+    } catch {
       toastError(
         'Error de conexion con el servidor de mesas.'
       );
     }
   };
 
-  const subtotal = redondearMoneda(
-    cuentaMesa.reduce(
-      (acc, item) =>
-        acc +
-        Number(item.precio) *
-          Number(item.cantidad),
-      0
-    )
-  );
+  // Líneas que se cobran ahora: toda la cuenta o, al dividir, solo las cantidades elegidas.
+  const itemsACobrar = dividir.activo
+    ? cuentaMesa
+      .map((item) => ({ ...item, cantidad: Number(dividir.cantidades[item.id] || 0) }))
+      .filter((item) => item.cantidad > 0)
+    : cuentaMesa;
+  const dividiendoParte = dividir.activo && itemsACobrar.some((item, i, todos) => todos.length !== cuentaMesa.length || Number(item.cantidad) !== Number(cuentaMesa.find((c) => c.id === item.id)?.cantidad));
+  const descuentoPedido = Number(descuentoCobro.valor) > 0 ? { tipo: descuentoCobro.tipo, valor: Number(descuentoCobro.valor) } : null;
 
-  const itbis = redondearMoneda(
-    configNegocio.cobrar_itbis
-      ? subtotal * 0.18
-      : 0
-  );
-
-  const propina = redondearMoneda(
-    configNegocio.cobrar_propina
-      ? subtotal * 0.10
-      : 0
-  );
-
-  const total = redondearMoneda(
-    subtotal + itbis + propina
-  );
+  // Mismos totales que el comandero y el servidor (ITBIS por producto, propina configurable, descuento).
+  const { subtotalBruto, descuento, subtotal, itbis, propina, total } = calcularTotales(itemsACobrar, {
+    cobrarItbis: configNegocio.cobrar_itbis,
+    cobrarPropina: configNegocio.cobrar_propina,
+    porcentajePropina: porcentajePropina(configNegocio),
+    descuento: descuentoPedido,
+  });
 
   const montoEntregadoNum =
     parseFloat(montoEntregado || '0');
@@ -641,6 +632,13 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const confirmarCobroFinal = async (
     datosMixto = {}
   ) => {
+    if (descuentoPedido && descuentoCobro.motivo.trim().length < 3) {
+      return toastAviso('Indica el motivo del descuento.');
+    }
+    if (dividir.activo && itemsACobrar.length === 0) {
+      return toastAviso('Selecciona al menos un producto para cobrar.');
+    }
+
     if (!datosMixto.pagoMixto) {
       if (metodoPago === 'Efectivo') {
         if (montoEntregadoDOP < total) {
@@ -713,7 +711,18 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
             banco_pago_2:
               datosMixto.bancoPago2 ||
-              null
+              null,
+
+            descuento_tipo:
+              descuentoPedido ? descuentoPedido.tipo : null,
+            descuento_valor:
+              descuentoPedido ? descuentoPedido.valor : null,
+            descuento_motivo:
+              descuentoPedido ? descuentoCobro.motivo.trim() : null,
+            detalles_cobrar:
+              dividiendoParte
+                ? itemsACobrar.map((item) => ({ id: item.id, cantidad: item.cantidad }))
+                : undefined
           })
         }
       );
@@ -754,9 +763,11 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
             usuario.nombre,
 
           items:
-            cuentaMesa,
+            itemsACobrar,
 
           subtotal,
+          subtotalBruto,
+          descuento,
           itbis,
           propina,
           total,
@@ -786,6 +797,8 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         setRncCliente('');
         setTarjetaUltimos4('');
         setMonedaPago('DOP');
+        setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
+        setDividir({ activo: false, cantidades: {} });
 
         await cargarMesas();
 
@@ -796,7 +809,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       } else {
         toastError(data.error);
       }
-    } catch (error) {
+    } catch {
       toastError(
         'Error de conexion al procesar el cobro.'
       );
@@ -860,7 +873,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       } else {
         toastError(data.error);
       }
-    } catch (err) {
+    } catch {
       toastError(
         'Error de red al guardar el arqueo de caja.'
       );
@@ -882,7 +895,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
       setCierreCajaData(data);
       setVistaActual('cierre');
-    } catch (error) {
+    } catch {
       toastError(
         'Error al generar el reporte de caja.'
       );
@@ -972,193 +985,6 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
   return (
     <>
-      <style>{`
-        .caja-workspace {
-          display: flex !important;
-          flex-direction: column !important;
-          width: 100% !important;
-          height: 100dvh !important;
-          min-height: 0 !important;
-          overflow: hidden !important;
-        }
-
-        .caja-topbar {
-          width: 100%;
-          min-height: 64px;
-          flex: 0 0 auto;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 10px 24px;
-          background: #0f1728;
-          border-bottom: 1px solid #263149;
-          box-sizing: border-box;
-          overflow-x: auto;
-          scrollbar-width: thin;
-        }
-
-        .caja-topbar__brand {
-          flex: 0 0 auto;
-          color: #f5c542;
-          font-size: 1rem;
-          font-weight: 800;
-          margin-right: 8px;
-          padding-right: 16px;
-          border-right: 1px solid #2a354d;
-          white-space: nowrap;
-        }
-
-        .caja-topbar__user {
-          flex: 0 0 auto;
-          color: #8fa0bd;
-          font-size: 1rem;
-          white-space: nowrap;
-          margin-right: 4px;
-        }
-
-        .caja-topbar__tab {
-          flex: 0 0 auto;
-          border: 1px solid #2c3a55;
-          background: #17233a;
-          color: #d8e0ee;
-          border-radius: 9px;
-          padding: 10px 15px;
-          min-height: 40px;
-          font-size: 1rem;
-          font-weight: 800;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: 0.18s ease;
-        }
-
-        .caja-topbar__tab:hover {
-          background: #20304d;
-          border-color: #425574;
-        }
-
-        .caja-topbar__tab--active {
-          color: #f5c542;
-          border-color: #f5c542;
-          background: rgba(245, 197, 66, 0.10);
-        }
-
-        .caja-topbar__logout {
-          flex: 0 0 auto;
-          margin-left: auto;
-          border: 1px solid #ff4d5a;
-          background: #ff4d5a;
-          color: #fff;
-          border-radius: 9px;
-          padding: 10px 16px;
-          min-height: 40px;
-          font-size: 0.82rem;
-          font-weight: 800;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .caja-main--horizontal {
-          width: 100% !important;
-          min-width: 0 !important;
-          height: calc(100dvh - 64px) !important;
-          min-height: 0 !important;
-          flex: 1 1 auto !important;
-        }
-
-        /*
-         * RESUMEN 1 x 4
-         *
-         * Las cuatro tarjetas permanecen en una sola
-         * línea en escritorio.
-         */
-        .caja-summary-grid {
-          width: 100%;
-          display: grid;
-          grid-template-columns:
-            repeat(4, minmax(0, 1fr));
-          gap: 10px;
-          margin: 0 0 14px;
-        }
-
-        .caja-summary-card {
-          min-width: 0;
-          min-height: 92px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: flex-start;
-          gap: 6px;
-
-          background: #14141b;
-          padding: 12px 14px;
-
-          border-radius: 10px;
-          border: 1px solid #2a2a38;
-
-          text-align: center;
-          box-sizing: border-box;
-        }
-
-        .caja-summary-card--total {
-          border-color: #00f576;
-        }
-
-        .caja-summary-card__label {
-          color: #9494ad;
-          font-size: 1.58rem;
-          display: block;
-          margin-bottom: 0;
-        }
-
-        .caja-summary-card__value {
-          color: #00f576;
-          font-weight: 800;
-          font-size: 1.58rem;
-        }
-
-        /*
-         * MesaGridPanel ocupa todo el ancho.
-         */
-        .caja-mesas-section {
-          width: 100%;
-          min-width: 0;
-          flex: 1 1 auto;
-        }
-
-        .caja-mesas-section .mesa-grid-panel {
-          width: 100%;
-          max-width: none;
-        }
-
-        @media (max-width: 850px) {
-          .caja-summary-grid {
-            grid-template-columns:
-              repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 500px) {
-          .caja-summary-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 760px) {
-          .caja-topbar {
-            padding: 8px 12px;
-          }
-
-          .caja-topbar__brand,
-          .caja-topbar__user {
-            display: none;
-          }
-
-          .caja-topbar__logout {
-            margin-left: 0;
-          }
-        }
-      `}</style>
-
       <div className="caja-workspace">
 
         {/* =========================
@@ -1169,80 +995,80 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           aria-label="Navegación de caja"
         >
           <div className="caja-topbar__brand">
-            Centro de Caja
+            <span className="caja-topbar__mark"><Landmark size={20} /></span>
+            <div className="caja-topbar__brand-text">
+              <strong>Centro de Caja</strong>
+              <span className="caja-topbar__user">
+                Cajero · {usuario?.nombre || 'Usuario'}
+              </span>
+            </div>
           </div>
 
-          <div className="caja-topbar__user">
-            Cajero:{' '}
-            {usuario?.nombre || 'Usuario'}
+          <div className="caja-topbar__tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'mesas'}
+              className={`caja-topbar__tab ${vistaActual === 'mesas' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={() => setVistaActual('mesas')}
+            >
+              <LayoutGrid size={16} />
+              Cuentas
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'historial'}
+              className={`caja-topbar__tab ${vistaActual === 'historial' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={() => setVistaActual('historial')}
+            >
+              <Receipt size={16} />
+              Historial
+            </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'cierre'}
+              className={`caja-topbar__tab ${vistaActual === 'cierre' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={cargarCierreCaja}
+            >
+              <Lock size={16} />
+              Cierre de caja
+            </button>
           </div>
 
-          <button
-            type="button"
-            className={`caja-topbar__tab ${
-              vistaActual === 'mesas'
-                ? 'caja-topbar__tab--active'
-                : ''
-            }`}
-            onClick={() =>
-              setVistaActual('mesas')
-            }
-          >
-            Centro de Cuentas
-          </button>
+          <div className="caja-topbar__end">
+            {/* Fondo Inicial se mantiene arriba */}
+            <button
+              type="button"
+              className="caja-fondo"
+              title="Registrar o corregir el fondo inicial"
+              onClick={() => {
+                setVistaActual('mesas');
+                setMostrandoModalApertura(true);
+              }}
+            >
+              <Wallet size={17} />
+              Fondo inicial <b>RD$ {formatearRD(montoApertura)}</b>
+            </button>
 
-          <button
-            type="button"
-            className={`caja-topbar__tab ${
-              vistaActual === 'historial'
-                ? 'caja-topbar__tab--active'
-                : ''
-            }`}
-            onClick={() =>
-              setVistaActual('historial')
-            }
-          >
-            Historial de Facturas
-          </button>
-
-          {/* Fondo Inicial se mantiene arriba */}
-          <button
-            type="button"
-            className="caja-topbar__tab"
-            onClick={() => {
-              setVistaActual('mesas');
-              setMostrandoModalApertura(true);
-            }}
-          >
-            Fondo Inicial: RD${' '}
-            {formatearRD(montoApertura)}
-          </button>
-
-          <button
-            type="button"
-            className={`caja-topbar__tab ${
-              vistaActual === 'cierre'
-                ? 'caja-topbar__tab--active'
-                : ''
-            }`}
-            onClick={cargarCierreCaja}
-          >
-            Cierre de Caja
-          </button>
-
-          <button
-            type="button"
-            className="caja-topbar__logout"
-            onClick={alCerrarSesion}
-          >
-            🚪 Salir
-          </button>
+            <button
+              type="button"
+              className="px-btn caja-topbar__logout"
+              onClick={alCerrarSesion}
+            >
+              <LogOut size={16} />
+              Salir
+            </button>
+          </div>
         </nav>
 
         {/* =========================
             CONTENIDO PRINCIPAL
         ========================== */}
-        <main className="caja-main caja-main--horizontal">
+        <main className="caja-main">
 
           <div className="caja-main__content">
 
@@ -1250,17 +1076,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 CENTRO DE CUENTAS
             ========================== */}
             {vistaActual === 'mesas' && (
-              <div
-                className="caja-panels"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'stretch',
-                  justifyContent: 'flex-start',
-                  width: '100%',
-                  gap: '0'
-                }}
-              >
+              <div className="caja-panels">
 
                 {/* =========================
                     ESTADÍSTICAS 1 x 4
@@ -1270,74 +1086,45 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
                     <div className="caja-summary-card">
                       <span className="caja-summary-card__label">
-                        Ventas Netas
+                        <TrendingUp size={15} />
+                        Ventas netas
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.subtotal
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.subtotal)}
                       </span>
                     </div>
 
                     <div className="caja-summary-card">
                       <span className="caja-summary-card__label">
-                        ITBIS Recaudado
+                        <Percent size={15} />
+                        ITBIS recaudado
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.itbis
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.itbis)}
                       </span>
                     </div>
 
                     <div className="caja-summary-card">
                       <span className="caja-summary-card__label">
-                        Propina Legal
+                        <Sparkles size={15} />
+                        Propina legal
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.propina
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.propina)}
                       </span>
                     </div>
 
-                    <div
-                      className="
-                        caja-summary-card
-                        caja-summary-card--total
-                      "
-                    >
+                    <div className="caja-summary-card caja-summary-card--total">
                       <span className="caja-summary-card__label">
-                        Total Ingresos
+                        <Banknote size={15} />
+                        Total ingresos
                       </span>
-
-                      <span
-                        className="caja-summary-card__value"
-                      >
-                        RD${' '}
-                        {formatearRD(
-                          cierreCajaData
-                            .totalesGenerales
-                            ?.total
-                        )}
+                      <span className="caja-summary-card__value">
+                        <small>RD$</small>
+                        {formatearRD(cierreCajaData.totalesGenerales?.total)}
                       </span>
                     </div>
 
@@ -1751,7 +1538,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 }}
               >
                 <span>
-                  ITBIS (18%):
+                  ITBIS:
                 </span>
 
                 <strong>
@@ -1772,8 +1559,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 }}
               >
                 <span>
-                  Propina Legal
-                  (10%):
+                  Propina ({porcentajePropina(configNegocio)}%):
                 </span>
 
                 <strong>
@@ -1850,9 +1636,16 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 tasaEur,
 
                 subtotal,
+                subtotalBruto,
+                descuento,
                 itbis,
                 propina,
                 total,
+
+                descuentoCobro,
+                setDescuentoCobro,
+                dividir,
+                setDividir,
 
                 onCobroExitoso:
                   confirmarCobroFinal,
@@ -1868,6 +1661,8 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                 setMesaSeleccionada(null);
                 setCuentaMesa([]);
                 setMontoEntregado('');
+                setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
+                setDividir({ activo: false, cantidades: {} });
               }}
             />
           )}
@@ -2009,7 +1804,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                       '1.1rem'
                   }}
                 >
-                  🍽️ Abrir{' '}
+                  Abrir{' '}
                   {
                     mesaParaAbrir.nombre_numero
                   }
@@ -2086,7 +1881,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                               '1.2rem'
                           }}
                         >
-                          👤
+                          
                         </span>
 
                         <span
@@ -2199,7 +1994,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                         '0.9rem'
                     }}
                   >
-                    ✅ Asignar y Abrir Mesa
+                    Asignar y Abrir Mesa
                   </button>
                 </div>
               </div>
@@ -2263,7 +2058,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                       '10px'
                   }}
                 >
-                  🔒
+                  
                 </div>
 
                 <h3
@@ -2418,7 +2213,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                   >
                     {verificandoPin
                       ? 'Verificando...'
-                      : '🔓 Acceder'}
+                      : 'Acceder'}
                   </button>
                 </div>
               </div>

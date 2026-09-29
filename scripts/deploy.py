@@ -42,6 +42,26 @@ USER = os.environ.get('DEPLOY_USER', 'chlogdyh')
 PASS = _obtener_pass()
 REMOTE_APP_DIR = '/home/chlogdyh/chloerest'
 
+# Item 11: autenticación por llave SSH (preferida). Fallback a password.
+DEPLOY_KEY = os.environ.get('DEPLOY_KEY') or os.path.join(os.path.expanduser('~'), '.ssh', 'chloerest_deploy')
+
+
+def _conectar_ssh():
+    """Conecta por llave Ed25519 si existe; si no, cae a password (DEPLOY_PASS)."""
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    if os.path.exists(DEPLOY_KEY):
+        try:
+            pkey = paramiko.Ed25519Key.from_private_key_file(DEPLOY_KEY)
+            ssh.connect(HOST, port=PORT, username=USER, pkey=pkey, timeout=20)
+            print(f"  Conectado con llave SSH: {DEPLOY_KEY}")
+            return ssh
+        except Exception as e:
+            print(f"  Aviso: llave SSH falló ({e}); usando password.")
+    ssh.connect(HOST, port=PORT, username=USER, password=PASS, timeout=20)
+    print("  Conectado con password (migrar a llave SSH).")
+    return ssh
+
 LOCAL_FRONTEND_DIST = os.path.join(LOCAL_ROOT, 'frontend-restaurante', 'dist')
 TAR_PATH = os.path.join(LOCAL_ROOT, 'dist.tar.gz')
 
@@ -74,7 +94,7 @@ def build_and_pack():
         print("ERROR: Error de compilación Vite.")
         sys.exit(1)
 
-    print("[1b] Compilando Backend TypeScript (tsc)...")
+    print("[1b] Compilando Backend TypeScript (tsc incremental)...")
     res = subprocess.run(['npm', 'run', 'build'], cwd=LOCAL_ROOT, shell=True)
     if res.returncode != 0:
         print("ERROR: Error de compilación TypeScript (tsc).")
@@ -95,20 +115,18 @@ def deploy():
     print("DESPLIEGUE ATOMICO A PRODUCCION")
     print("=" * 60)
 
-    if not PASS:
-        print("ERROR: Variable de entorno DEPLOY_PASS no configurada.")
-        print("Configúrala antes de desplegar (no se permite hardcodear credenciales).")
+    if not PASS and not os.path.exists(DEPLOY_KEY):
+        print("ERROR: ni llave SSH (DEPLOY_KEY) ni DEPLOY_PASS configurados.")
+        print("Configura una credencial antes de desplegar (no se permite hardcodear).")
         sys.exit(1)
 
     build_and_pack()
 
     print(f"\n[3] Conectando a {HOST}:{PORT}...")
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, port=PORT, username=USER, password=PASS, timeout=20)
+    ssh = _conectar_ssh()
     sftp = ssh.open_sftp()
 
-    print("\n[4] Subiendo Backend (dist/ compilado) y Paquete Frontend...")
+    print("\n[3] Subiendo Backend (dist/ compilado) y Paquete Frontend...")
     for bf in BACKEND_FILES:
         lp = os.path.join(LOCAL_ROOT, bf)
         if os.path.exists(lp):
@@ -129,7 +147,7 @@ def deploy():
     print("  dist.tar.gz (Paquete completo de Frontend)")
     sftp.close()
 
-    print("\n[5] Extrayendo archivos en producción...")
+    print("\n[4] Extrayendo archivos en producción...")
     cmd = (
         f"mkdir -p {REMOTE_APP_DIR}/public && "
         f"rm -rf {REMOTE_APP_DIR}/public/assets && "
@@ -167,7 +185,7 @@ def deploy():
     if os.path.exists(TAR_PATH):
         os.remove(TAR_PATH)
 
-    print("\n[6] Verificando disponibilidad...")
+    print("\n[5] Verificando disponibilidad...")
     time.sleep(3)
     for i in range(1, 8):
         try:
@@ -179,6 +197,12 @@ def deploy():
         except Exception as e:
             print(f"  Intento {i}/7: {e}")
             time.sleep(2)
+
+    print("\n[6] Verificación posterior (solo lectura)...")
+    verif = subprocess.run(['node', os.path.join('scripts', 'verify-deploy.mjs'), 'https://chloerestaurant.lat'], cwd=LOCAL_ROOT)
+    if verif.returncode != 0:
+        print("AVISO: la verificación reportó diferencias. Si la migración no está al día, "
+              "ejecuta 'npm run migrate' con el rol DDL (docs/OPERACION.md sección 2).")
 
     ssh.close()
     dur = time.time() - start

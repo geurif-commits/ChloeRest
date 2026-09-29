@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { toastAviso, toastError } from './Toast.jsx';
 import {
-  Store, Key, Building2, Receipt, Palette, Printer, FileText, Save,
+  Store, Key, Building2, Receipt, Printer, FileText, Save,
   CreditCard, Pencil, Trash2, Plus, CheckCircle2, ShieldCheck, Sparkles,
-  Layers, Sliders, Smartphone, QrCode, DollarSign, RefreshCw, ChevronRight
+  RefreshCw, HardDrive, Download
 } from 'lucide-react';
+import { PROPINA_MIN, PROPINA_MAX, porcentajePropina } from '../utils/dinero.js';
 import './admin/admin.css';
 
 const SUBPESTANAS = [
@@ -13,10 +14,15 @@ const SUBPESTANAS = [
   { id: 'fiscal', label: 'Fiscal & Cuentas', icon: Receipt, desc: 'Impuestos y transferencias bancarias' },
   { id: 'estaciones', label: 'Estaciones & Despacho', icon: Printer, desc: 'Cocina, Bar e impresoras térmicas' },
   { id: 'tickets', label: 'Formato de Tickets', icon: FileText, desc: 'Tipografía, márgenes y QR' },
+  { id: 'respaldos', label: 'Respaldos', icon: HardDrive, desc: 'Copias de seguridad de tus datos' },
 ];
+
+const formatearTamano = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(2)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLicencia }) {
   const [subpestana, setSubpestana] = useState('identidad');
+  // Texto que se está escribiendo en el campo de propina (se acota a 2–30 al salir del campo).
+  const [propinaTexto, setPropinaTexto] = useState(null);
   const [formData, setFormData] = useState({
     nombre_comercial: '',
     razon_social: '',
@@ -29,11 +35,12 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     nombre_bar: 'Bar',
     duracion_meses: 0,
     logo_url: '',
-    cobrar_itbis: true,
-    cobrar_propina: true,
+    cobrar_itbis: false,
+    cobrar_propina: false,
+    propina_porcentaje: 10,
     mesa_color_disponible: '#00f576',
     mesa_color_ocupada: '#ff4444',
-    mesa_color_reservada: '#d6a44d',
+    mesa_color_reservada: 'var(--gold)',
     comanda_modo: 'kds',
     ticket_font_family: 'Inter',
     ticket_font_size: '12',
@@ -44,6 +51,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
   const [archivoLogo, setArchivoLogo] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  // ITBIS masivo por producto: null | 'aplicar' | 'quitar' (paso de confirmación en la propia tarjeta).
+  const [confirmandoItbis, setConfirmandoItbis] = useState(null);
+  const [aplicandoItbis, setAplicandoItbis] = useState(false);
   const fileRef = useRef(null);
   const urlBase = apiUrl;
 
@@ -60,6 +70,58 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
   const [impresorasEstacion, setImpresorasEstacion] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chloe_impresoras') || '{}'); } catch { return {}; }
   });
+
+  // Respaldos de la base de datos (solo visible para quien tenga permiso: Administrador en instalaciones locales).
+  const [respaldos, setRespaldos] = useState(null);
+  const [respaldosError, setRespaldosError] = useState('');
+  const [creandoRespaldo, setCreandoRespaldo] = useState(false);
+
+  const cargarRespaldos = async () => {
+    setRespaldosError('');
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos`);
+      if (res.ok) setRespaldos(await res.json());
+      else if (res.status === 403) setRespaldosError('Los respaldos de este servidor los gestiona el propietario de la plataforma.');
+      else setRespaldosError('No se pudo consultar los respaldos.');
+    } catch {
+      setRespaldosError('Error de conexión con el servidor.');
+    }
+  };
+
+  const crearRespaldoAhora = async () => {
+    setCreandoRespaldo(true);
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) toastAviso(data.mensaje || 'Respaldo creado.');
+      else toastError(data.error || 'No se pudo crear el respaldo.');
+      await cargarRespaldos();
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    } finally {
+      setCreandoRespaldo(false);
+    }
+  };
+
+  const descargarRespaldo = async (nombre) => {
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos/${encodeURIComponent(nombre)}`);
+      if (!res.ok) return toastError('No se pudo descargar el respaldo.');
+      const url = URL.createObjectURL(await res.blob());
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = nombre;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    }
+  };
+
+  useEffect(() => {
+    if (subpestana === 'respaldos') cargarRespaldos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subpestana]);
 
   useEffect(() => {
     cargarConfiguracion();
@@ -151,8 +213,9 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
         const data = await res.json();
         setFormData({
           ...data,
-          cobrar_itbis: data.cobrar_itbis ?? true,
-          cobrar_propina: data.cobrar_propina ?? true
+          cobrar_itbis: data.cobrar_itbis ?? false,
+          cobrar_propina: data.cobrar_propina ?? false,
+          propina_porcentaje: porcentajePropina(data)
         });
       }
     } catch {
@@ -164,10 +227,45 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({ 
-      ...formData, 
-      [name]: type === 'checkbox' ? checked : value 
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value
     });
+  };
+
+  // Porcentaje de propina: siempre entre PROPINA_MIN y PROPINA_MAX.
+  const cambiarPorcentajePropina = (valor) => {
+    const n = Math.round(Number(valor));
+    const acotado = Number.isFinite(n) ? Math.min(PROPINA_MAX, Math.max(PROPINA_MIN, n)) : PROPINA_MIN;
+    setFormData((actual) => ({ ...actual, propina_porcentaje: acotado }));
+    setPropinaTexto(null);
+  };
+
+  const escribirPorcentajePropina = (texto) => {
+    setPropinaTexto(texto);
+    const n = Number(texto);
+    if (texto !== '' && Number.isFinite(n) && n >= PROPINA_MIN && n <= PROPINA_MAX) {
+      setFormData((actual) => ({ ...actual, propina_porcentaje: Math.round(n) }));
+    }
+  };
+
+  const cambiarItbisProductos = async (aplica) => {
+    setAplicandoItbis(true);
+    try {
+      const res = await fetch(`${urlBase}/api/productos/itbis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aplica, tasa: 18 })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) toastAviso(data.mensaje || 'Productos actualizados.');
+      else toastError(data.error || 'No se pudo actualizar el ITBIS de los productos.');
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    } finally {
+      setAplicandoItbis(false);
+      setConfirmandoItbis(null);
+    }
   };
 
   const handleArchivo = (e) => {
@@ -220,6 +318,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     dataToSend.append('duracion_meses', formData.duracion_meses);
     dataToSend.append('cobrar_itbis', formData.cobrar_itbis);
     dataToSend.append('cobrar_propina', formData.cobrar_propina);
+    dataToSend.append('propina_porcentaje', String(porcentajePropina(formData)));
     dataToSend.append('mesa_color_disponible', formData.mesa_color_disponible);
     dataToSend.append('mesa_color_ocupada', formData.mesa_color_ocupada);
     dataToSend.append('mesa_color_reservada', formData.mesa_color_reservada);
@@ -287,7 +386,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 padding: '10px 16px',
                 borderRadius: '10px',
                 border: activa ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)',
-                background: activa ? 'rgba(245, 184, 61, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                background: activa ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'rgba(255, 255, 255, 0.03)',
                 color: activa ? 'var(--kpi-gold)' : 'var(--admin-text-muted)',
                 fontWeight: activa ? 700 : 500,
                 fontSize: '0.84rem',
@@ -309,7 +408,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Building2 size={20} />
               </div>
               <div>
@@ -320,7 +419,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               </div>
             </div>
 
-            {/* Selector de Logo */}
+            {/* Logotipo (solo lectura: se gestiona en Logotipo y Fondo) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
               <div style={{ width: '70px', height: '70px', borderRadius: '12px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
                 {logoVista ? (
@@ -332,7 +431,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>Logotipo del Establecimiento</strong>
                 <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
-                  Aparece en tickets de impresión, facturas DGII y pantallas del sistema.
+                  Aparece en tickets de impresión, facturas DGII y pantallas del sistema. Se sincroniza con Logotipo y Fondo.
                 </span>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
                   <button
@@ -447,7 +546,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
             </div>
 
             {licenciaVitalicia ? (
-              <div style={{ background: 'rgba(245, 184, 61, 0.1)', border: '1px solid rgba(245, 184, 61, 0.3)', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ background: 'color-mix(in srgb, var(--gold) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', padding: '16px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Sparkles size={24} style={{ color: 'var(--kpi-gold)' }} />
                 <div>
                   <strong style={{ color: 'var(--kpi-gold)', fontSize: '0.95rem' }}>Licencia Vitalicia Activa</strong>
@@ -492,7 +591,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {(mostrarActivacion || estadoLicencia?._mostrarRenovar) && (
             <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--kpi-gold)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Key size={20} />
                 </div>
                 <div>
@@ -510,6 +609,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   <label className="admin-label">Duración del Plan</label>
                   <select
                     value={duracionActivar}
+                    aria-label="Duración de la licencia"
                     onChange={(e) => setDuracionActivar(e.target.value)}
                     className="admin-select"
                   >
@@ -563,7 +663,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Cargos e Impuestos de Ley</h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
-                  Ajusta la aplicación automática de ITBIS y Propina de Ley en cuentas y facturas.
+                  Activa o desactiva el ITBIS y la propina en cuentas y facturas. Por ahora vienen desactivados.
                 </p>
               </div>
             </div>
@@ -592,10 +692,70 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   style={{ width: '18px', height: '18px', accentColor: 'var(--gold, #f5b842)' }}
                 />
                 <div>
-                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Propina Legal (10%)</strong>
-                  <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Añade el 10% legal de servicio al consumidor</span>
+                  <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem', display: 'block' }}>Cobrar propina ({porcentajePropina(formData)}%)</strong>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>Añade el porcentaje de propina elegido a cada cuenta</span>
                 </div>
               </label>
+            </div>
+
+            {formData.cobrar_propina && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                  <label htmlFor="propina_porcentaje" style={{ color: 'var(--text-primary)', fontSize: '0.88rem', fontWeight: 700 }}>Porcentaje de propina</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      id="propina_porcentaje"
+                      type="number"
+                      min={PROPINA_MIN}
+                      max={PROPINA_MAX}
+                      step="1"
+                      value={propinaTexto ?? porcentajePropina(formData)}
+                      onChange={(e) => escribirPorcentajePropina(e.target.value)}
+                      onBlur={(e) => cambiarPorcentajePropina(e.target.value)}
+                      style={{ width: '72px', padding: '6px 8px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-primary)', fontWeight: 700, textAlign: 'right' }}
+                    />
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>%</span>
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min={PROPINA_MIN}
+                  max={PROPINA_MAX}
+                  step="1"
+                  value={porcentajePropina(formData)}
+                  onChange={(e) => cambiarPorcentajePropina(e.target.value)}
+                  aria-label="Porcentaje de propina"
+                  style={{ width: '100%', accentColor: 'var(--gold, #f5b842)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
+                  <span>{PROPINA_MIN}%</span>
+                  <span>Se puede elegir de {PROPINA_MIN}% a {PROPINA_MAX}%</span>
+                  <span>{PROPINA_MAX}%</span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+              <strong style={{ color: 'var(--text-primary)', fontSize: '0.88rem' }}>ITBIS por producto</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
+                Los precios del menú no incluyen ITBIS y los productos vienen sin ITBIS. Cuando actives el cobro de ITBIS, puedes aplicar el 18 % a todos los productos de una vez (después puedes ajustar cada uno en su ficha).
+              </span>
+              {confirmandoItbis ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                    {confirmandoItbis === 'aplicar' ? '¿Aplicar ITBIS 18 % a todos los productos activos?' : '¿Quitar el ITBIS a todos los productos activos?'}
+                  </span>
+                  <button type="button" className="admin-btn admin-btn-primary" disabled={aplicandoItbis} onClick={() => cambiarItbisProductos(confirmandoItbis === 'aplicar')}>
+                    {aplicandoItbis ? 'Aplicando…' : 'Sí, confirmar'}
+                  </button>
+                  <button type="button" className="admin-btn" disabled={aplicandoItbis} onClick={() => setConfirmandoItbis(null)}>Cancelar</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  <button type="button" className="admin-btn" onClick={() => setConfirmandoItbis('aplicar')}>Aplicar ITBIS 18 % a todos los productos</button>
+                  <button type="button" className="admin-btn" onClick={() => setConfirmandoItbis('quitar')}>Quitar ITBIS a todos los productos</button>
+                </div>
+              )}
             </div>
 
             <button
@@ -613,7 +773,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {/* Cuentas Bancarias */}
           <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CreditCard size={20} />
               </div>
               <div>
@@ -658,6 +818,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 />
                 <select
                   value={formCuenta.tipo_cuenta}
+                  aria-label="Tipo de cuenta bancaria"
                   onChange={(e) => setFormCuenta({ ...formCuenta, tipo_cuenta: e.target.value })}
                   className="admin-select"
                 >
@@ -755,7 +916,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
             <div className="admin-form-group">
               <label className="admin-label">Modo de Envío de Comandas a Producción</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'kds' ? 'rgba(245, 184, 61, 0.1)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'kds' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'kds' ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'kds' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     name="comanda_modo"
@@ -770,7 +931,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   </div>
                 </label>
 
-                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'impresora' ? 'rgba(245, 184, 61, 0.1)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'impresora' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', background: formData.comanda_modo === 'impresora' ? 'color-mix(in srgb, var(--gold) 10%, transparent)' : 'var(--bg-card-hover)', borderRadius: '10px', border: formData.comanda_modo === 'impresora' ? '1px solid var(--kpi-gold)' : '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                   <input
                     type="radio"
                     name="comanda_modo"
@@ -799,6 +960,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                   <span style={{ color: 'var(--kpi-gold)', width: '80px', textTransform: 'capitalize', fontWeight: 600, fontSize: '0.85rem' }}>{estacion}:</span>
                   <select
                     value={impresorasEstacion[estacion] || ''}
+                    aria-label={`Impresora de ${estacion}`}
                     onChange={(e) => guardarImpresorasEstacion({ ...impresorasEstacion, [estacion]: e.target.value })}
                     className="admin-select"
                     style={{ flex: 1, minWidth: '220px' }}
@@ -827,6 +989,67 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
       )}
 
       {/* ── PESTAÑA 5: FORMATO DE TICKETS & FACTURAS ── */}
+      {subpestana === 'respaldos' && (
+        <div className="admin-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>Respaldos de la base de datos</h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--admin-text-muted)' }}>
+              Copia de seguridad de todos tus datos (ventas, productos, usuarios). Cada respaldo se verifica al crearse.
+            </p>
+          </div>
+          {respaldosError && <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.86rem' }}>{respaldosError}</p>}
+          {respaldos && (
+            <>
+              <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                {respaldos.automaticos
+                  ? `Respaldo automático activo: cada día a las ${String(respaldos.hora).padStart(2, '0')}:00, se conservan ${respaldos.retencionDias} días.`
+                  : 'El respaldo automático está desactivado en este servidor.'}
+              </p>
+              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--admin-text-muted)' }}>
+                {respaldos.copiaExternaConfigurada
+                  ? 'Cada respaldo también se copia a la carpeta externa configurada (BACKUP_COPY_DIR).'
+                  : 'Sin copia externa: guarda una copia en una memoria USB o en la nube. Si este equipo falla, los respaldos que estén en él también se pierden.'}
+              </p>
+              {!respaldos.herramientaDisponible && (
+                <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.84rem' }}>
+                  No se encontró pg_dump en este equipo: instala las herramientas de PostgreSQL para poder respaldar.
+                </p>
+              )}
+              <button
+                type="button"
+                className="admin-btn admin-btn-primary"
+                onClick={crearRespaldoAhora}
+                disabled={creandoRespaldo || !respaldos.herramientaDisponible}
+                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <HardDrive size={16} />
+                {creandoRespaldo ? 'Creando respaldo…' : 'Crear respaldo ahora'}
+              </button>
+              {respaldos.respaldos.length === 0 ? (
+                <p style={{ margin: 0, fontSize: '0.84rem', color: 'var(--admin-text-muted)' }}>Todavía no hay respaldos.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {respaldos.respaldos.map((r) => (
+                    <div key={r.nombre} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '10px 14px', borderRadius: '10px', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.03)' }}>
+                      <div>
+                        <strong style={{ fontSize: '0.86rem', color: 'var(--text-primary)' }}>{new Date(r.creado).toLocaleString('es-DO')}</strong>
+                        <span style={{ display: 'block', fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>{formatearTamano(r.bytes)}</span>
+                      </div>
+                      <button type="button" className="admin-btn" onClick={() => descargarRespaldo(r.nombre)} aria-label={`Descargar respaldo del ${new Date(r.creado).toLocaleString('es-DO')}`} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Download size={15} /> Descargar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p style={{ margin: 0, fontSize: '0.76rem', color: 'var(--admin-text-muted)' }}>
+                Guarda una copia fuera de este equipo (memoria USB o la nube): si el equipo falla, los respaldos que estén en él también se pierden.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       {subpestana === 'tickets' && (
         <form onSubmit={guardarNegocio} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
@@ -848,6 +1071,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Tipografía (Font Family)</label>
                 <select
                   name="ticket_font_family"
+                  aria-label="Tipografía del ticket"
                   value={formData.ticket_font_family}
                   onChange={handleChange}
                   className="admin-select"
@@ -865,6 +1089,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Tamaño de Fuente Base</label>
                 <select
                   name="ticket_font_size"
+                  aria-label="Tamaño de letra del ticket"
                   value={formData.ticket_font_size}
                   onChange={handleChange}
                   className="admin-select"
@@ -882,6 +1107,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Posición del Logotipo</label>
                 <select
                   name="ticket_logo_position"
+                  aria-label="Posición del logo en el ticket"
                   value={formData.ticket_logo_position}
                   onChange={handleChange}
                   className="admin-select"
@@ -896,6 +1122,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 <label className="admin-label">Márgenes de Papel</label>
                 <select
                   name="ticket_margin"
+                  aria-label="Márgenes del ticket"
                   value={formData.ticket_margin}
                   onChange={handleChange}
                   className="admin-select"

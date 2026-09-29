@@ -3,8 +3,9 @@ import { obtenerSesion } from '../../api.js';
 import { sanitizarDecimal } from '../../utils/input.js';
 import { toastAviso, toastError } from '../Toast.jsx';
 import ConfirmModal from '../ConfirmModal';
-import { Package, Plus, Tag, Upload, Pencil, Trash2, X, Check, Search, Download, Sparkles } from 'lucide-react';
+import { Package, Plus, Tag, Upload, Pencil, Trash2, X, Check, Search, Download } from 'lucide-react';
 import './admin.css';
+import { destinoDeCategoria, esCategoriaBebida } from '../../utils/destinoMenu.js';
 
 const TABS = [
   { id: 'productos', etiqueta: 'Productos', icono: Package },
@@ -44,9 +45,9 @@ const EMPTY_PRODUCTO = {
   es_plato_fuerte: true,
   es_postre: false,
   es_guarnicion: false,
-  aplica_itbis: true,
+  aplica_itbis: false,
   tasa_itbis: 18,
-  aplica_propina: true,
+  aplica_propina: false,
   tasa_propina: 10,
   requiere_guarnicion: false,
   requiere_termino: false
@@ -79,12 +80,6 @@ function GestionProductos({ apiUrl }) {
   const [editandoOpcionNombre, setEditandoOpcionNombre] = useState('');
   const [editandoOpcionGrupo, setEditandoOpcionGrupo] = useState('alimentos');
 
-  const [catNombre, setCatNombre] = useState('');
-  const [catGrupo, setCatGrupo] = useState('alimentos');
-  const [editandoCatId, setEditandoCatId] = useState(null);
-  const [editandoCatNombre, setEditandoCatNombre] = useState('');
-  const [editandoCatGrupo, setEditandoCatGrupo] = useState('alimentos');
-
   const [archivoImportacion, setArchivoImportacion] = useState(null);
   const [archivoImportacionValido, setArchivoImportacionValido] = useState(true);
   const [importandoProductos, setImportandoProductos] = useState(false);
@@ -110,19 +105,24 @@ function GestionProductos({ apiUrl }) {
           setNuevoProducto(prev => (!prev.categoria || prev.categoria === 'Cocina' || prev.categoria === 'Bar') ? { ...prev, categoria: cats[0].nombre } : prev);
         }
       }
-    } catch (e) { console.error("Error categorías"); }
+    } catch { console.error("Error categorías"); }
   };
 
   const cargarProductos = async () => {
     try {
       const res = await fetch(`${apiUrl}/api/productos`, { headers: authHeaders() });
       setProductos(await res.json());
-    } catch (e) { console.error("Error productos"); }
+    } catch { console.error("Error productos"); }
   };
 
   useEffect(() => { cargarProductos(); cargarCategorias(); }, []);
 
-  const manejarCambioInput = (e) => setNuevoProducto({ ...nuevoProducto, [e.target.name]: e.target.value });
+  const manejarCambioInput = (e) => {
+    const { name, value } = e.target;
+    // El destino (alimento/bebida) sigue al grupo de la categoría elegida.
+    if (name === 'categoria') setNuevoProducto({ ...nuevoProducto, categoria: value, tipo_destino: destinoDeCategoria(value, categoriasMenu) });
+    else setNuevoProducto({ ...nuevoProducto, [name]: value });
+  };
 
   const manejarArchivo = (e) => {
     setArchivoImagen(e.target.files[0]);
@@ -166,7 +166,7 @@ function GestionProductos({ apiUrl }) {
         const data = await res.json();
         toastAviso(data.error || 'Error guardando producto.');
       }
-    } catch (e) { toastError("Error guardando producto."); }
+    } catch { toastError("Error guardando producto."); }
   };
 
   const abrirEdicion = (prod) => {
@@ -237,7 +237,7 @@ function GestionProductos({ apiUrl }) {
         const data = await res.json();
         toastAviso(data.error || 'Error actualizando producto.');
       }
-    } catch (e) { toastError("Error actualizando producto."); }
+    } catch { toastError("Error actualizando producto."); }
   };
 
   const eliminarProducto = (id, nombre) => {
@@ -248,38 +248,6 @@ function GestionProductos({ apiUrl }) {
         cargarProductos();
       }
     });
-  };
-
-  const crearCategoria = async () => {
-    if (!catNombre.trim()) return toastAviso('Escribe el nombre de la categoría.');
-    try {
-      const res = await fetch(`${apiUrl}/api/menu-configuracion/categorias`, {
-        method: 'POST',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: catNombre.trim(), grupo: catGrupo })
-      });
-      if (res.ok) {
-        toastAviso('✅ Categoría creada exitosamente.');
-        setCatNombre('');
-        cargarCategorias();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        toastError(err.error || 'Error creando categoría.');
-      }
-    } catch (e) {
-      toastError('Error de conexión al crear categoría.');
-    }
-  };
-
-  const guardarEdicionCategoria = async (id) => {
-    if (!editandoCatNombre.trim()) return;
-    const res = await fetch(`${apiUrl}/api/menu-configuracion/categorias/${id}`, {
-      method: 'PUT',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nombre: editandoCatNombre.trim(), grupo: editandoCatGrupo })
-    });
-    if (res.ok) { toastAviso('Categoría actualizada'); setEditandoCatId(null); cargarCategorias(); }
-    else { toastError('Error actualizando categoría'); }
   };
 
   const eliminarCategoria = (id, nombre) => {
@@ -407,7 +375,7 @@ function GestionProductos({ apiUrl }) {
             {/* ── SELECTOR DE DESTINO E IMPRESORA (ALIMENTOS VS BEBIDAS) ── */}
             <div style={{ background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '14px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
               <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.86rem', fontWeight: 700, marginBottom: '10px' }}>
-                🖨️ Tipo de Producto & Destino de Impresión
+                Tipo de Producto & Destino de Impresión
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <button
@@ -436,7 +404,7 @@ function GestionProductos({ apiUrl }) {
                     {nuevoProducto.tipo_destino === 'cocina' ? '✓' : ''}
                   </div>
                   <div>
-                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'cocina' ? 'var(--kpi-green)' : 'var(--text-primary)', fontSize: '0.9rem' }}>🍳 Alimento</strong>
+                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'cocina' ? 'var(--kpi-green)' : 'var(--text-primary)', fontSize: '0.9rem' }}>Alimento</strong>
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Impresora / KDS de Cocina</span>
                   </div>
                 </button>
@@ -467,7 +435,7 @@ function GestionProductos({ apiUrl }) {
                     {nuevoProducto.tipo_destino === 'bar' ? '✓' : ''}
                   </div>
                   <div>
-                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'bar' ? 'var(--kpi-blue)' : 'var(--text-primary)', fontSize: '0.9rem' }}>🍹 Bebida / Trago</strong>
+                    <strong style={{ display: 'block', color: nuevoProducto.tipo_destino === 'bar' ? 'var(--kpi-blue)' : 'var(--text-primary)', fontSize: '0.9rem' }}>Bebida / Trago</strong>
                     <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>Impresora / KDS de Bar</span>
                   </div>
                 </button>
@@ -482,7 +450,7 @@ function GestionProductos({ apiUrl }) {
                 ) : (
                   categoriasMenu.map((cat) => (
                     <option key={cat.id} value={cat.nombre}>
-                      {cat.nombre} {cat.grupo === 'bebidas' ? '(Bebidas)' : '(Alimentos)'}
+                      {cat.nombre} {esCategoriaBebida(cat.nombre, categoriasMenu) ? '(Bebidas)' : '(Alimentos)'}
                     </option>
                   ))
                 )}
@@ -509,7 +477,7 @@ function GestionProductos({ apiUrl }) {
                 }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  ⚙️ Clasificación del Plato & Opciones Avanzadas
+                  Clasificación del Plato & Opciones Avanzadas
                 </span>
                 <span style={{ color: 'var(--kpi-gold)', fontSize: '0.8rem' }}>
                   {acordeonOpcionesAbierto ? '▲ Ocultar' : '▼ Desplegar Opciones'}
@@ -526,10 +494,10 @@ function GestionProductos({ apiUrl }) {
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
                       {[
-                        { id: 'entrada', label: '🍲 Entrada' },
-                        { id: 'plato_fuerte', label: '🥩 Plato Fuerte' },
-                        { id: 'postre', label: '🍰 Postre' },
-                        { id: 'guarnicion', label: '🍟 Guarnición' }
+                        { id: 'entrada', label: 'Entrada' },
+                        { id: 'plato_fuerte', label: 'Plato Fuerte' },
+                        { id: 'postre', label: 'Postre' },
+                        { id: 'guarnicion', label: 'Guarnición' }
                       ].map((tipo) => {
                         const activo = nuevoProducto.tipo_plato === tipo.id;
                         return (
@@ -552,7 +520,7 @@ function GestionProductos({ apiUrl }) {
                               gap: '8px',
                               padding: '9px 10px',
                               borderRadius: '8px',
-                              background: activo ? 'rgba(245, 184, 61, 0.18)' : 'var(--bg-card-hover)',
+                              background: activo ? 'color-mix(in srgb, var(--gold) 18%, transparent)' : 'var(--bg-card-hover)',
                               border: `1.5px solid ${activo ? 'var(--kpi-gold)' : 'var(--border-light)'}`,
                               color: activo ? 'var(--kpi-gold)' : 'var(--text-primary)',
                               fontSize: '0.82rem',
@@ -583,7 +551,7 @@ function GestionProductos({ apiUrl }) {
                           onChange={(e) => setNuevoProducto({ ...nuevoProducto, requiere_guarnicion: e.target.checked })}
                           style={{ width: '17px', height: '17px', accentColor: 'var(--gold, #f5b842)' }}
                         />
-                        <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>🍟 Solicitar Guarnición</span>
+                        <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>Solicitar Guarnición</span>
                       </label>
 
                       <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-card-hover)', borderRadius: '8px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
@@ -593,7 +561,7 @@ function GestionProductos({ apiUrl }) {
                           onChange={(e) => setNuevoProducto({ ...nuevoProducto, requiere_termino: e.target.checked })}
                           style={{ width: '17px', height: '17px', accentColor: 'var(--gold, #f5b842)' }}
                         />
-                        <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>🥩 Solicitar Término de Cocción</span>
+                        <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600 }}>Solicitar Término de Cocción</span>
                       </label>
                     </div>
                   </div>
@@ -612,7 +580,7 @@ function GestionProductos({ apiUrl }) {
                           style={{ width: '17px', height: '17px', accentColor: '#10b981' }}
                         />
                         <div>
-                          <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>🏛️ ITBIS Fiscal (18%)</span>
+                          <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>ITBIS Fiscal (18%)</span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_itbis ? 'Gravado con 18%' : 'Exento (0%)'}</span>
                         </div>
                       </label>
@@ -626,7 +594,7 @@ function GestionProductos({ apiUrl }) {
                         />
                         <div>
                           <span style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>⚖️ Propina Legal (10%)</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_propina ? 'Ley 16-92 (10%)' : 'Exenta (0%)'}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{nuevoProducto.aplica_propina ? 'Aplica propina' : 'Sin propina'}</span>
                         </div>
                       </label>
                     </div>
@@ -648,14 +616,13 @@ function GestionProductos({ apiUrl }) {
                   type="button"
                   onClick={() => {
                     if (!nuevoProducto.nombre?.trim()) return toastAviso('Escribe primero el nombre del producto para buscar su foto.');
-                    const foto = generarFotoGastronomica(nuevoProducto.nombre);
-                    setNuevoProducto({ ...nuevoProducto, imagen_url: foto });
-                    setArchivoImagen(null);
-                    toastAviso('✨ Foto gastronómica asignada con éxito.');
+                    const query = encodeURIComponent(`${nuevoProducto.nombre} comida restaurante`);
+                    window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank', 'noopener,noreferrer');
+                    toastAviso('Se abrió Google Imágenes con la búsqueda. Elige una imagen, copia su enlace (clic derecho → Copiar dirección del enlace) y pégalo abajo.');
                   }}
                   style={{
-                    background: 'rgba(245, 184, 61, 0.15)',
-                    border: '1px solid rgba(245, 184, 61, 0.35)',
+                    background: 'color-mix(in srgb, var(--gold) 15%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)',
                     color: 'var(--kpi-gold)',
                     borderRadius: '8px',
                     padding: '4px 10px',
@@ -667,7 +634,7 @@ function GestionProductos({ apiUrl }) {
                     gap: '4px'
                   }}
                 >
-                  <Sparkles size={13} /> Auto-Buscar Foto en Línea
+                  <Search size={13} /> Buscar Foto en Google
                 </button>
               </div>
               <input type="url" name="imagen_url" className={inputClass} value={nuevoProducto.imagen_url} onChange={manejarCambioInput} disabled={!!archivoImagen} placeholder="https://..." />
@@ -707,7 +674,7 @@ function GestionProductos({ apiUrl }) {
                   cursor: 'pointer'
                 }}
               >
-                📂 Categorías ({categoriasMenu.length})
+                Categorías ({categoriasMenu.length})
               </button>
 
               <button
@@ -724,7 +691,7 @@ function GestionProductos({ apiUrl }) {
                   cursor: 'pointer'
                 }}
               >
-                🍟 Guarniciones ({guarnicionesMenu.length})
+                Guarniciones ({guarnicionesMenu.length})
               </button>
 
               <button
@@ -741,7 +708,7 @@ function GestionProductos({ apiUrl }) {
                   cursor: 'pointer'
                 }}
               >
-                🥩 Términos del Plato ({terminosMenu.length})
+                Términos del Plato ({terminosMenu.length})
               </button>
             </div>
           </div>
@@ -798,7 +765,7 @@ function GestionProductos({ apiUrl }) {
                     const err = await res.json().catch(() => ({}));
                     toastError(err.error || 'Error al crear elemento');
                   }
-                } catch (e) {
+                } catch {
                   toastError('Error de conexión con el servidor.');
                 }
               }}
@@ -867,7 +834,7 @@ function GestionProductos({ apiUrl }) {
                       </>
                     ) : (
                       <>
-                        <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600 }}>🍟 {guar.nombre}</span>
+                        <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600 }}>{guar.nombre}</span>
                         <button className="btn-accion edit" onClick={() => { setEditandoOpcionId(guar.id); setEditandoOpcionNombre(guar.nombre); }} title="Editar"><Pencil size={14} /></button>
                         <button className="btn-accion delete" onClick={() => {
                           setConfirmData({
@@ -906,7 +873,7 @@ function GestionProductos({ apiUrl }) {
                       </>
                     ) : (
                       <>
-                        <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600 }}>🥩 {term.nombre}</span>
+                        <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600 }}>{term.nombre}</span>
                         <button className="btn-accion edit" onClick={() => { setEditandoOpcionId(term.id); setEditandoOpcionNombre(term.nombre); }} title="Editar"><Pencil size={14} /></button>
                         <button className="btn-accion delete" onClick={() => {
                           setConfirmData({
@@ -945,14 +912,14 @@ function GestionProductos({ apiUrl }) {
           {/* Guía de Parámetros del Sistema */}
           <div style={{ background: 'var(--bg-input, rgba(255,255,255,0.03))', borderRadius: '10px', padding: '16px', border: '1px solid var(--border-subtle)' }}>
             <strong style={{ color: 'var(--kpi-gold)', fontSize: '0.85rem', display: 'block', marginBottom: '8px' }}>
-              📋 Parámetros Exactos de la Plantilla CSV:
+              Parámetros Exactos de la Plantilla CSV:
             </strong>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px', fontSize: '0.78rem' }}>
               <div><code style={{ color: 'var(--text-primary)' }}>nombre</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Nombre del producto.</div>
               <div><code style={{ color: 'var(--text-primary)' }}>precio</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Precio en RD$ (ej. 650.00).</div>
               <div><code style={{ color: 'var(--text-primary)' }}>categoria</code>: <span>(Opcional)</span> Alimentos, Bar, Postres...</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>tasa_itbis</code>: <span>(Opcional)</span> 18 (por defecto) o 0 (exento).</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> 10 (por defecto), 0 o NO.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>tasa_itbis</code>: <span>(Opcional)</span> 0 (exento, por defecto), 16 o 18.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> 0 o NO (por defecto), o 10 / SI para aplicarla.</div>
               <div><code style={{ color: 'var(--text-primary)' }}>imagen_url</code>: <span>(Opcional)</span> Enlace URL a la foto.</div>
             </div>
           </div>
@@ -995,7 +962,7 @@ function GestionProductos({ apiUrl }) {
               {/* ── SELECTOR DE DESTINO E IMPRESORA (ALIMENTOS VS BEBIDAS) EN EDICIÓN ── */}
               <div style={{ background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '12px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                 <label style={{ display: 'block', color: 'var(--text-primary)', fontSize: '0.84rem', fontWeight: 700, marginBottom: '8px' }}>
-                  🖨️ Tipo de Producto & Destino de Impresión
+                  Tipo de Producto & Destino de Impresión
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <button
@@ -1024,7 +991,7 @@ function GestionProductos({ apiUrl }) {
                       {editForm.tipo_destino === 'cocina' ? '✓' : ''}
                     </div>
                     <div>
-                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'cocina' ? 'var(--kpi-green)' : 'var(--text-primary)', fontSize: '0.85rem' }}>🍳 Alimento</strong>
+                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'cocina' ? 'var(--kpi-green)' : 'var(--text-primary)', fontSize: '0.85rem' }}>Alimento</strong>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cocina</span>
                     </div>
                   </button>
@@ -1055,7 +1022,7 @@ function GestionProductos({ apiUrl }) {
                       {editForm.tipo_destino === 'bar' ? '✓' : ''}
                     </div>
                     <div>
-                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'bar' ? 'var(--kpi-blue)' : 'var(--text-primary)', fontSize: '0.85rem' }}>🍹 Bebida / Trago</strong>
+                      <strong style={{ display: 'block', color: editForm.tipo_destino === 'bar' ? 'var(--kpi-blue)' : 'var(--text-primary)', fontSize: '0.85rem' }}>Bebida / Trago</strong>
                       <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Bar</span>
                     </div>
                   </button>
@@ -1064,13 +1031,13 @@ function GestionProductos({ apiUrl }) {
 
               <div className="form-group">
                 <label>Categoría del Menú</label>
-                <select className={inputClass} value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value })}>
+                <select className={inputClass} value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value, tipo_destino: destinoDeCategoria(e.target.value, categoriasMenu) })}>
                   {categoriasMenu.length === 0 ? (
                     <option value="">-- No hay categorías registradas --</option>
                   ) : (
                     categoriasMenu.map((cat) => (
                       <option key={cat.id} value={cat.nombre}>
-                        {cat.nombre} {cat.grupo === 'bebidas' ? '(Bebidas)' : '(Alimentos)'}
+                        {cat.nombre} {esCategoriaBebida(cat.nombre, categoriasMenu) ? '(Bebidas)' : '(Alimentos)'}
                       </option>
                     ))
                   )}
@@ -1096,7 +1063,7 @@ function GestionProductos({ apiUrl }) {
                     fontSize: '0.84rem'
                   }}
                 >
-                  <span>⚙️ Clasificación del Plato & Opciones Avanzadas</span>
+                  <span>Clasificación del Plato & Opciones Avanzadas</span>
                   <span style={{ color: 'var(--kpi-gold)', fontSize: '0.76rem' }}>
                     {editAcordeonAbierto ? '▲ Ocultar' : '▼ Desplegar'}
                   </span>
@@ -1112,10 +1079,10 @@ function GestionProductos({ apiUrl }) {
                       </label>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '6px' }}>
                         {[
-                          { id: 'entrada', label: '🍲 Entrada' },
-                          { id: 'plato_fuerte', label: '🥩 Plato Fuerte' },
-                          { id: 'postre', label: '🍰 Postre' },
-                          { id: 'guarnicion', label: '🍟 Guarnición' }
+                          { id: 'entrada', label: 'Entrada' },
+                          { id: 'plato_fuerte', label: 'Plato Fuerte' },
+                          { id: 'postre', label: 'Postre' },
+                          { id: 'guarnicion', label: 'Guarnición' }
                         ].map((tipo) => {
                           const activo = editForm.tipo_plato === tipo.id;
                           return (
@@ -1138,7 +1105,7 @@ function GestionProductos({ apiUrl }) {
                                 gap: '6px',
                                 padding: '7px 8px',
                                 borderRadius: '6px',
-                                background: activo ? 'rgba(245, 184, 61, 0.18)' : 'var(--bg-card-hover)',
+                                background: activo ? 'color-mix(in srgb, var(--gold) 18%, transparent)' : 'var(--bg-card-hover)',
                                 border: `1.5px solid ${activo ? 'var(--kpi-gold)' : 'var(--border-light)'}`,
                                 color: activo ? 'var(--kpi-gold)' : 'var(--text-primary)',
                                 fontSize: '0.78rem',
@@ -1169,7 +1136,7 @@ function GestionProductos({ apiUrl }) {
                             onChange={(e) => setEditForm({ ...editForm, requiere_guarnicion: e.target.checked })}
                             style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                           />
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>🍟 Solicitar Guarnición</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>Solicitar Guarnición</span>
                         </label>
 
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'var(--bg-card-hover)', borderRadius: '6px', border: '1px solid var(--border-light)', cursor: 'pointer' }}>
@@ -1179,7 +1146,7 @@ function GestionProductos({ apiUrl }) {
                             onChange={(e) => setEditForm({ ...editForm, requiere_termino: e.target.checked })}
                             style={{ width: '16px', height: '16px', accentColor: 'var(--gold, #f5b842)' }}
                           />
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>🥩 Solicitar Término</span>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600 }}>Solicitar Término</span>
                         </label>
                       </div>
                     </div>
@@ -1198,7 +1165,7 @@ function GestionProductos({ apiUrl }) {
                             style={{ width: '16px', height: '16px', accentColor: '#10b981' }}
                           />
                           <div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>🏛️ ITBIS (18%)</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>ITBIS (18%)</span>
                             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_itbis ? 'Gravado (18%)' : 'Exento'}</span>
                           </div>
                         </label>
@@ -1212,7 +1179,7 @@ function GestionProductos({ apiUrl }) {
                           />
                           <div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 600, display: 'block' }}>⚖️ Propina (10%)</span>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_propina ? 'Ley (10%)' : 'Exenta'}</span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{editForm.aplica_propina ? 'Aplica propina' : 'Sin propina'}</span>
                           </div>
                         </label>
                       </div>
@@ -1232,14 +1199,13 @@ function GestionProductos({ apiUrl }) {
                     type="button"
                     onClick={() => {
                       if (!editForm.nombre?.trim()) return toastAviso('Escribe primero el nombre del producto.');
-                      const foto = generarFotoGastronomica(editForm.nombre);
-                      setEditForm({ ...editForm, imagen_url: foto });
-                      setEditArchivo(null);
-                      toastAviso('✨ Foto gastronómica asignada.');
+                      const query = encodeURIComponent(`${editForm.nombre} comida restaurante`);
+                      window.open(`https://www.google.com/search?tbm=isch&q=${query}`, '_blank', 'noopener,noreferrer');
+                      toastAviso('Se abrió Google Imágenes con la búsqueda. Copia el enlace de la imagen elegida y pégalo abajo.');
                     }}
                     style={{
-                      background: 'rgba(245, 184, 61, 0.15)',
-                      border: '1px solid rgba(245, 184, 61, 0.35)',
+                      background: 'color-mix(in srgb, var(--gold) 15%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)',
                       color: 'var(--kpi-gold)',
                       borderRadius: '8px',
                       padding: '4px 10px',
@@ -1251,7 +1217,7 @@ function GestionProductos({ apiUrl }) {
                       gap: '4px'
                     }}
                   >
-                    <Sparkles size={13} /> Auto-Buscar Foto
+                    <Search size={13} /> Buscar Foto en Google
                   </button>
                 </div>
                 <input type="url" className={inputClass} value={editForm.imagen_url} onChange={(e) => setEditForm({ ...editForm, imagen_url: e.target.value })} disabled={!!editArchivo} />
