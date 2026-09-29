@@ -3,8 +3,31 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const http = require('http');
+const https = require('https');
 const net = require('net');
 const { spawn } = require('child_process');
+
+// ── Equipos modestos: menos CPU/disco en reposo, sin tocar el renderizado normal ──
+// "CalculateNativeWinOcclusion" hace que Windows consulte constantemente si la ventana está tapada;
+// en equipos con poca CPU eso solo genera trabajo de fondo para una app que casi siempre está visible.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// Cache de disco de Chromium acotada (por defecto puede crecer sin límite claro): 75 MB alcanza de sobra
+// para una SPA de unos pocos MB y evita que un equipo con poco disco se vaya llenando con el tiempo.
+app.commandLine.appendSwitch('disk-cache-size', String(75 * 1024 * 1024));
+
+// ── Modo seguro (sin aceleración por hardware) ────────────────────────
+// En una tablet o PC vieja con GPU integrada o controlador desactualizado, Chromium puede fallar o
+// renderizar en negro con aceleración por hardware. Si ya se detectó ese problema en este equipo
+// (archivo dejado por el manejador de fallas de GPU más abajo), se arranca sin ella desde ya.
+function rutaModoSeguro() {
+  try { return path.join(app.getPath('userData'), 'modo-seguro-gpu'); } catch { return null; }
+}
+try {
+  const ruta = rutaModoSeguro();
+  if (ruta && fs.existsSync(ruta)) {
+    app.disableHardwareAcceleration();
+  }
+} catch { /* si no se puede leer, se arranca con aceleración normal */ }
 
 let mainWindow;
 let splashWindow = null;
@@ -79,7 +102,7 @@ function mostrarSplash(mensaje) {
       alwaysOnTop: true,
       backgroundColor: '#0a1024',
       title: 'ChloeRestaurant',
-      webPreferences: { sandbox: true, contextIsolation: true },
+      webPreferences: { sandbox: true, contextIsolation: true, spellcheck: false },
     });
     splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlSplash(mensaje))}`);
     splashWindow.on('closed', () => { splashWindow = null; });
@@ -225,6 +248,67 @@ function findPostgresInstaller() {
   return null;
 }
 
+// Instalador oficial de PostgreSQL (EDB), descargado bajo demanda: ya no viaja dentro de
+// ChloeRestaurant. Bajaba el instalador a ~465 MB para TODOS —incluso en equipos que ya tienen
+// PostgreSQL o solo reciben una actualización— cuando en la práctica hace falta poco: en la primera
+// instalación de una PC sin PostgreSQL. Con esto el instalador de ChloeRestaurant pesa una fracción y
+// esto solo se descarga (376 MB, una vez) en ese caso puntual.
+const POSTGRES_INSTALLER_URL = 'https://get.enterprisedb.com/postgresql/postgresql-18.4-2-windows-x64.exe';
+
+/** Descarga con reintento de retomado simple: si ya hay un .parcial, se descarta y se empieza de nuevo
+ *  (más simple y confiable que retomar por rangos con un CDN que no siempre los soporta igual). */
+function descargarPostgresInstalador(alProgreso) {
+  return new Promise((resolve, reject) => {
+    const destino = path.join(app.getPath('userData'), 'postgresql-installer.exe');
+    if (fs.existsSync(destino)) {
+      // Ya se había descargado en un intento anterior (p. ej. el paso de instalación falló pero la
+      // descarga sí terminó): se reutiliza en vez de bajar 376 MB de nuevo.
+      return resolve(destino);
+    }
+    const parcial = `${destino}.parcial`;
+    const archivo = fs.createWriteStream(parcial);
+    let recibidos = 0;
+    let total = 0;
+    const pedir = (url, redirecciones = 0) => {
+      https.get(url, (res) => {
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirecciones < 5) {
+          res.resume();
+          pedir(res.headers.location, redirecciones + 1);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          archivo.close();
+          fs.rmSync(parcial, { force: true });
+          reject(new Error(`El servidor de descarga respondió ${res.statusCode}.`));
+          return;
+        }
+        total = Number(res.headers['content-length'] || 0);
+        res.on('data', (trozo) => {
+          recibidos += trozo.length;
+          if (total && alProgreso) alProgreso(recibidos / total);
+        });
+        res.pipe(archivo);
+        archivo.on('finish', () => {
+          archivo.close(() => {
+            if (total && recibidos !== total) {
+              fs.rmSync(parcial, { force: true });
+              reject(new Error('La descarga se cortó antes de completarse.'));
+              return;
+            }
+            fs.renameSync(parcial, destino);
+            resolve(destino);
+          });
+        });
+      }).on('error', (error) => {
+        archivo.close();
+        fs.rmSync(parcial, { force: true });
+        reject(error);
+      });
+    };
+    pedir(POSTGRES_INSTALLER_URL);
+  });
+}
+
 function installPostgresSilently(installerPath, superPassword) {
   return new Promise((resolve) => {
     const args = [
@@ -261,12 +345,31 @@ async function ensureDatabase() {
     console.warn('PostgreSQL no está disponible y no hay contraseña configurada para instalarlo.');
     return;
   }
-  const installerPath = findPostgresInstaller();
+  console.log('PostgreSQL no detectado en la PC.');
+  let installerPath = findPostgresInstaller();
   if (!installerPath) {
-    console.warn('PostgreSQL no está disponible y no se encontró el instalador empaquetado.');
-    return;
+    console.log('Descargando el instalador de PostgreSQL (una sola vez, ~376 MB)...');
+    actualizarSplash('Descargando la base de datos (solo la primera vez)… 0 %');
+    try {
+      let ultimoReportado = -1;
+      installerPath = await descargarPostgresInstalador((fraccion) => {
+        const porcentaje = Math.floor(fraccion * 100);
+        if (porcentaje !== ultimoReportado) {
+          ultimoReportado = porcentaje;
+          actualizarSplash(`Descargando la base de datos (solo la primera vez)… ${porcentaje} %`);
+        }
+      });
+    } catch (error) {
+      console.error('No se pudo descargar PostgreSQL:', error?.message || error);
+      mostrarErrorInicio(
+        'No se pudo descargar la base de datos',
+        `ChloeRestaurant necesita PostgreSQL y no pudo descargarlo (revisa la conexión a internet).\n\n` +
+        `Puedes instalarlo tú mismo desde:\n${POSTGRES_INSTALLER_URL}\n\ny volver a abrir ChloeRestaurant.`
+      );
+      return;
+    }
   }
-  console.log('PostgreSQL no detectado en la PC. Ejecutando instalación automática...');
+  console.log('Ejecutando instalación automática de PostgreSQL...');
   actualizarSplash('Instalando la base de datos. Solo ocurre la primera vez y puede tardar varios minutos…');
   await installPostgresSilently(installerPath, contrasenaInstalacion);
   for (let attempt = 1; attempt <= 30; attempt += 1) {
@@ -648,9 +751,21 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
+      spellcheck: false,
       preload: path.join(__dirname, 'preload.cjs')
     },
     autoHideMenuBar: true
+  });
+
+  // Si el proceso que dibuja la interfaz se cae (no solo el de GPU: memoria agotada, un controlador
+  // gráfico que falla a mitad de cuadro), se recarga sola una vez en vez de quedar en una pantalla
+  // negra o congelada — igual de silenciosa para quien la usa que un parpadeo al recargar.
+  let recargaPorFallaIntentada = false;
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.warn(`La interfaz se cayó (${details.reason}).`);
+    if (recargaPorFallaIntentada || !mainWindow || mainWindow.isDestroyed()) return;
+    recargaPorFallaIntentada = true;
+    mainWindow.loadURL(appUrl).catch(() => {});
   });
 
   // Ventana se mantiene oculta hasta que se solicite explícitamente (ipcMain.on('mostrar-ventana'))
@@ -891,6 +1006,23 @@ function createWindow() {
   arrancando = false;
 }
 
+// Si el proceso de GPU falla (controlador viejo, GPU integrada floja, máquina virtual sin
+// aceleración), no hay ventana que mostrar y no vale la pena insistir: se activa el modo seguro
+// (sin aceleración por hardware) para esta y las próximas veces, y se reinicia la app una sola vez.
+let reinicioPorGpuIntentado = false;
+app.on('child-process-gone', (_event, details) => {
+  if (details.type !== 'GPU' || reinicioPorGpuIntentado) return;
+  reinicioPorGpuIntentado = true;
+  console.warn(`Proceso de GPU caído (${details.reason}): se reinicia en modo seguro (sin aceleración por hardware).`);
+  try {
+    const ruta = rutaModoSeguro();
+    if (ruta) fs.writeFileSync(ruta, new Date().toISOString());
+  } catch { /* si no se puede guardar, igual se reinicia una vez */ }
+  stopBackend();
+  app.relaunch();
+  app.exit(0);
+});
+
 // Una sola instancia: abrir la app varias veces (p. ej. porque la primera tarda) no apila procesos ni servidores.
 const esInstanciaUnica = app.requestSingleInstanceLock();
 if (!esInstanciaUnica) {
@@ -914,6 +1046,9 @@ if (!esInstanciaUnica) {
     } catch (error) {
       console.error('Error asegurando PostgreSQL:', error?.message || error);
     }
+    // ensureDatabase ya pudo haber mostrado su propia pantalla de error (p. ej. no se pudo descargar
+    // PostgreSQL): no seguir encima con otro paso que solo la taparía con un mensaje más confuso.
+    if (mostrandoError) return;
 
     actualizarSplash('Iniciando el servidor local…');
     const eleccion = await elegirPuertoBackend();
