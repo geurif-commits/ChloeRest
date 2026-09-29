@@ -132,16 +132,19 @@ body {
   padding: 11px 20px; border-radius: var(--px-r-pill, 999px); background: var(--px-bad, #d24439); color: #fff;
   font: 650 .84rem var(--px-font-ui, inherit); box-shadow: 0 16px 40px rgba(180, 40, 30, .4); animation: px-rise .4s var(--px-ease, ease) both;
 }
+/* Barra de título nativa de Windows (pegada a la esquina, sin tarjeta ni sombra flotando encima
+   del contenido): mismas proporciones que los botones de una ventana común (46 × 32). */
 .px-winctl {
-  position: fixed; top: 10px; right: 10px; z-index: 99999; display: flex; gap: 2px; padding: 4px; border-radius: 12px;
-  background: var(--px-glass, rgba(20, 23, 29, .8)); border: 1px solid var(--px-line-2, rgba(255, 255, 255, .12)); backdrop-filter: blur(14px); box-shadow: var(--px-shadow-2, 0 6px 20px rgba(0, 0, 0, .3));
+  position: fixed; top: 0; right: 0; z-index: 99999; display: flex; height: 32px;
+  -webkit-app-region: no-drag;
 }
-.px-winctl button { width: 30px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--px-ink-3, #999); cursor: pointer; transition: all var(--px-t-fast, .15s); }
+.px-winctl button { width: 46px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 0; background: transparent; color: var(--px-ink-3, #999); cursor: pointer; transition: background .1s, color .1s; }
 .px-winctl button:hover { background: var(--px-line, rgba(128, 128, 128, .18)); color: var(--px-ink, #fff); }
-.px-winctl .px-winctl__close:hover { background: var(--px-bad, #d24439); color: #fff; }
+.px-winctl .px-winctl__close:hover { background: #e81123; color: #fff; }
 
-/* Electron: los controles de ventana flotan arriba a la derecha; se reserva su ancho en las barras superiores. */
-html.is-electron { --px-winctl-w: 112px; }
+/* Electron: los controles de ventana quedan pegados a la esquina como en cualquier ventana de Windows;
+   se reserva su ancho en las barras superiores para que ningún contenido quede debajo. */
+html.is-electron { --px-winctl-w: 138px; }
 html.is-electron .ld-nav,
 html.is-electron .adm-top,
 html.is-electron .mp-top,

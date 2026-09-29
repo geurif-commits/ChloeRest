@@ -56,7 +56,7 @@ const llamar = async (metodo, ruta, { token, body, sinDispositivo, cabeceras } =
 };
 
 let servidor;
-const est = { cajasAbiertas: [], cuentasMax: 0, aperturaMax: 0, cierreMax: 0, arqueoMax: null, mesas: [], productos: [], usuarios: [], secuencia: null, negocio: null, catalogo: [], t0: new Date() };
+const est = { cajasAbiertas: [], cuentasMax: 0, aperturaMax: 0, cierreMax: 0, arqueoMax: null, mesas: [], productos: [], usuarios: [], secuencia: null, negocio: null, catalogo: [], duenoCfg: null, t0: new Date() };
 
 async function iniciarServidor(extra = {}) {
   servidor = spawn(process.execPath, ['bundle.cjs'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), LOGIN_RATE_MAX: '5000', PUBLIC_RATE_MAX: '100000', NODE_ENV: 'development', ...extra }, stdio: 'ignore', windowsHide: true });
@@ -81,6 +81,7 @@ async function principal() {
   est.cuentasMax = await maximo('cuentas'); est.aperturaMax = await maximo('aperturas_caja'); est.cierreMax = await maximo('historial_cierres');
   try { est.arqueoMax = await maximo('arqueos_caja'); } catch { est.arqueoMax = null; }
   est.negocio = (await db.query('SELECT id, nombre_comercial, razon_social, rnc, telefono, direccion, cobrar_itbis, cobrar_propina, propina_porcentaje FROM negocio_config ORDER BY id LIMIT 1')).rows[0] || null;
+  est.duenoCfg = (await db.query('SELECT id, owner_pin_hash, owner_pin_longitud, owner_token_epoch FROM configuracion_sistema ORDER BY id LIMIT 1')).rows[0] || null;
   est.negocioMax = await maximo('negocio_config');
   est.catalogo = (await db.query('SELECT id, aplica_itbis, tasa_itbis, aplica_propina, tasa_propina FROM productos')).rows;
   const sec = await db.query("SELECT id, secuencia_actual FROM dgii_secuencias WHERE tipo_comprobante='B02' AND activa AND fecha_vencimiento >= CURRENT_DATE ORDER BY id LIMIT 1");
@@ -98,6 +99,22 @@ async function principal() {
   ok('health responde y reporta la zona horaria de la BD', h.status === 200 && typeof h.body.zonaHorariaBd === 'string', `${h.body.migracion} · ${h.body.zonaHorariaBd}`);
   const remoto = await llamar('POST', '/api/dueno/establecer-pin', { sinDispositivo: true, body: { pin: '482913' }, cabeceras: { 'X-Forwarded-For': '203.0.113.9' } });
   ok('el PIN inicial del propietario no se puede crear desde fuera del equipo servidor (403)', remoto.status === 403, `HTTP ${remoto.status}`);
+
+  // El dueño puede elegir su propio PIN, no depender de uno generado (se restaura al limpiar).
+  if (est.duenoCfg) {
+    await db.query('UPDATE configuracion_sistema SET owner_pin_hash = NULL WHERE id = $1', [est.duenoCfg.id]);
+    const creado = await llamar('POST', '/api/dueno/establecer-pin', { sinDispositivo: true, body: { pin: '730164' } });
+    ok('el propietario crea su PIN desde el equipo servidor', creado.status === 200 && creado.body.token, `HTTP ${creado.status}`);
+    const tokenDueno = creado.body.token;
+    const pinActualMalo = await llamar('POST', '/api/dueno/cambiar-pin', { sinDispositivo: true, token: tokenDueno, body: { pinActual: '000000', pinNuevo: '250891' } });
+    ok('cambiar el PIN exige el PIN actual correcto (401)', pinActualMalo.status === 401, `HTTP ${pinActualMalo.status}`);
+    const cambio = await llamar('POST', '/api/dueno/cambiar-pin', { sinDispositivo: true, token: tokenDueno, body: { pinActual: '730164', pinNuevo: '250891' } });
+    ok('el propietario cambia su propio PIN', cambio.status === 200 && cambio.body.token, `HTTP ${cambio.status}`);
+    const viejoFalla = await llamar('POST', '/api/dueno/login', { sinDispositivo: true, body: { pin: '730164' } });
+    ok('el PIN anterior deja de funcionar tras el cambio', viejoFalla.status === 401, `HTTP ${viejoFalla.status}`);
+    const nuevoFunciona = await llamar('POST', '/api/dueno/login', { sinDispositivo: true, body: { pin: '250891' } });
+    ok('el PIN nuevo funciona de inmediato', nuevoFunciona.status === 200 && nuevoFunciona.body.token, `HTTP ${nuevoFunciona.status}`);
+  }
 
   const rutas = new Set();
   for (const f of fs.readdirSync('src/routers').filter((x) => x.endsWith('.ts'))) {
@@ -322,6 +339,7 @@ async function limpiar() {
     if (est.cajasAbiertas.length) await db.query("UPDATE aperturas_caja SET estado = 'Abierta' WHERE id = ANY($1::int[])", [est.cajasAbiertas]);
     if (!est.negocio) await db.query('DELETE FROM negocio_config WHERE id > $1', [est.negocioMax]);
     else await db.query('UPDATE negocio_config SET nombre_comercial=$2, razon_social=$3, rnc=$4, telefono=$5, direccion=$6, cobrar_itbis=$7, cobrar_propina=$8, propina_porcentaje=$9 WHERE id=$1', [est.negocio.id, est.negocio.nombre_comercial, est.negocio.razon_social, est.negocio.rnc, est.negocio.telefono, est.negocio.direccion, est.negocio.cobrar_itbis, est.negocio.cobrar_propina, est.negocio.propina_porcentaje]);
+    if (est.duenoCfg) await db.query('UPDATE configuracion_sistema SET owner_pin_hash=$2, owner_pin_longitud=$3, owner_token_epoch=$4 WHERE id=$1', [est.duenoCfg.id, est.duenoCfg.owner_pin_hash, est.duenoCfg.owner_pin_longitud, est.duenoCfg.owner_token_epoch]);
     await db.query('DELETE FROM login_intentos WHERE actualizado_en >= $1', [est.t0]);
     fs.rmSync(dirRespaldos, { recursive: true, force: true });
     fs.rmSync(dirCopia, { recursive: true, force: true });

@@ -233,6 +233,49 @@ router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Respons
   res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
 }));
 
+// POST /api/dueno/cambiar-pin (ya con sesión iniciada): permite al propietario elegir su propio
+// PIN en vez de depender de uno generado. Pide el PIN actual como confirmación.
+router.post('/api/dueno/cambiar-pin', requireDueno, route(async (req: Request, res: Response) => {
+  const db = getDatabase();
+  const ip = clientIp(req);
+  const claves = ['ip:' + (ip || 'unknown')];
+  await verificarBloqueo(claves);
+
+  const pinActual = String(req.body.pinActual || '').trim();
+  const pinNuevo = String(req.body.pinNuevo || '').trim();
+  assertValidPin(pinActual);
+  assertValidPin(pinNuevo);
+  if (pinNuevo.length < 4) {throw httpError(400, 'El PIN nuevo debe tener al menos 4 dígitos.');}
+
+  const cfg = await db.queryUnscoped<{ owner_pin_hash: string | null }>(
+    'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
+  );
+  const storedHash = cfg.rows[0]?.owner_pin_hash || null;
+  const actualValido = (config.ownerPin && pinActual === String(config.ownerPin).trim()) ||
+    (storedHash && verifyPin(pinActual, storedHash));
+  if (!actualValido) {
+    await registrarFallo(claves);
+    throw httpError(401, 'El PIN actual no es correcto.');
+  }
+  if (pinNuevo === pinActual) {
+    throw httpError(400, 'El PIN nuevo debe ser distinto al actual.');
+  }
+
+  const nuevoHash = hashPin(pinNuevo);
+  await db.queryUnscoped(
+    'UPDATE configuracion_sistema SET owner_pin_hash = $1, owner_pin_longitud = $2, actualizado_en = CURRENT_TIMESTAMP WHERE id = 1',
+    [nuevoHash, pinNuevo.length]
+  );
+  await registrarExito(claves);
+  await auditar('CAMBIAR_PIN_DUENO', 'configuracion_sistema', 1, req, {});
+  // Invalida cualquier otro token Dueño abierto en otro equipo; a esta misma sesión se le entrega
+  // un token fresco ya con el epoch nuevo, para no cerrarle la sesión por cambiar su propio PIN.
+  await bumpDuenoEpoch();
+  logger.info({ action: 'DUENO_PIN_CAMBIADO' });
+  const exp = Date.now() + 12 * 3600 * 1000;
+  res.json({ ok: true, token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
+}));
+
 // POST /api/dueno/logout — revoca todos los tokens Dueño (item 7).
 router.post('/api/dueno/logout', requireDueno, route(async (_req: Request, res: Response) => {
   await bumpDuenoEpoch();

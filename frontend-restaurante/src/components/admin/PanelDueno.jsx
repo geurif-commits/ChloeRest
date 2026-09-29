@@ -269,6 +269,87 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
   const [pinReseteado, setPinReseteado] = useState(null);
 
+  // ── Cambiar mi propio PIN (el propietario elige el suyo, en vez de depender de uno generado) ──
+  const [cambioPinAbierto, setCambioPinAbierto] = useState(false);
+  const [pasoCambioPin, setPasoCambioPin] = useState('actual'); // 'actual' | 'nuevo' | 'confirmar'
+  const [pinActualCambio, setPinActualCambio] = useState('');
+  const [pinNuevoCambio, setPinNuevoCambio] = useState('');
+  const [pinConfirmarCambio, setPinConfirmarCambio] = useState('');
+  const [errorCambioPin, setErrorCambioPin] = useState('');
+  const [guardandoCambioPin, setGuardandoCambioPin] = useState(false);
+
+  const abrirCambioPin = () => {
+    setPasoCambioPin('actual');
+    setPinActualCambio('');
+    setPinNuevoCambio('');
+    setPinConfirmarCambio('');
+    setErrorCambioPin('');
+    setCambioPinAbierto(true);
+  };
+  const cerrarCambioPin = () => { if (!guardandoCambioPin) setCambioPinAbierto(false); };
+
+  const pinDelPasoActual =
+    pasoCambioPin === 'actual' ? pinActualCambio : pasoCambioPin === 'nuevo' ? pinNuevoCambio : pinConfirmarCambio;
+  const setPinDelPasoActual =
+    pasoCambioPin === 'actual' ? setPinActualCambio : pasoCambioPin === 'nuevo' ? setPinNuevoCambio : setPinConfirmarCambio;
+  const agregarDigitoCambioPin = (n) => {
+    setErrorCambioPin('');
+    setPinDelPasoActual((prev) => (prev.length < 12 ? prev + n : prev));
+  };
+  const borrarDigitoCambioPin = () => setPinDelPasoActual((prev) => prev.slice(0, -1));
+
+  const enviarCambioPin = async () => {
+    if (pinConfirmarCambio !== pinNuevoCambio) {
+      setErrorCambioPin('Los dos PIN no coinciden.');
+      setPinConfirmarCambio('');
+      return;
+    }
+    setGuardandoCambioPin(true);
+    setErrorCambioPin('');
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/cambiar-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers() },
+        body: JSON.stringify({ pinActual: pinActualCambio, pinNuevo: pinNuevoCambio }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorCambioPin(data.error || 'No se pudo cambiar el PIN.');
+        setPasoCambioPin('actual');
+        setPinActualCambio('');
+        setPinNuevoCambio('');
+        setPinConfirmarCambio('');
+        return;
+      }
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setToken(data.token);
+      setPinLongitud(pinNuevoCambio.length);
+      toastAviso('PIN actualizado correctamente.');
+      setCambioPinAbierto(false);
+    } catch {
+      setErrorCambioPin('Error de conexión con el servidor.');
+    } finally {
+      setGuardandoCambioPin(false);
+    }
+  };
+
+  const avanzarPasoCambioPin = () => {
+    if (guardandoCambioPin) return;
+    if (pasoCambioPin === 'actual') {
+      if (pinActualCambio.length < 4) return;
+      setErrorCambioPin('');
+      setPasoCambioPin('nuevo');
+    } else if (pasoCambioPin === 'nuevo') {
+      if (pinNuevoCambio.length < 4) return;
+      if (pinNuevoCambio === pinActualCambio) { setErrorCambioPin('El PIN nuevo debe ser distinto al actual.'); return; }
+      setErrorCambioPin('');
+      setPasoCambioPin('confirmar');
+    } else {
+      if (pinConfirmarCambio.length < 4) return;
+      enviarCambioPin();
+    }
+  };
+
   const resetearPinAdmin = async (lic) => {
     const nombre = lic.nombre_negocio || lic.empresa_nombre || 'este negocio';
     if (!window.confirm(`¿Generar un NUEVO PIN de administrador para "${nombre}"? El PIN actual dejará de funcionar de inmediato.`)) return;
@@ -850,6 +931,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>Acceso universal · Solo dueño</span>
+          <button onClick={abrirCambioPin} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}><KeyRound size={15} />Cambiar PIN</button>
           <button onClick={cerrarSesion} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-muted)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Cerrar sesión</button>
           <button onClick={alVolver} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Salir</button>
         </div>
@@ -1737,6 +1819,63 @@ function PanelDueno({ apiUrl, config, alVolver }) {
           nombreNegocio={nombreNegocio}
           alCerrar={() => setFacturaSeleccionada(null)}
         />
+      )}
+
+      {cambioPinAbierto && (
+        <div
+          role="dialog" aria-modal="true" aria-label="Cambiar mi PIN"
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: '16px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          onClick={cerrarCambioPin}
+        >
+          <div
+            style={{ width: '100%', maxWidth: '380px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', padding: '28px 24px', borderRadius: '16px', background: 'var(--admin-surface)', border: '1px solid var(--admin-border)', boxShadow: '0 30px 70px rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <KeyRound size={18} style={{ color: 'var(--gold)' }} />
+                <strong style={{ fontSize: '1rem' }}>Cambiar mi PIN</strong>
+              </div>
+              <button type="button" onClick={cerrarCambioPin} disabled={guardandoCambioPin} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-muted)', fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1 }} aria-label="Cerrar">✕</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {['actual', 'nuevo', 'confirmar'].map((p) => (
+                <span key={p} style={{ width: '8px', height: '8px', borderRadius: '50%', background: p === pasoCambioPin ? 'var(--gold)' : 'var(--admin-border)' }} />
+              ))}
+            </div>
+
+            <p style={{ margin: 0, textAlign: 'center', fontSize: '0.88rem', color: 'var(--admin-text-muted)' }}>
+              {pasoCambioPin === 'actual' && 'Primero confirma tu PIN actual.'}
+              {pasoCambioPin === 'nuevo' && 'Ahora elige tu nuevo PIN (4 a 12 dígitos).'}
+              {pasoCambioPin === 'confirmar' && 'Escríbelo una vez más para confirmarlo.'}
+            </p>
+
+            <form onSubmit={(e) => { e.preventDefault(); avanzarPasoCambioPin(); }} style={{ width: '100%' }}>
+              <PinPad
+                value={pinDelPasoActual}
+                length={pasoCambioPin === 'actual' ? Math.max(pinLongitud, 4) : 6}
+                error={errorCambioPin}
+                disabled={guardandoCambioPin}
+                onDigit={agregarDigitoCambioPin}
+                onDelete={borrarDigitoCambioPin}
+                asSubmit
+                submitDisabled={guardandoCambioPin || pinDelPasoActual.length < 4}
+              />
+              {guardandoCambioPin && <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--admin-text-muted)', marginTop: '8px' }}>Guardando…</p>}
+            </form>
+
+            {pasoCambioPin !== 'actual' && !guardandoCambioPin && (
+              <button
+                type="button"
+                onClick={() => { setErrorCambioPin(''); setPasoCambioPin(pasoCambioPin === 'confirmar' ? 'nuevo' : 'actual'); }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-muted)', fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Atrás
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

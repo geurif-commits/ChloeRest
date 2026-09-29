@@ -47,6 +47,18 @@
 .lg-brand::after { width: 400px; height: 400px; right: -130px; top: calc(22% + 110px); }
 .lg-brand > * { position: relative; z-index: 1; }
 
+/* El panel del PIN dibuja la otra mitad de los mismos dos círculos del panel de marca (mismo
+   tamaño y posición, medidos desde la unión de ambos paneles) para que crucen la línea divisoria
+   como una sola figura en vez de cortarse de golpe donde cambia el color de fondo. */
+.lg-pin { position: relative; overflow: hidden; }
+.lg-pin::before,
+.lg-pin::after {
+  content: ''; position: absolute; border-radius: 50%; border: 1px solid var(--px-line); pointer-events: none;
+}
+.lg-pin::before { width: 620px; height: 620px; left: -380px; top: 22%; }
+.lg-pin::after { width: 400px; height: 400px; left: -270px; top: calc(22% + 110px); }
+.lg-pin > * { position: relative; z-index: 1; }
+
 .lg-brand__id { display: flex; align-items: center; gap: 12px; }
 .lg-brand__logo {
   display: grid; place-items: center; width: 48px; height: 48px; flex: none; overflow: hidden;

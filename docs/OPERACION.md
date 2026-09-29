@@ -12,7 +12,7 @@ Guía para quien despliega, respalda y vigila el sistema. Complementa `docs/POST
 | `CORS_ORIGINS` | Orígenes permitidos (solo HTTPS en producción) | dominio central |
 | `RUN_MIGRATIONS` | `1` migra al arrancar (en producción se usa `npm run migrate`) | `0` |
 | `LOGIN_MAX_ATTEMPTS`, `LOGIN_WINDOW_MINUTES`, `LOGIN_LOCKOUT_MINUTES` | Bloqueo por PIN incorrecto: intentos permitidos / ventana en minutos (los fallos separados por más de la ventana no se acumulan) / duración del bloqueo | 5 / 15 / 5 |
-| `OWNER_PIN` | PIN del propietario de la plataforma. **Obligatorio en un servidor remoto**: sin él (y sin PIN guardado en la base) el PIN inicial solo se puede crear desde el propio equipo servidor, nunca desde la red | — |
+| `OWNER_PIN` | PIN del propietario de la plataforma. **Obligatorio en un servidor remoto**: sin él (y sin PIN guardado en la base) el PIN inicial solo se puede crear desde el propio equipo servidor, nunca desde la red. Una vez con sesión iniciada en *Panel del Propietario* (`/paneldueno`), el botón **Cambiar PIN** del encabezado permite elegir uno propio sin tocar esta variable; `OWNER_PIN`, si sigue definida, se queda como acceso alterno además del PIN guardado | — |
 | `DEVICE_REGISTER_RATE_MAX` | Aperturas de app por IP cada 10 min (`/api/dispositivo/registrar`) | 300 |
 | `PUBLIC_RATE_MAX` | Solicitudes a endpoints públicos por IP cada 10 min | 30 |
 | `BACKUP_ENABLED` | `1` activa el respaldo diario automático | `0` (las instalaciones de escritorio lo activan solas) |
