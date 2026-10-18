@@ -381,6 +381,14 @@ Tras correr `npm run licencias:diagnostico` en la base local (marcó un equipo b
 
 ---
 
+## 12l. Commit y push; el PIN del propietario no se versiona (2026-10-18)
+
+- Todo el trabajo (v2.5.0 desplegada + v2.6.0) estaba sin commitear sobre `39e643b` (v2.4.1). Se subió en `e3605bc` a la rama `feat/rediseno-verde-turnos-asistencia` (no a `main`: un push a `main` dispara `build_installers.yml`).
+- **El repositorio de GitHub es público.** Por eso el verificador scrypt del PIN real (`src/lib/propietario.ts`, bloque `CREDENCIAL_PROPIETARIO`) **no está en el commit**: lleva `null`. En el equipo del propietario el archivo conserva el verificador real y está marcado con `git update-index --skip-worktree`, de modo que `git status`/`git add -A` no lo tocan y los instaladores y el `dist` construidos allí siguen llevándolo. Detalle y recuperación en `docs/OPERACION.md` §3d.
+- **Instalador 2.6.0:** sin firmar. No hay certificado de firma de código (ni en el almacén de Windows, ni en `CSC_LINK`, ni en la configuración de `electron-builder`); hay que comprar uno (OV/EV) y apuntar `CSC_LINK`/`CSC_KEY_PASSWORD` antes de `npm run dist`. No hay canal de descarga automático ni actualización automática: el propietario instala en cada cliente.
+
+---
+
 ## 13. Referencias rápidas de archivos nuevos o clave de esta sesión
 
 Backend: `src/services/asistenciaService.ts`, `src/routers/asistencia.ts`, `src/services/destinoProducto.ts`, `src/routers/kds.ts`, `src/routers/productos.ts`, `src/routers/menuConfiguracion.ts`, `src/routers/mesas.ts` (`MESAS_LISTA_SQL`), `src/routers/sistema.ts`, `src/middleware/errorHandler.ts`, `src/db/migrations.ts`, `scripts/run-migrations.ts`, `docs/POSTGRES_PRODUCCION.md`.

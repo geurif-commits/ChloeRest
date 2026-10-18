@@ -172,6 +172,11 @@ npm run propietario:pin -- --quitar      # vuelve al PIN configurable de antes
 
 El PIN debe tener **10 a 12 dígitos** (recomendado 12) y sin patrones (no repetidos, escaleras ni bloques repetidos). Después hay que **recompilar y desplegar** el servidor y, para las apps de escritorio, **generar un instalador nuevo**: lo ya desplegado/instalado sigue con el PIN que tenía. Guarda el PIN en tu gestor de contraseñas: si lo olvidas, se regenera con el mismo comando (tienes el código) y se vuelve a desplegar.
 
+**El verificador NO se sube a git.** El repositorio de GitHub es público: un verificador publicado permitiría probar PINs sin conexión y sin límite. Por eso el commit lleva `CREDENCIAL_PROPIETARIO = null` y en el equipo donde se compila el archivo `src/lib/propietario.ts` está marcado con `git update-index --skip-worktree`: `git status` no lo muestra, `git add -A` no lo incluye y los instaladores/`dist` construidos aquí sí llevan el PIN real. Consecuencias:
+- Una compilación hecha desde el repositorio (GitHub Actions, otra máquina) sale **sin** PIN incrustado y el panel queda en modo configurable (`OWNER_PIN`); `npm run test:release` lo avisa. Los instaladores y el servidor de producción se construyen siempre desde el equipo del propietario.
+- En otra máquina, el PIN se vuelve a incrustar ejecutando `npm run propietario:pin` ahí, y se marca el archivo igual: `git update-index --skip-worktree src/lib/propietario.ts`.
+- Si git avisa de conflicto en ese archivo al hacer `pull`/`checkout`: `git update-index --no-skip-worktree src/lib/propietario.ts`, guardar una copia, traer los cambios, y volver a incrustar el PIN y a marcarlo. Nunca hacer `git add -f` de ese archivo con el verificador real.
+
 **Qué pasa cuando hay un PIN incrustado:**
 - Es el **único** válido. El `OWNER_PIN` del entorno y el PIN guardado en la base se **ignoran**; `POST /api/dueno/establecer-pin` y `POST /api/dueno/cambiar-pin` responden 409 `PIN_FIJO` (ya nadie puede crear o cambiar un PIN de propietario desde la interfaz: un cliente no puede quedarse con el panel de su instalación creando el suyo). El botón *Cambiar PIN* es sustituido por «PIN fijado en el sistema».
 - Panel y login general usan la **misma función** (`propietarioService.esPinDelPropietario`); no pueden discrepar.
