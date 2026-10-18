@@ -3,8 +3,7 @@ import { toastAviso, toastError } from './Toast.jsx';
 import {
   Store, Key, Building2, Receipt, Printer, FileText, Save,
   CreditCard, Pencil, Trash2, Plus, CheckCircle2, ShieldCheck, Sparkles,
-  RefreshCw, HardDrive, Download
-} from 'lucide-react';
+  RefreshCw, HardDrive, Download } from 'lucide-react';
 import { PROPINA_MIN, PROPINA_MAX, porcentajePropina } from '../utils/dinero.js';
 import './admin/admin.css';
 
@@ -76,11 +75,21 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
   const [respaldosError, setRespaldosError] = useState('');
   const [creandoRespaldo, setCreandoRespaldo] = useState(false);
 
+  // Formulario editable del respaldo automático (se carga una vez; "Guardar ajustes" lo aplica en el servidor).
+  const [ajustesRespaldo, setAjustesRespaldo] = useState(null);
+  const [guardandoAjustes, setGuardandoAjustes] = useState(false);
+  const formularioDeAjustes = (a) => ({ ...a, copyDir: a.copyDir || '' });
+  const cambiarAjusteRespaldo = (campo, valor) => setAjustesRespaldo((actual) => ({ ...actual, [campo]: valor }));
+
   const cargarRespaldos = async () => {
     setRespaldosError('');
     try {
       const res = await fetch(`${urlBase}/api/respaldos`);
-      if (res.ok) setRespaldos(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setRespaldos(data);
+        if (data.ajustes) setAjustesRespaldo((actual) => actual ?? formularioDeAjustes(data.ajustes));
+      }
       else if (res.status === 403) setRespaldosError('Los respaldos de este servidor los gestiona el propietario de la plataforma.');
       else setRespaldosError('No se pudo consultar los respaldos.');
     } catch {
@@ -101,6 +110,39 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
     } finally {
       setCreandoRespaldo(false);
     }
+  };
+
+  const guardarAjustesRespaldo = async () => {
+    setGuardandoAjustes(true);
+    try {
+      const res = await fetch(`${urlBase}/api/respaldos/ajustes`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: ajustesRespaldo.enabled,
+          hour: ajustesRespaldo.hour,
+          retentionDays: Number(ajustesRespaldo.retentionDays),
+          copyDir: ajustesRespaldo.copyDir.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setRespaldos(data);
+        setAjustesRespaldo(formularioDeAjustes(data.ajustes));
+        toastAviso(data.mensaje || 'Ajustes de respaldo guardados.');
+      } else {
+        toastError(data.error || 'No se pudieron guardar los ajustes de respaldo.');
+      }
+    } catch {
+      toastError('Error de conexión con el servidor.');
+    } finally {
+      setGuardandoAjustes(false);
+    }
+  };
+
+  const elegirCarpetaRespaldo = async () => {
+    const carpeta = await window.electronPOS?.elegirCarpeta?.();
+    if (carpeta) cambiarAjusteRespaldo('copyDir', carpeta);
   };
 
   const descargarRespaldo = async (nombre) => {
@@ -1000,16 +1042,97 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
           {respaldosError && <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.86rem' }}>{respaldosError}</p>}
           {respaldos && (
             <>
-              <p style={{ margin: 0, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+              <p style={{ margin: 0, fontSize: '0.86rem', color: respaldos.automaticos ? 'var(--text-primary)' : 'var(--red, #d64545)' }}>
                 {respaldos.automaticos
-                  ? `Respaldo automático activo: cada día a las ${String(respaldos.hora).padStart(2, '0')}:00, se conservan ${respaldos.retencionDias} días.`
-                  : 'El respaldo automático está desactivado en este servidor.'}
+                  ? (respaldos.proximoRespaldo
+                    ? `Respaldo automático activo · próximo respaldo: ${new Date(respaldos.proximoRespaldo).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}`
+                    : 'Respaldo automático activo, pero no hay respaldo programado (falta pg_dump en este equipo).')
+                  : 'El respaldo automático está desactivado: tus datos no se copian solos.'}
               </p>
-              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--admin-text-muted)' }}>
-                {respaldos.copiaExternaConfigurada
-                  ? 'Cada respaldo también se copia a la carpeta externa configurada (BACKUP_COPY_DIR).'
-                  : 'Sin copia externa: guarda una copia en una memoria USB o en la nube. Si este equipo falla, los respaldos que estén en él también se pierden.'}
-              </p>
+              {respaldos.respaldos[0] && (
+                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--admin-text-muted)' }}>
+                  Último respaldo: {new Date(respaldos.respaldos[0].creado).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}
+                </p>
+              )}
+              {respaldos.ultimoIntento && !respaldos.ultimoIntento.ok && (
+                <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.84rem' }}>
+                  El último intento de respaldo falló ({new Date(respaldos.ultimoIntento.fecha).toLocaleString('es-DO', { dateStyle: 'short', timeStyle: 'short' })}): {respaldos.ultimoIntento.mensaje}
+                </p>
+              )}
+              {ajustesRespaldo && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.03)' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={ajustesRespaldo.enabled}
+                      onChange={(e) => cambiarAjusteRespaldo('enabled', e.target.checked)}
+                      style={{ marginTop: '3px' }}
+                    />
+                    <span>
+                      <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>Respaldo automático diario</strong>
+                      <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--admin-text-muted)' }}>
+                        El sistema copia tus datos solo. Si el equipo estaba apagado a esa hora, lo hace al encenderlo.
+                      </span>
+                    </span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                    <div className="admin-form-group">
+                      <label className="admin-label" htmlFor="respaldo-hora">Hora del respaldo</label>
+                      <select
+                        id="respaldo-hora"
+                        className="admin-select"
+                        value={ajustesRespaldo.hour}
+                        disabled={!ajustesRespaldo.enabled}
+                        onChange={(e) => cambiarAjusteRespaldo('hour', Number(e.target.value))}
+                      >
+                        {Array.from({ length: 24 }, (_, h) => (
+                          <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="admin-form-group">
+                      <label className="admin-label" htmlFor="respaldo-dias">Conservar (días)</label>
+                      <input
+                        id="respaldo-dias"
+                        type="number"
+                        min="1"
+                        max="365"
+                        className="admin-input"
+                        value={ajustesRespaldo.retentionDays}
+                        onChange={(e) => cambiarAjusteRespaldo('retentionDays', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="admin-form-group">
+                    <label className="admin-label" htmlFor="respaldo-copia">Copia en otra carpeta (USB, nube o red)</label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <input
+                        id="respaldo-copia"
+                        className="admin-input"
+                        style={{ flex: '1 1 260px' }}
+                        placeholder="Ej.: D:\Respaldos"
+                        value={ajustesRespaldo.copyDir}
+                        onChange={(e) => cambiarAjusteRespaldo('copyDir', e.target.value)}
+                      />
+                      {window.electronPOS?.elegirCarpeta && (
+                        <button type="button" className="admin-btn" onClick={elegirCarpetaRespaldo}>Elegir carpeta…</button>
+                      )}
+                    </div>
+                    <small style={{ fontSize: '0.74rem', color: 'var(--admin-text-muted)' }}>
+                      Cada respaldo verificado se copia también ahí (una carpeta de OneDrive, Google Drive o una memoria USB sirve). Déjalo vacío para no copiar.
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-primary"
+                    onClick={guardarAjustesRespaldo}
+                    disabled={guardandoAjustes}
+                    style={{ alignSelf: 'flex-start' }}
+                  >
+                    {guardandoAjustes ? 'Guardando…' : 'Guardar ajustes'}
+                  </button>
+                </div>
+              )}
               {!respaldos.herramientaDisponible && (
                 <p role="alert" style={{ margin: 0, color: 'var(--red, #d64545)', fontSize: '0.84rem' }}>
                   No se encontró pg_dump en este equipo: instala las herramientas de PostgreSQL para poder respaldar.

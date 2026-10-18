@@ -1,9 +1,11 @@
 /**
  * @file Respaldos automáticos de la base de datos (pg_dump en formato custom).
  *
- * - Un respaldo por día a la hora BACKUP_HOUR (por defecto 03:00) y uno al arrancar si el último tiene
- *   más de 24 h. Cada archivo se verifica con `pg_restore --list` antes de darlo por bueno.
+ * - Un respaldo por día a la hora BACKUP_HOUR (por defecto 03:00) y uno al arrancar si se perdió el último
+ *   programado (equipo apagado a esa hora). Cada archivo se verifica con `pg_restore --list` antes de darlo por bueno.
  * - Se conservan los últimos BACKUP_RETENTION_DAYS días (por defecto 14) y, como mínimo, los 3 más recientes.
+ * - Lo que el usuario elige en pantalla (activar, hora, días, carpeta externa) se guarda en `ajustes.json`
+ *   dentro de la carpeta de respaldos y manda sobre las variables BACKUP_* del entorno.
  * - Las tablas de negocio tienen RLS forzado: el rol que respalda debe ser superusuario o tener BYPASSRLS
  *   (BACKUP_DB_USER / BACKUP_DB_PASSWORD). Si no puede leer todas las filas, pg_dump falla en voz alta.
  * - `npm run backup` crea uno ahora; `npm run backup:verify` lo restaura en una base temporal y lo comprueba.
@@ -14,12 +16,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { clearTimeout, setTimeout } from 'node:timers';
 import { config } from '../lib/config.js';
+import { httpError } from '../lib/core.js';
 import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('backup');
 
 const EXPRESION_NOMBRE = /^chloerest_\d{8}_\d{6}\.dump$/;
 const MINIMO_A_CONSERVAR = 3;
+const ARCHIVO_AJUSTES = 'ajustes.json';
+
+/** Ajustes efectivos del respaldo automático. */
+export interface IAjustesRespaldo {
+  enabled: boolean;
+  hour: number;
+  retentionDays: number;
+  copyDir: string | null;
+}
+
+/** Resultado del último respaldo intentado (manual o automático); vive en memoria hasta reiniciar. */
+export interface IUltimoIntento {
+  ok: boolean;
+  fecha: string;
+  mensaje: string | null;
+}
 
 export interface IRespaldo {
   nombre: string;
@@ -94,6 +113,106 @@ export function copiarRespaldo(origen: string, dirDestino: string, retencionDias
     logger.warn({ action: 'RESPALDO_COPIA_FALLIDA', error: { message: error instanceof Error ? error.message : String(error) } });
     return 'fallida';
   }
+}
+
+const esEnteroEntre = (valor: unknown, minimo: number, maximo: number): valor is number =>
+  typeof valor === 'number' && Number.isInteger(valor) && valor >= minimo && valor <= maximo;
+
+/** Número o texto numérico no vacío; cualquier otra cosa (null, '', true…) es NaN y no pasa la validación. */
+const aNumero = (valor: unknown): number =>
+  typeof valor === 'number' ? valor : typeof valor === 'string' && valor.trim() !== '' ? Number(valor) : Number.NaN;
+
+/** Ajustes guardados desde la pantalla. Un archivo ausente, ilegible o con campos inválidos se ignora campo a campo. */
+export function leerAjustesGuardados(dir: string): Partial<IAjustesRespaldo> {
+  try {
+    const crudo = JSON.parse(fs.readFileSync(path.join(dir, ARCHIVO_AJUSTES), 'utf8')) as Record<string, unknown>;
+    const ajustes: Partial<IAjustesRespaldo> = {};
+    if (typeof crudo.enabled === 'boolean') {ajustes.enabled = crudo.enabled;}
+    if (esEnteroEntre(crudo.hour, 0, 23)) {ajustes.hour = crudo.hour;}
+    if (esEnteroEntre(crudo.retentionDays, 1, 365)) {ajustes.retentionDays = crudo.retentionDays;}
+    if (crudo.copyDir === null || typeof crudo.copyDir === 'string') {ajustes.copyDir = crudo.copyDir || null;}
+    return ajustes;
+  } catch {
+    return {};
+  }
+}
+
+/** Lo guardado manda sobre el entorno; un `copyDir` guardado como null significa "sin copia externa" aunque BACKUP_COPY_DIR exista. */
+export function combinarAjustes(base: IAjustesRespaldo, guardados: Partial<IAjustesRespaldo>): IAjustesRespaldo {
+  return { ...base, ...guardados };
+}
+
+export function ajustesDeRespaldo(): IAjustesRespaldo {
+  return combinarAjustes(
+    { enabled: config.backup.enabled, hour: config.backup.hour, retentionDays: config.backup.retentionDays, copyDir: config.backup.copyDir },
+    leerAjustesGuardados(config.backup.dir)
+  );
+}
+
+export function guardarAjustes(dir: string, ajustes: Partial<IAjustesRespaldo>): void {
+  fs.mkdirSync(dir, { recursive: true });
+  const archivo = path.join(dir, ARCHIVO_AJUSTES);
+  const parcial = `${archivo}.parcial`;
+  fs.writeFileSync(parcial, JSON.stringify(ajustes, null, 2));
+  fs.renameSync(parcial, archivo);
+}
+
+/** La carpeta externa debe ser una ruta completa, distinta de la de respaldos, y poder escribirse (se prueba de verdad). */
+function comprobarCarpetaExterna(texto: string, dirRespaldos: string): string {
+  if (!path.isAbsolute(texto)) {
+    throw httpError(400, 'La carpeta externa debe ser una ruta completa (por ejemplo D:\\Respaldos).', 'RESPALDO_CARPETA_INVALIDA');
+  }
+  const destino = path.resolve(texto);
+  const relativa = path.relative(path.resolve(dirRespaldos), destino);
+  if (relativa === '' || (!relativa.startsWith('..') && !path.isAbsolute(relativa))) {
+    throw httpError(400, 'La carpeta externa debe ser distinta de la carpeta de respaldos del sistema.', 'RESPALDO_CARPETA_INVALIDA');
+  }
+  const prueba = path.join(destino, `.prueba-${process.pid}-${Date.now()}`);
+  try {
+    fs.mkdirSync(destino, { recursive: true });
+    fs.writeFileSync(prueba, 'ok');
+    fs.rmSync(prueba, { force: true });
+  } catch (error) {
+    const detalle = error instanceof Error ? error.message : String(error);
+    throw httpError(400, `No se puede escribir en esa carpeta (${detalle}). Revisa que exista y que la memoria USB o la unidad estén conectadas.`, 'RESPALDO_CARPETA_INVALIDA');
+  }
+  return destino;
+}
+
+/** Valida lo que llega de la pantalla; solo devuelve los campos presentes. `copyDir` vacío o null quita la copia externa. */
+export function validarAjustes(entrada: Record<string, unknown>, dirRespaldos: string): Partial<IAjustesRespaldo> {
+  const resultado: Partial<IAjustesRespaldo> = {};
+  if (entrada.enabled !== undefined) {
+    if (typeof entrada.enabled !== 'boolean') {throw httpError(400, 'El estado del respaldo automático debe ser verdadero o falso.', 'RESPALDO_AJUSTE_INVALIDO');}
+    resultado.enabled = entrada.enabled;
+  }
+  if (entrada.hour !== undefined) {
+    const hora = aNumero(entrada.hour);
+    if (!esEnteroEntre(hora, 0, 23)) {throw httpError(400, 'La hora del respaldo debe estar entre 0 y 23.', 'RESPALDO_AJUSTE_INVALIDO');}
+    resultado.hour = hora;
+  }
+  if (entrada.retentionDays !== undefined) {
+    const dias = aNumero(entrada.retentionDays);
+    if (!esEnteroEntre(dias, 1, 365)) {throw httpError(400, 'Los días a conservar deben estar entre 1 y 365.', 'RESPALDO_AJUSTE_INVALIDO');}
+    resultado.retentionDays = dias;
+  }
+  if (entrada.copyDir !== undefined) {
+    const texto = entrada.copyDir === null ? '' : String(entrada.copyDir).trim();
+    resultado.copyDir = texto ? comprobarCarpetaExterna(texto, dirRespaldos) : null;
+  }
+  return resultado;
+}
+
+/**
+ * ¿Se perdió el respaldo programado? Ocurre cuando el equipo estaba apagado a esa hora (restaurantes que
+ * apagan de noche): si el último respaldo es anterior a la última hora programada que ya pasó, toca recuperarlo.
+ */
+export function debeRecuperarRespaldo(ultimo: Date | null, hora: number, ahora: Date = new Date()): boolean {
+  if (!ultimo) {return true;}
+  const ultimaProgramada = new Date(ahora);
+  ultimaProgramada.setHours(hora, 0, 0, 0);
+  if (ultimaProgramada.getTime() > ahora.getTime()) {ultimaProgramada.setDate(ultimaProgramada.getDate() - 1);}
+  return ultimo.getTime() < ultimaProgramada.getTime();
 }
 
 /** Milisegundos hasta la próxima ejecución diaria a la hora indicada (0–23). */
@@ -183,6 +302,7 @@ export async function crearRespaldo(): Promise<IRespaldoVerificado> {
 
   enCurso = true;
   const dir = config.backup.dir;
+  const ajustes = ajustesDeRespaldo();
   const nombre = nombreDeRespaldo();
   const destino = path.join(dir, nombre);
   const parcial = `${destino}.parcial`;
@@ -202,16 +322,19 @@ export async function crearRespaldo(): Promise<IRespaldoVerificado> {
     if (!verificado) {
       throw new Error('El respaldo se creó pero no pasó la verificación (pg_restore --list).');
     }
-    const eliminados = depurarRespaldos(dir, config.backup.retentionDays);
-    const copiaExterna: ICopiaExterna = config.backup.copyDir
-      ? copiarRespaldo(destino, config.backup.copyDir, config.backup.retentionDays)
+    const eliminados = depurarRespaldos(dir, ajustes.retentionDays);
+    const copiaExterna: ICopiaExterna = ajustes.copyDir
+      ? copiarRespaldo(destino, ajustes.copyDir, ajustes.retentionDays)
       : 'no_configurada';
     const stat = fs.statSync(destino);
+    ultimoIntento = { ok: true, fecha: new Date().toISOString(), mensaje: null };
     logger.info({ action: 'RESPALDO_CREADO', details: { nombre, bytes: stat.size, eliminados: eliminados.length, copiaExterna } });
     return { nombre, bytes: stat.size, creado: stat.mtime.toISOString(), verificado, copiaExterna };
   } catch (error) {
     if (fs.existsSync(parcial)) {fs.unlinkSync(parcial);}
-    logger.error({ action: 'RESPALDO_FALLIDO', error: { message: error instanceof Error ? error.message : String(error) } });
+    const mensaje = error instanceof Error ? error.message : String(error);
+    ultimoIntento = { ok: false, fecha: new Date().toISOString(), mensaje };
+    logger.error({ action: 'RESPALDO_FALLIDO', error: { message: mensaje } });
     throw error;
   } finally {
     enCurso = false;
@@ -219,31 +342,66 @@ export async function crearRespaldo(): Promise<IRespaldoVerificado> {
 }
 
 let temporizador: ReturnType<typeof setTimeout> | null = null;
+let proximaEjecucion: number | null = null;
+let ultimoIntento: IUltimoIntento | null = null;
 
-/** Programa el respaldo diario. No hace nada si BACKUP_ENABLED no es 1 o no hay pg_dump. */
+/** Cuándo corre el próximo respaldo automático (null si está desactivado o no hay pg_dump) y cómo fue el último intento. */
+export function estadoDeRespaldos(): { proximoRespaldo: string | null; ultimoIntento: IUltimoIntento | null } {
+  return { proximoRespaldo: proximaEjecucion ? new Date(proximaEjecucion).toISOString() : null, ultimoIntento };
+}
+
+/** (Re)programa el respaldo diario según los ajustes vigentes: lo desactivado o sin pg_dump no deja temporizador. */
+function programar(): void {
+  if (temporizador) {clearTimeout(temporizador);}
+  temporizador = null;
+  proximaEjecucion = null;
+  const ajustes = ajustesDeRespaldo();
+  if (!ajustes.enabled || !localizarHerramienta('pg_dump')) {return;}
+  const espera = msHastaProximaEjecucion(ajustes.hour);
+  proximaEjecucion = Date.now() + espera;
+  temporizador = setTimeout(() => {
+    void crearRespaldo().catch(() => undefined).finally(programar);
+  }, espera);
+  temporizador.unref();
+}
+
+/** Aplica de inmediato un cambio de ajustes (activar, desactivar, otra hora) sin reiniciar el servidor. */
+export function reprogramarRespaldosAutomaticos(): void {
+  programar();
+}
+
+/** Valida, guarda y aplica los ajustes elegidos en pantalla. Lanza un 400 claro si algo no es válido. */
+export function actualizarAjustes(entrada: Record<string, unknown>): IAjustesRespaldo {
+  const dir = config.backup.dir;
+  const nuevos = validarAjustes(entrada, dir);
+  guardarAjustes(dir, { ...leerAjustesGuardados(dir), ...nuevos });
+  reprogramarRespaldosAutomaticos();
+  return ajustesDeRespaldo();
+}
+
+/** Arranca el respaldo automático (si está activado y hay pg_dump) y recupera el programado que se perdió por tener el equipo apagado. */
 export function iniciarRespaldosAutomaticos(): void {
-  if (!config.backup.enabled) {return;}
-  if (!localizarHerramienta('pg_dump')) {
-    logger.warn({ action: 'RESPALDOS_NO_DISPONIBLES', details: 'BACKUP_ENABLED=1 pero no se encontró pg_dump; define PG_BIN_DIR.' });
-    return;
+  const ajustes = ajustesDeRespaldo();
+  const hayHerramienta = localizarHerramienta('pg_dump') !== null;
+  if (ajustes.enabled && !hayHerramienta) {
+    logger.warn({ action: 'RESPALDOS_NO_DISPONIBLES', details: 'El respaldo automático está activado pero no se encontró pg_dump; define PG_BIN_DIR.' });
   }
-  const programar = (): void => {
-    temporizador = setTimeout(() => {
-      void crearRespaldo().catch(() => undefined).finally(programar);
-    }, msHastaProximaEjecucion(config.backup.hour));
-    temporizador.unref();
-  };
   programar();
 
-  // Al arrancar: si el último respaldo tiene más de 24 h (o no hay), se hace uno tras 2 minutos.
+  // Al arrancar: si se perdió el último respaldo programado (equipo apagado a esa hora), se hace uno tras 2 minutos.
   const ultimo = listarRespaldos(config.backup.dir)[0];
-  if (!ultimo || Date.now() - new Date(ultimo.creado).getTime() > 24 * 3600 * 1000) {
-    setTimeout(() => { void crearRespaldo().catch(() => undefined); }, 2 * 60 * 1000).unref();
+  if (ajustes.enabled && hayHerramienta && debeRecuperarRespaldo(ultimo ? new Date(ultimo.creado) : null, ajustes.hour)) {
+    setTimeout(() => {
+      if (ajustesDeRespaldo().enabled) {void crearRespaldo().catch(() => undefined);}
+    }, 2 * 60 * 1000).unref();
   }
-  logger.info({ action: 'RESPALDOS_PROGRAMADOS', details: { hora: config.backup.hour, dir: config.backup.dir, retencionDias: config.backup.retentionDays } });
+  if (ajustes.enabled) {
+    logger.info({ action: 'RESPALDOS_PROGRAMADOS', details: { hora: ajustes.hour, dir: config.backup.dir, retencionDias: ajustes.retentionDays, copiaExterna: ajustes.copyDir !== null } });
+  }
 }
 
 export function detenerRespaldosAutomaticos(): void {
   if (temporizador) {clearTimeout(temporizador);}
   temporizador = null;
+  proximaEjecucion = null;
 }

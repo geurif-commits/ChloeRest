@@ -7,7 +7,6 @@
 
 import { Router, Request, Response } from 'express';
 import { route, httpError, positiveInteger, clientIp } from '../lib/core.js';
-import { config } from '../lib/config.js';
 import { getDatabase } from '../db/index.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
@@ -26,6 +25,8 @@ import { UserRole } from '../types/index.js';
 import { createLogger } from '../lib/logger.js';
 import { crearTicketSse } from '../lib/sseTickets.js';
 import { getDuenoEpoch, bumpDuenoEpoch, verificarBloqueo, registrarFallo, registrarExito } from '../services/seguridadService.js';
+import { DURACION_SESION_DUENO_MS, esPinDelPropietario, registrarAccesoPropietario } from '../services/propietarioService.js';
+import { errorDeLicencia, evaluarLicenciaDeAcceso } from '../services/licenciaAccesoService.js';
 
 const router = Router();
 const logger = createLogger('authRouter');
@@ -80,16 +81,10 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
   await verificarBloqueo(claves);
 
   // 1. Verificación universal del Dueño / Propietario, sin alterar el estado
-  // del dispositivo.
-  const cfg = await db.queryUnscoped<{ owner_pin_hash: string | null }>(
-    'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
-  );
-  const storedOwnerHash = cfg.rows[0]?.owner_pin_hash || null;
-  const esPinDueno = (config.ownerPin && pin === String(config.ownerPin).trim()) ||
-    (storedOwnerHash && verifyPin(pin, storedOwnerHash));
-
-  if (esPinDueno) {
+  // del dispositivo. Es la MISMA función que usa el panel del propietario.
+  if (await esPinDelPropietario(pin)) {
     await registrarExito(claves);
+    await registrarAccesoPropietario({ resultado: 'DUENO_LOGIN_OK', ip, agente: String(req.get('user-agent') || ''), via: 'login-general' });
     const duenoUser = {
       id: 0,
       nombre: 'Propietario / Dueño',
@@ -101,7 +96,7 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
     // que no debe intentar insertarse en `app_sessions`. El frontend usa
     // `token` como credencial principal, así que ambos campos deben contener
     // el token firmado del dueño.
-    const expiraEn = new Date(Date.now() + 12 * 3600 * 1000);
+    const expiraEn = new Date(Date.now() + DURACION_SESION_DUENO_MS);
     const tokenDueno = firmarDuenoTok({ rol: 'Dueno', exp: expiraEn.getTime(), ep: await getDuenoEpoch() });
     res.json({
       token: tokenDueno,
@@ -140,6 +135,11 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
       res.status(401).json({ error: 'PIN de administrador inválido o dispositivo no activado.' });
       return;
     }
+    // Sin licencia nadie entra: ni siquiera el Administrador de la empresa raíz en un equipo sin activar.
+    const licenciaRaiz = await evaluarLicenciaDeAcceso({ deviceId, empresaId: 1 });
+    if (!licenciaRaiz.vigente) {
+      throw errorDeLicencia(licenciaRaiz);
+    }
     await registrarExito(claves);
     const admin = legacyMatches[0];
     const session = await createSession({
@@ -154,10 +154,11 @@ router.post('/api/login/camarero', route(async (req: Request, res: Response) => 
   }
 
   const dispositivo = device.rows[0];
-  if (dispositivo.licencia_vencimiento && new Date(dispositivo.licencia_vencimiento).getTime() < Date.now()) {
-    throw httpError(403, 'La licencia de este dispositivo ha vencido.');
-  }
   const empresaId = dispositivo.empresa_id || 1;
+  const licencia = await evaluarLicenciaDeAcceso({ deviceId, empresaId });
+  if (!licencia.vigente) {
+    throw errorDeLicencia(licencia);
+  }
   const result = await db.queryUnscoped<IUsuarioLoginFila>(SQL_USUARIOS_PIN, [empresaId]);
   // Bug-for-bug con el legacy: aquí se compara el PIN crudo del body (sin trim).
   const matches = result.rows.filter((candidate) => verifyPin(req.body.pin, candidate.pin_hash));
@@ -216,6 +217,7 @@ router.post('/api/sse/ticket', requireAuth, route(async (req: Request, res: Resp
     nombre: a.nombre,
     userRole: a.userRole,
     isDueno: a.isDueno,
+    deviceId: String(req.get('x-device-id') || '').trim() || null,
   });
   res.json({ ticket, expiraEn: new Date(Date.now() + 60000).toISOString() });
 }));

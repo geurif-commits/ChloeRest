@@ -4,7 +4,7 @@ import { env } from 'node:process';
 
 const port = Number(env.INTEGRATION_PORT || 3010);
 const baseUrl = `http://127.0.0.1:${port}`;
-const backend = spawn(process.execPath, ['bundle.cjs'], {
+const backend = spawn(process.execPath, [env.E2E_BUNDLE || 'bundle-pruebas.cjs'], {
   cwd: process.cwd(),
   env: { ...env, PORT: String(port), NODE_ENV: 'development' },
   stdio: ['ignore', 'pipe', 'pipe'],

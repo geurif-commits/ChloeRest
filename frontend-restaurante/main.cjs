@@ -889,6 +889,16 @@ function createWindow() {
     }
   });
 
+  // Selector de carpeta nativo (copia externa de los respaldos: USB, nube sincronizada o red).
+  ipcMain.handle('elegir-carpeta', async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Carpeta para la copia de los respaldos',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return canceled || !filePaths.length ? null : filePaths[0];
+  });
+
   ipcMain.handle('listar-impresoras', async () => {
     if (!mainWindow || mainWindow.isDestroyed()) return [];
     const printers = await mainWindow.webContents.getPrintersAsync();

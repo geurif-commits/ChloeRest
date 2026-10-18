@@ -53,11 +53,10 @@ export const config = {
   appDownloadUrl: process.env.APP_DOWNLOAD_URL || null,
   appUpdateNotes: process.env.APP_UPDATE_NOTES || null,
   /*
-   * Orígenes CORS permitidos. La variable CORS_ORIGINS (si existe) se combina
-   * SIEMPRE con los orígenes de escritorio/desarrollo: la app Electron carga
-   * desde http://127.0.0.1:3000 o file:// (origin 'null') y esos fetch
-   * cross-origin al servidor central deben funcionar sin depender del .env
-   * de producción.
+   * Orígenes CORS permitidos. En desarrollo se añaden los orígenes locales y 'null'; en PRODUCCIÓN solo valen los de
+   * CORS_ORIGINS. La app de escritorio (origen http://127.0.0.1:<puerto> o 'null') consulta al servidor central
+   * planes, métodos de pago y la solicitud de licencia mediante una excepción acotada a esas rutas públicas, sin
+   * credenciales (ver lib/corsEscritorio.ts), no ampliando esta lista.
    */
   corsOrigins: [
     ...new Set([

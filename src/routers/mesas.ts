@@ -17,6 +17,7 @@ import { registrarFallo, registrarExito } from '../services/seguridadService.js'
 import { cuentaAbiertaParaMesa, cobrarCuenta, type ICuentaAbiertaFila } from '../services/cuentasService.js';
 import { notificarMesas, notificarKDS } from '../lib/sse.js';
 import { ROLES_ADMIN, ROLES_CAJA, ROLES_OPERACION } from '../lib/roles.js';
+import { crearCuentaParaLlevar, parsearCliente, parsearLineas } from '../services/ventaRapidaService.js';
 import { createLogger } from '../lib/logger.js';
 
 const router = Router();
@@ -423,49 +424,24 @@ router.delete('/api/cuenta_detalles/:id', requireAuth, requireRoles(...ROLES_OPE
   res.json({ mensaje: 'Producto anulado correctamente.' });
 }));
 
-// POST /api/pedidos/llevar (operación): pedido para llevar SIN mesa: registra
-// o actualiza el cliente frecuente, crea la cuenta (tipo 'Para Llevar') con
-// sus detalles y notifica a Cocina/Bar.
+// POST /api/pedidos/llevar (operación): pedido para llevar SIN mesa que queda abierto para cobrarse después:
+// crea la cuenta (tipo 'Para Llevar') con sus detalles (notas, guarnición y término incluidos) y notifica a
+// Cocina/Bar. El cliente es opcional; con nombre y teléfono se registra o actualiza como cliente frecuente.
+// Para vender y cobrar en el mismo paso: POST /api/ventas/rapida.
 router.post('/api/pedidos/llevar', requireAuth, requireRoles(...ROLES_OPERACION), route(async (req: Request, res: Response) => {
   const db = getDatabase();
-  const name = String(req.body.cliente_nombre || '').trim();
-  const phone = String(req.body.cliente_telefono || '').trim();
-  const order: IItemComanda[] = Array.isArray(req.body.comanda) ? req.body.comanda : [];
-  if (!name || !phone || !order.length) {throw httpError(400, 'Completa cliente y comanda.');}
+  const lineas = parsearLineas(req.body.comanda);
+  const cliente = parsearCliente(req.body.cliente_nombre, req.body.cliente_telefono);
   const accountId = await db.transaction(async (client) => {
-    const customer = await client.query<{ id: number }>(
-      `INSERT INTO clientes_frecuentes (nombre, telefono, direccion) VALUES ($1, $2, 'Para Llevar')
-       ON CONFLICT (telefono) DO UPDATE SET nombre = EXCLUDED.nombre
-       RETURNING id`,
-      [name, phone]
-    );
-    const account = await client.query<{ id: number }>(
-      `INSERT INTO cuentas (mesa_id, camarero_id, estado, tipo_servicio, cliente_id)
-       VALUES (NULL, $1, 'Abierta', 'Para Llevar', $2)
-       RETURNING id`,
-      [req.auth!.userId, customer.rows[0].id]
-    );
-    for (const item of order) {
-      const productId = positiveInteger(item.id, 'Producto');
-      const quantity = positiveInteger(item.cantidad, 'Cantidad');
-      const product = await client.query<{ precio: string }>(
-        "SELECT precio FROM productos WHERE id = $1 AND estado = 'Activo'",
-        [productId]
-      );
-      if (!product.rowCount) {throw httpError(400, 'Producto no disponible.');}
-      await client.query(
-        'INSERT INTO cuenta_detalles (cuenta_id, producto_id, cantidad, precio_unitario) VALUES ($1, $2, $3, $4)',
-        [account.rows[0].id, productId, quantity, product.rows[0].precio]
-      );
-    }
+    const id = await crearCuentaParaLlevar(client, { camareroId: req.auth!.userId, cliente, lineas, enviarACocina: true });
     await registrarAuditoria(client, {
       usuarioId: req.auth!.userId,
       accion: 'CREAR_PEDIDO_LLEVAR',
       entidad: 'cuentas',
-      entidadId: account.rows[0].id,
+      entidadId: id,
       ip: clientIp(req),
     });
-    return account.rows[0].id;
+    return id;
   });
   logger.info({ action: 'PEDIDO_LLEVAR', userId: req.auth!.userId, cuentaId: accountId });
   notificarKDS('nuevo_pedido');

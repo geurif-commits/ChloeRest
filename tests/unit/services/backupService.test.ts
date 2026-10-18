@@ -3,12 +3,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  combinarAjustes,
   copiarRespaldo,
+  debeRecuperarRespaldo,
   depurarRespaldos,
   esNombreDeRespaldo,
+  guardarAjustes,
+  leerAjustesGuardados,
   listarRespaldos,
   msHastaProximaEjecucion,
   nombreDeRespaldo,
+  validarAjustes,
 } from '../../../src/services/backupService.js';
 
 const DIA = 24 * 3600 * 1000;
@@ -109,5 +114,105 @@ describe('msHastaProximaEjecucion', () => {
     const ahora = new Date(2026, 8, 5, 3, 0, 0);
     expect(msHastaProximaEjecucion(3, ahora)).toBe(24 * 3600 * 1000);
     expect(msHastaProximaEjecucion(2, new Date(2026, 8, 5, 4, 0, 0))).toBe(22 * 3600 * 1000);
+  });
+});
+
+describe('ajustes guardados desde la pantalla', () => {
+  const base = { enabled: false, hour: 3, retentionDays: 14, copyDir: null };
+
+  it('sin archivo no cambia nada y lo guardado manda sobre el entorno', () => {
+    expect(leerAjustesGuardados(dir)).toEqual({});
+    guardarAjustes(dir, { enabled: true, hour: 22 });
+    expect(leerAjustesGuardados(dir)).toEqual({ enabled: true, hour: 22 });
+    expect(combinarAjustes(base, leerAjustesGuardados(dir))).toEqual({ enabled: true, hour: 22, retentionDays: 14, copyDir: null });
+  });
+
+  it('un copyDir guardado como null quita la copia externa aunque el entorno la defina', () => {
+    guardarAjustes(dir, { copyDir: null });
+    expect(combinarAjustes({ ...base, copyDir: '/mnt/usb' }, leerAjustesGuardados(dir)).copyDir).toBeNull();
+  });
+
+  it('ignora el archivo ilegible y descarta campo a campo lo inválido', () => {
+    fs.writeFileSync(path.join(dir, 'ajustes.json'), '{ esto no es json');
+    expect(leerAjustesGuardados(dir)).toEqual({});
+    fs.writeFileSync(path.join(dir, 'ajustes.json'), JSON.stringify({ enabled: 'si', hour: 99, retentionDays: 0, copyDir: 5 }));
+    expect(leerAjustesGuardados(dir)).toEqual({});
+    fs.writeFileSync(path.join(dir, 'ajustes.json'), JSON.stringify({ enabled: false, hour: 7, retentionDays: 400 }));
+    expect(leerAjustesGuardados(dir)).toEqual({ enabled: false, hour: 7 });
+  });
+
+  it('guardar es atómico (no deja parciales) y el archivo no se confunde con un respaldo', () => {
+    guardarAjustes(path.join(dir, 'nueva', 'carpeta'), { enabled: true });
+    expect(fs.readdirSync(path.join(dir, 'nueva', 'carpeta'))).toEqual(['ajustes.json']);
+    guardarAjustes(dir, { enabled: true });
+    expect(listarRespaldos(dir)).toEqual([]);
+    expect(depurarRespaldos(dir, 1)).toEqual([]);
+    expect(fs.existsSync(path.join(dir, 'ajustes.json'))).toBe(true);
+  });
+});
+
+describe('validarAjustes', () => {
+  const dirRespaldos = () => path.join(dir, 'respaldos');
+
+  it('acepta valores válidos (también como texto numérico) y solo devuelve los presentes', () => {
+    expect(validarAjustes({}, dirRespaldos())).toEqual({});
+    expect(validarAjustes({ enabled: true, hour: '22', retentionDays: 30 }, dirRespaldos())).toEqual({ enabled: true, hour: 22, retentionDays: 30 });
+  });
+
+  it('rechaza hora, días y estado fuera de rango o de tipo', () => {
+    for (const malo of [{ hour: 24 }, { hour: -1 }, { hour: 2.5 }, { hour: '' }, { hour: null }, { hour: true }]) {
+      expect(() => validarAjustes(malo, dirRespaldos())).toThrow(/hora/);
+    }
+    for (const malo of [{ retentionDays: 0 }, { retentionDays: 366 }, { retentionDays: 'abc' }, { retentionDays: null }]) {
+      expect(() => validarAjustes(malo, dirRespaldos())).toThrow(/d[ií]as/);
+    }
+    expect(() => validarAjustes({ enabled: 'si' }, dirRespaldos())).toThrow(/verdadero o falso/);
+  });
+
+  it('vacío o null en copyDir quita la copia externa', () => {
+    expect(validarAjustes({ copyDir: '' }, dirRespaldos())).toEqual({ copyDir: null });
+    expect(validarAjustes({ copyDir: null }, dirRespaldos())).toEqual({ copyDir: null });
+    expect(validarAjustes({ copyDir: '   ' }, dirRespaldos())).toEqual({ copyDir: null });
+  });
+
+  it('exige ruta completa, distinta de la de respaldos, y que se pueda escribir', () => {
+    expect(() => validarAjustes({ copyDir: 'relativa/carpeta' }, dirRespaldos())).toThrow(/ruta completa/);
+    expect(() => validarAjustes({ copyDir: dirRespaldos() }, dirRespaldos())).toThrow(/distinta/);
+    expect(() => validarAjustes({ copyDir: path.join(dirRespaldos(), 'dentro') }, dirRespaldos())).toThrow(/distinta/);
+    const archivo = path.join(dir, 'archivo-normal');
+    fs.writeFileSync(archivo, 'no soy una carpeta');
+    expect(() => validarAjustes({ copyDir: path.join(archivo, 'dentro') }, dirRespaldos())).toThrow(/No se puede escribir/);
+  });
+
+  it('crea la carpeta externa si no existe, sin dejar el archivo de prueba', () => {
+    const destino = path.join(dir, 'usb', 'respaldos');
+    expect(validarAjustes({ copyDir: destino }, dirRespaldos())).toEqual({ copyDir: path.resolve(destino) });
+    expect(fs.readdirSync(destino)).toEqual([]);
+  });
+});
+
+describe('debeRecuperarRespaldo (equipo apagado a la hora programada)', () => {
+  // Hoy 5-sep-2026; el respaldo se programa a las 03:00.
+  const ahora = (h: number, m = 0) => new Date(2026, 8, 5, h, m, 0);
+
+  it('sin respaldos previos siempre toca hacer uno', () => {
+    expect(debeRecuperarRespaldo(null, 3, ahora(9))).toBe(true);
+  });
+
+  it('el equipo se enciende a las 9 y el último respaldo es de ayer a las 9: se perdió el de las 03:00 de hoy', () => {
+    expect(debeRecuperarRespaldo(new Date(2026, 8, 4, 9, 2), 3, ahora(9))).toBe(true);
+  });
+
+  it('si el de hoy a las 03:00 ya se hizo, no se repite', () => {
+    expect(debeRecuperarRespaldo(new Date(2026, 8, 5, 3, 0, 5), 3, ahora(9))).toBe(false);
+  });
+
+  it('si aún no llegó la hora de hoy, vale el programado de ayer', () => {
+    expect(debeRecuperarRespaldo(new Date(2026, 8, 4, 3, 0, 5), 3, ahora(2, 30))).toBe(false);
+    expect(debeRecuperarRespaldo(new Date(2026, 8, 3, 3, 0, 5), 3, ahora(2, 30))).toBe(true);
+  });
+
+  it('cubre el caso de más de 24 h sin respaldo', () => {
+    expect(debeRecuperarRespaldo(new Date(2026, 7, 20, 3, 0, 5), 3, ahora(9))).toBe(true);
   });
 });

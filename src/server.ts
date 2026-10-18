@@ -14,6 +14,7 @@ import { createDatabase, getDatabase } from './db/index.js';
 import { runMigrations, fixDatabaseConsistency } from './db/migrations.js';
 import { iniciarTelegramBot } from './services/telegramBotService.js';
 import { iniciarRespaldosAutomaticos } from './services/backupService.js';
+import { longitudPinPropietarioIncrustado } from './lib/propietario.js';
 import { obtenerOpcionesTelegramBot } from './services/telegramBotOptions.js';
 import { execSync } from 'node:child_process';
 import pg from 'pg';
@@ -151,7 +152,7 @@ function liberarPuertoProcesoPrevio(port: number): void {
  * (puerto de arrancarServidor de server.js legacy).
  */
 function arrancarServidor(app: Express, intento = 1): void {
-  const server = app.listen(PORT, () => {
+  const alEscuchar = (): void => {
     logger.info({
       action: 'SERVER_STARTED',
       details: {
@@ -169,13 +170,26 @@ function arrancarServidor(app: Express, intento = 1): void {
 
     iniciarRespaldosAutomaticos();
 
+    const longitudPinFijo = longitudPinPropietarioIncrustado();
+    if (longitudPinFijo !== null) {
+      logger.info({ action: 'PIN_PROPIETARIO_INCRUSTADO', details: { longitud: longitudPinFijo, modo: 'fijo' } });
+    } else {
+      logger.warn({
+        action: 'PIN_PROPIETARIO_NO_INCRUSTADO',
+        details: 'No hay PIN de propietario incrustado en el código: se usa OWNER_PIN o el PIN guardado. Ejecuta "npm run propietario:pin" para fijarlo.',
+      });
+    }
+
     void iniciarTelegramBot(obtenerOpcionesTelegramBot()).catch((error: Error) => {
       logger.warn({
         action: 'TELEGRAM_INICIO_FALLIDO',
         error: { message: error.message },
       });
     });
-  });
+  };
+  // Por defecto escucha en todas las interfaces (las cajas y tablets del local entran por la red). API_HOST=127.0.0.1
+  // lo limita a este equipo; lo usa el entorno de prueba para no dejar un servidor con PIN de prueba visible en la red.
+  const server = process.env.API_HOST ? app.listen(PORT, process.env.API_HOST, alEscuchar) : app.listen(PORT, alEscuchar);
 
   server.on('error', (err: Error & { code?: string }) => {
     if (err.code === 'EADDRINUSE') {

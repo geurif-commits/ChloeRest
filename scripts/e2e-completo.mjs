@@ -3,7 +3,8 @@
  *
  *   E2E_ADMIN_PIN=<pin del administrador> E2E_DEVICE_ID=<equipo activado> npm run test:e2e
  *
- * Levanta su propio servidor (bundle.cjs, ver `npm run build:server:win`) y cubre: autenticación de todas las
+ * Levanta su propio servidor (bundle-pruebas.cjs, ver `npm run build:server:pruebas`: el servidor sin el PIN del
+ * propietario incrustado, para poder entrar con OWNER_PIN) y cubre: autenticación de todas las
  * rutas, roles, pedido → cocina/bar → cobro, ITBIS/propina, descuentos, división de cuenta, caja cerrada,
  * turnos por PIN, bloqueo de PIN, datos públicos mínimos y respaldos. Limpia todo lo que crea.
  * Se niega a correr contra bases que no sean locales.
@@ -59,7 +60,7 @@ let servidor;
 const est = { cajasAbiertas: [], cuentasMax: 0, aperturaMax: 0, cierreMax: 0, arqueoMax: null, mesas: [], productos: [], usuarios: [], secuencia: null, negocio: null, catalogo: [], duenoCfg: null, t0: new Date() };
 
 async function iniciarServidor(extra = {}) {
-  servidor = spawn(process.execPath, ['bundle.cjs'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), LOGIN_RATE_MAX: '5000', PUBLIC_RATE_MAX: '100000', NODE_ENV: 'development', ...extra }, stdio: 'ignore', windowsHide: true });
+  servidor = spawn(process.execPath, [process.env.E2E_BUNDLE || 'bundle-pruebas.cjs'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), LOGIN_RATE_MAX: '5000', PUBLIC_RATE_MAX: '100000', NODE_ENV: 'development', ...extra }, stdio: 'ignore', windowsHide: true });
   let arriba = false;
   for (let i = 0; i < 50 && !arriba; i += 1) { try { arriba = (await fetch(base + '/api/health')).ok; } catch { /* arrancando */ } if (!arriba) await sleep(400); }
   await sleep(600);
@@ -103,8 +104,15 @@ async function principal() {
   // El dueño puede elegir su propio PIN, no depender de uno generado (se restaura al limpiar).
   if (est.duenoCfg) {
     await db.query('UPDATE configuracion_sistema SET owner_pin_hash = NULL WHERE id = $1', [est.duenoCfg.id]);
+    // Longitud(es) válidas del PIN, públicas como el login: el teclado de acceso las usa para auto-enviar.
+    const infoPin = async () => (await llamar('GET', '/api/dueno/pin-info', { sinDispositivo: true })).body;
+    if (!process.env.OWNER_PIN) {
+      const sinPin = await infoPin();
+      ok('sin PIN de propietario, pin-info lo indica y no da longitudes', sinPin.configurado === false && Array.isArray(sinPin.longitudes) && sinPin.longitudes.length === 0, JSON.stringify(sinPin));
+    }
     const creado = await llamar('POST', '/api/dueno/establecer-pin', { sinDispositivo: true, body: { pin: '730164' } });
     ok('el propietario crea su PIN desde el equipo servidor', creado.status === 200 && creado.body.token, `HTTP ${creado.status}`);
+    if (!process.env.OWNER_PIN) ok('pin-info informa la longitud del PIN recién creado (6)', JSON.stringify(await infoPin()) === JSON.stringify({ configurado: true, longitudes: [6] }));
     const tokenDueno = creado.body.token;
     const pinActualMalo = await llamar('POST', '/api/dueno/cambiar-pin', { sinDispositivo: true, token: tokenDueno, body: { pinActual: '000000', pinNuevo: '250891' } });
     ok('cambiar el PIN exige el PIN actual correcto (401)', pinActualMalo.status === 401, `HTTP ${pinActualMalo.status}`);
@@ -114,6 +122,14 @@ async function principal() {
     ok('el PIN anterior deja de funcionar tras el cambio', viejoFalla.status === 401, `HTTP ${viejoFalla.status}`);
     const nuevoFunciona = await llamar('POST', '/api/dueno/login', { sinDispositivo: true, body: { pin: '250891' } });
     ok('el PIN nuevo funciona de inmediato', nuevoFunciona.status === 200 && nuevoFunciona.body.token, `HTTP ${nuevoFunciona.status}`);
+    // El PIN puede ser de 4, 6 u 8 dígitos y pin-info sigue a cada cambio.
+    let pinVigente = '250891'; let tokenVigente = nuevoFunciona.body.token;
+    for (const pinNuevo of ['25089143', '2508']) {
+      const cambiado = await llamar('POST', '/api/dueno/cambiar-pin', { sinDispositivo: true, token: tokenVigente, body: { pinActual: pinVigente, pinNuevo } });
+      const entra = await llamar('POST', '/api/dueno/login', { sinDispositivo: true, body: { pin: pinNuevo } });
+      ok(`el PIN de ${pinNuevo.length} dígitos se acepta, entra y pin-info informa su longitud`, cambiado.status === 200 && entra.status === 200 && (process.env.OWNER_PIN || JSON.stringify(await infoPin()) === JSON.stringify({ configurado: true, longitudes: [pinNuevo.length] })), `cambio ${cambiado.status} · login ${entra.status}`);
+      pinVigente = pinNuevo; tokenVigente = entra.body.token;
+    }
   }
 
   const rutas = new Set();
@@ -122,7 +138,7 @@ async function principal() {
     const prefijo = f === 'inventario.ts' ? '/api/inventario' : f === 'ping.ts' ? '/ping' : '';
     for (const m of src.matchAll(/router\.(get|post|put|delete|patch)\(\s*(?:\[\s*)?'(\/[^']*)'/g)) rutas.add(`${m[1].toUpperCase()} ${prefijo}${m[2] === '/' && prefijo ? '' : m[2]}`);
   }
-  const publicasGet = new Set(['/ping', '/api/app/version', '/api/sistema/info', '/api/configuracion/sistema', '/api/configuracion/completa', '/api/negocio/config', '/api/divisas', '/api/planes', '/api/metodos-pago', '/api/licencia/verificar']);
+  const publicasGet = new Set(['/ping', '/api/app/version', '/api/sistema/info', '/api/configuracion/sistema', '/api/configuracion/completa', '/api/negocio/config', '/api/dueno/pin-info', '/api/divisas', '/api/planes', '/api/metodos-pago', '/api/licencia/verificar']);
   const publicasPost = /^\/api\/(login|autorizar|kds\/autenticar|dueno\/login|dueno\/establecer-pin|dispositivo\/(registrar|activar)|solicitud-licencia|setup|telegram\/webhook|asistencia\/marcar|licencia\/activar)/;
   const inesperadas = [];
   for (const clave of rutas) {
@@ -267,6 +283,67 @@ async function principal() {
   ok('ITBIS masivo rechaza tasas inválidas', (await llamar('POST', '/api/productos/itbis', { token: T, body: { aplica: true, tasa: 7 } })).status === 400);
   await llamar('POST', '/api/productos/itbis', { token: T, body: { aplica: false } });
 
+  // C7. Venta rápida (mostrador / para llevar): crea la cuenta y la cobra en un solo paso, con las mismas reglas de caja.
+  console.log('\n== C7. Venta rápida (para llevar) ==');
+  await guardarNegocio({ cobrar_itbis: true, cobrar_propina: true, propina_porcentaje: 15 });
+  await db.query('UPDATE productos SET aplica_itbis = TRUE, tasa_itbis = 18 WHERE id = $1', [cerveza.id]); // C6 apagó el ITBIS de todos
+  const comandaRapida = [{ id: plato.id, cantidad: 2 }, { id: cerveza.id, cantidad: 3 }];
+  const rapida = (extra = {}, token = T) => llamar('POST', '/api/ventas/rapida', { token, body: { metodo_pago: 'Efectivo', tipo_comprobante: 'B02', comanda: comandaRapida, enviar_a_cocina: false, ...extra } });
+  const contarLlevar = async (soloAbiertas = false) => Number((await db.query(`SELECT COUNT(*)::int AS n FROM cuentas WHERE tipo_servicio = 'Para Llevar'${soloAbiertas ? " AND estado = 'Abierta'" : ''}`)).rows[0].n);
+
+  const v1 = await rapida({ comanda: [{ id: plato.id, cantidad: 2, precio: 1 }, { id: cerveza.id, cantidad: 3, precio: 1 }] });
+  const tv1 = v1.body.totales || {};
+  ok('venta rápida: crea la cuenta y la cobra en un paso; el precio lo decide la base y no el cliente (1,288.50)', v1.status === 201 && Number(tv1.itbis) === 81 && Number(tv1.propina) === 157.5 && Number(tv1.total) === 1288.5 && typeof v1.body.ncf === 'string' && v1.body.ncf.length > 3, JSON.stringify({ s: v1.status, t: tv1, e: v1.body.error }));
+  const f1 = (await db.query('SELECT estado, tipo_servicio, mesa_id, cajero_id, cliente_id, ncf_ecf_generado, tipo_comprobante, total FROM cuentas WHERE id = $1', [v1.body.cuenta_id])).rows[0];
+  ok('queda Cerrada, "Para Llevar", sin mesa ni cliente, con cajero, B02 y el mismo NCF del recibo', f1.estado === 'Cerrada' && f1.tipo_servicio === 'Para Llevar' && f1.mesa_id === null && f1.cliente_id === null && f1.cajero_id !== null && f1.tipo_comprobante === 'B02' && f1.ncf_ecf_generado === v1.body.ncf && Number(f1.total) === 1288.5, JSON.stringify(f1));
+  const d1 = (await db.query('SELECT estado_cocina FROM cuenta_detalles WHERE cuenta_id = $1', [v1.body.cuenta_id])).rows;
+  ok('sin "enviar a cocina" las líneas nacen entregadas y Cocina/Bar no las reciben', d1.length === 2 && d1.every((d) => d.estado_cocina === 'Despachado') && (await kds('Cocina')).length === 0 && (await kds('Bar')).length === 0);
+  const facturasRapida = (await llamar('GET', '/api/reportes/facturas', { token: T })).body;
+  ok('aparece en el historial de facturas como "Para llevar", con el cajero que cobró', Array.isArray(facturasRapida) && facturasRapida.some((f) => f.ncf_ecf_generado === v1.body.ncf && f.mesa_nombre === 'Para llevar' && f.cajero_nombre));
+  ok('la auditoría registra la venta rápida', (await db.query("SELECT 1 FROM auditoria_operaciones WHERE accion = 'VENTA_RAPIDA' AND entidad_id = $1::text", [String(v1.body.cuenta_id)])).rowCount === 1);
+
+  const v2 = await rapida({ enviar_a_cocina: undefined });
+  const [cocLlevar, barLlevar] = [await kds('Cocina'), await kds('Bar')];
+  ok('por defecto el pedido (ya cobrado) llega a Cocina y a Bar como "Para llevar"', v2.status === 201 && cocLlevar.length === 1 && cocLlevar[0].mesa === 'Para llevar' && barLlevar.length === 1 && barLlevar[0].mesa === 'Para llevar', JSON.stringify({ c: cocLlevar.length, b: barLlevar.length }));
+  ok('se despacha como cualquier comanda y desaparece de las pantallas', (await llamar('PUT', `/api/kds/despachar/${cocLlevar[0].detalle_id}`, { token: T })).status === 200 && (await llamar('PUT', `/api/kds/despachar/${barLlevar[0].detalle_id}`, { token: T })).status === 200 && (await kds('Cocina')).length === 0 && (await kds('Bar')).length === 0);
+
+  const v3 = await rapida({ cliente_nombre: 'ZZE2E Cliente', cliente_telefono: '8095550199' });
+  const f3 = (await db.query('SELECT c.cliente_id, cf.nombre, cf.telefono FROM cuentas c LEFT JOIN clientes_frecuentes cf ON cf.id = c.cliente_id WHERE c.id = $1', [v3.body.cuenta_id])).rows[0];
+  ok('con nombre y teléfono el cliente queda registrado y ligado a la venta', v3.status === 201 && f3?.cliente_id && f3.nombre === 'ZZE2E Cliente' && f3.telefono === '8095550199', `${v3.status} ${v3.body.error || ''} ${JSON.stringify(f3)}`);
+
+  const v4 = await rapida({ descuento_tipo: 'porcentaje', descuento_valor: 10, descuento_motivo: 'Cliente frecuente', detalles_cobrar: [{ id: 1, cantidad: 1 }] });
+  ok('el descuento rige como en las mesas (neto 945, total 1,159.65) y "dividir" se ignora', v4.status === 201 && Number(v4.body.totales?.descuento) === 105 && Number(v4.body.totales?.total) === 1159.65, JSON.stringify(v4.body.totales));
+
+  // Un fallo no deja cuentas a medias: ni abiertas (que la caja no sabría encontrar) ni cobradas.
+  const [llevarAntes, abiertasAntes] = [await contarLlevar(), await contarLlevar(true)];
+  const fallos = [
+    ['producto inexistente', await rapida({ comanda: [{ id: 999999999, cantidad: 1 }] })],
+    ['venta vacía', await rapida({ comanda: [] })],
+    ['cantidad 0', await rapida({ comanda: [{ id: plato.id, cantidad: 0 }] })],
+    ['método de pago inválido', await rapida({ metodo_pago: 'Cheque' })],
+    ['tarjeta sin 4 dígitos', await rapida({ metodo_pago: 'Tarjeta' })],
+    ['descuento sin motivo', await rapida({ descuento_tipo: 'porcentaje', descuento_valor: 10 })],
+    ['descuento mayor al subtotal', await rapida({ descuento_tipo: 'monto', descuento_valor: 99999, descuento_motivo: 'prueba' })],
+    ['cliente con solo el nombre', await rapida({ cliente_nombre: 'ZZE2E Cliente' })],
+  ];
+  ok('datos inválidos → 400 y no queda ninguna cuenta nueva', fallos.every(([, r]) => r.status === 400) && (await contarLlevar()) === llevarAntes && (await contarLlevar(true)) === abiertasAntes, fallos.map(([n, r]) => `${n}:${r.status}`).join(' · '));
+  await db.query("UPDATE aperturas_caja SET estado = 'Cerrada' WHERE estado = 'Abierta'");
+  const sinCajaRapida = await rapida();
+  ok('sin caja abierta: 409 CAJA_CERRADA y no queda ninguna cuenta nueva', sinCajaRapida.status === 409 && sinCajaRapida.body.code === 'CAJA_CERRADA' && (await contarLlevar()) === llevarAntes && (await contarLlevar(true)) === abiertasAntes, `${sinCajaRapida.status}`);
+  ok('se reabre la caja', (await llamar('POST', '/api/caja/apertura', { token: T, body: { monto_inicial: 500 } })).status === 200);
+  ok('un camarero no puede cobrar una venta rápida (403)', (await rapida({}, TC)).status === 403);
+
+  // El pedido para llevar "abierto" (se cobra después) sigue funcionando: cliente opcional, notas y cobro de siempre.
+  const llevar = await llamar('POST', '/api/pedidos/llevar', { token: T, body: { comanda: [{ id: plato.id, cantidad: 1, notas: 'sin sal' }] } });
+  const cocinaLlevar = await kds('Cocina');
+  ok('/api/pedidos/llevar: cliente opcional, queda abierto y pendiente en Cocina con su nota', llevar.status === 201 && cocinaLlevar.length === 1 && cocinaLlevar[0].notas === 'sin sal' && cocinaLlevar[0].mesa === 'Para llevar', `${llevar.status} ${llevar.body.error || ''}`);
+  const cobroLlevar = await llamar('POST', `/api/cuentas/${llevar.body.cuenta_id}/cobrar`, { token: T, body: { metodo_pago: 'Efectivo', tipo_comprobante: 'B02' } });
+  ok('ese pedido abierto se cobra después con el cobro de siempre (300 + propina 15 % = 345.00)', cobroLlevar.status === 200 && Number(cobroLlevar.body.totales?.total) === 345, `${cobroLlevar.status} ${JSON.stringify(cobroLlevar.body.totales?.total)}`);
+  ok('cobrado el pedido, sigue en Cocina hasta despacharlo y luego sale', (await kds('Cocina')).length === 1 && (await llamar('PUT', `/api/kds/despachar/${cocinaLlevar[0].detalle_id}`, { token: T })).status === 200 && (await kds('Cocina')).length === 0);
+  const soloNombreLlevar = await llamar('POST', '/api/pedidos/llevar', { token: T, body: { cliente_nombre: 'ZZE2E Cliente', comanda: [{ id: plato.id, cantidad: 1 }] } });
+  ok('/api/pedidos/llevar con solo el nombre del cliente → 400', soloNombreLlevar.status === 400);
+  await guardarNegocio({ cobrar_itbis: false, cobrar_propina: false });
+
   // ── D. Turnos ──
   console.log('\n== D. Turnos por PIN ==');
   const marca = (b) => llamar('POST', '/api/asistencia/marcar', { body: { pin: PIN_CAM, deviceId: DEV, ...b } });
@@ -278,6 +355,7 @@ async function principal() {
   // ── E. Respaldos ──
   console.log('\n== E. Respaldos ==');
   ok('el administrador no gestiona respaldos en un servidor multiempresa (403)', (await llamar('GET', '/api/respaldos', { token: T })).status === 403);
+  ok('ni cambia los ajustes del respaldo automático en un servidor multiempresa (403)', (await llamar('PUT', '/api/respaldos/ajustes', { token: T, body: { enabled: true } })).status === 403);
   detenerServidor();
   await iniciarServidor({ BACKUP_DIR: dirRespaldos, BACKUP_COPY_DIR: dirCopia, BACKUP_TENANT_ACCESS: '1' });
   const T2 = (await llamar('POST', '/api/login/camarero', { body: { pin: PIN, deviceId: DEV } })).body.token;
@@ -303,6 +381,42 @@ async function principal() {
     ok('si la carpeta externa no está disponible el respaldo local igual se crea y se avisa', conFallo.status === 201 && conFallo.body.respaldo?.copiaExterna === 'fallida' && /no se pudo copiar/i.test(conFallo.body.mensaje || ''), conFallo.body.mensaje || conFallo.body.error);
   }
 
+  // Ajustes del respaldo automático desde la pantalla: se guardan junto a los respaldos y mandan sobre BACKUP_*.
+  console.log('\n== E2. Ajustes del respaldo automático ==');
+  const archivoAjustes = path.join(dirRespaldos, 'ajustes.json');
+  const dirCopiaNueva = path.join(dirCopia, 'elegida-en-pantalla', 'usb');
+  const T4 = (await llamar('POST', '/api/login/camarero', { body: { pin: PIN, deviceId: DEV } })).body.token;
+  const ajustesIni = (await llamar('GET', '/api/respaldos', { token: T4 })).body;
+  ok('la API informa los ajustes vigentes (por defecto: desactivado, 03:00, 14 días)', ajustesIni.ajustes?.enabled === false && ajustesIni.ajustes?.hour === 3 && ajustesIni.ajustes?.retentionDays === 14, JSON.stringify(ajustesIni.ajustes));
+  const malos = [
+    await llamar('PUT', '/api/respaldos/ajustes', { token: T4, body: { hour: 25 } }),
+    await llamar('PUT', '/api/respaldos/ajustes', { token: T4, body: { retentionDays: 0 } }),
+    await llamar('PUT', '/api/respaldos/ajustes', { token: T4, body: { enabled: 'si' } }),
+    await llamar('PUT', '/api/respaldos/ajustes', { token: T4, body: { copyDir: 'carpeta/relativa' } }),
+    await llamar('PUT', '/api/respaldos/ajustes', { token: T4, body: { copyDir: dirRespaldos } }),
+  ];
+  ok('ajustes inválidos (hora, días, estado, ruta relativa, carpeta de respaldos) se rechazan con 400', malos.every((r) => r.status === 400), malos.map((r) => r.status).join(','));
+  ok('un rechazo no guarda nada', !fs.existsSync(archivoAjustes));
+  const guardado = await llamar('PUT', '/api/respaldos/ajustes', { token: T4, body: { enabled: true, hour: 22, retentionDays: 30, copyDir: dirCopiaNueva } });
+  ok('guardar ajustes válidos (activar, 22:00, 30 días, carpeta externa elegida)', guardado.status === 200 && guardado.body.ajustes?.enabled === true && guardado.body.ajustes?.hour === 22 && guardado.body.ajustes?.retentionDays === 30 && guardado.body.ajustes?.copyDir === path.resolve(dirCopiaNueva), guardado.body.error || JSON.stringify(guardado.body.ajustes));
+  ok('la carpeta externa se creó y no quedó el archivo de prueba', fs.existsSync(dirCopiaNueva) && fs.readdirSync(dirCopiaNueva).length === 0 && fs.existsSync(archivoAjustes));
+  const trasGuardar = (await llamar('GET', '/api/respaldos', { token: T4 })).body;
+  ok('la lectura refleja lo guardado, incluidas las claves históricas', trasGuardar.ajustes?.hour === 22 && trasGuardar.automaticos === true && trasGuardar.hora === 22 && trasGuardar.retencionDias === 30 && trasGuardar.copiaExternaConfigurada === true);
+  ok('con pg_dump hay próximo respaldo programado; sin él no', trasGuardar.herramientaDisponible ? typeof trasGuardar.proximoRespaldo === 'string' && new Date(trasGuardar.proximoRespaldo).getHours() === 22 : trasGuardar.proximoRespaldo === null, String(trasGuardar.proximoRespaldo));
+  detenerServidor();
+  await iniciarServidor({ BACKUP_DIR: dirRespaldos, BACKUP_TENANT_ACCESS: '1' });
+  const T5 = (await llamar('POST', '/api/login/camarero', { body: { pin: PIN, deviceId: DEV } })).body.token;
+  const trasReinicio = (await llamar('GET', '/api/respaldos', { token: T5 })).body;
+  ok('los ajustes sobreviven al reinicio y mandan sobre el entorno (sin BACKUP_COPY_DIR ni BACKUP_ENABLED)', trasReinicio.ajustes?.enabled === true && trasReinicio.ajustes?.hour === 22 && trasReinicio.ajustes?.copyDir === path.resolve(dirCopiaNueva));
+  if (trasReinicio.herramientaDisponible) {
+    const conAjustes = await llamar('POST', '/api/respaldos', { token: T5 });
+    ok('el respaldo usa la carpeta externa elegida en pantalla', conAjustes.status === 201 && conAjustes.body.respaldo?.copiaExterna === 'ok' && fs.existsSync(path.join(dirCopiaNueva, conAjustes.body.respaldo.nombre)), conAjustes.body.error || conAjustes.body.respaldo?.copiaExterna);
+  }
+  const ajApagado = await llamar('PUT', '/api/respaldos/ajustes', { token: T5, body: { enabled: false, copyDir: null } });
+  const trasApagar = (await llamar('GET', '/api/respaldos', { token: T5 })).body;
+  ok('desactivar y quitar la copia externa se aplica al instante (sin temporizador pendiente)', ajApagado.status === 200 && trasApagar.automaticos === false && trasApagar.copiaExternaConfigurada === false && trasApagar.proximoRespaldo === null);
+  fs.rmSync(archivoAjustes, { force: true });
+
   // ── F. Fuerza bruta ──
   console.log('\n== F. Bloqueo por intentos ==');
   // Ventana de intentos: los fallos de hace días no se acumulan (LOGIN_WINDOW_MINUTES).
@@ -322,6 +436,7 @@ async function limpiar() {
     detenerServidor();
     const ids = (await db.query('SELECT id FROM cuentas WHERE id > $1', [est.cuentasMax])).rows.map((r) => r.id);
     if (ids.length) { await db.query('DELETE FROM cuenta_detalles WHERE cuenta_id = ANY($1::bigint[])', [ids]); await db.query('DELETE FROM cuentas WHERE id = ANY($1::bigint[])', [ids]); }
+    await db.query("DELETE FROM clientes_frecuentes WHERE nombre LIKE 'ZZE2E%'");
     if (est.mesas.length) await db.query("UPDATE mesas SET estado = 'Disponible', camarero_id = NULL WHERE id = ANY($1::int[])", [est.mesas]);
     await db.query("DELETE FROM productos WHERE nombre LIKE 'ZZE2E%'");
     for (const p of est.catalogo) await db.query('UPDATE productos SET aplica_itbis=$2, tasa_itbis=$3, aplica_propina=$4, tasa_propina=$5 WHERE id=$1', [p.id, p.aplica_itbis, p.tasa_itbis, p.aplica_propina, p.tasa_propina]);

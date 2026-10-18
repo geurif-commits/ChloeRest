@@ -34,6 +34,7 @@ Guía de capacitación para el personal del restaurante. Cada persona entra con 
 3. **Dividir cuenta:** en el detalle de cobro toca **Dividir cuenta** y elige con − / + qué se cobra ahora. Lo demás **sigue abierto** en la mesa y se cobra después con su propio comprobante.
 4. **Descuento:** toca **Descuento**, elige porcentaje o monto y **escribe el motivo** (es obligatorio y queda registrado). El descuento reduce la base del ITBIS y de la propina.
 5. **Cerrar caja:** al terminar el turno, *Cierre de caja*: cuenta el efectivo y escríbelo; el sistema muestra ventas, propina, diferencia y guarda el reporte.
+6. **Venta rápida (para llevar o mostrador):** toca la pestaña **Venta Rápida**, elige los productos (si un plato pide guarnición o término, se te pregunta como en el comandero) y pulsa **Cobrar**. Se cobra con el cobro de siempre (mismos métodos de pago, descuento, comprobante y NCF) y el ticket sale como **Para llevar**. Opcional: abre **Cliente** para dejar nombre y teléfono (siempre los dos). Deja marcado **Enviar a cocina y bar** para que preparen el pedido (aparece en sus pantallas aunque ya esté pagado); desmárcalo si se entrega al momento, por ejemplo una bebida embotellada. Necesita la caja abierta. Si el cobro falla o lo cancelas, la venta armada se conserva y no se crea nada a medias.
 
 ## 4b. ITBIS y propina
 
@@ -55,6 +56,7 @@ Entra con tu PIN al panel administrativo. Lo esencial:
 | Ver facturas, reimprimir o consultar cierres | Ventas → Historial de facturas |
 | Cambiar tema, logo, fondo y pantalla de acceso | Sistema → Tema y Colores / Logotipo y Fondo |
 | **Respaldar los datos** | Equipo → Datos de la Empresa → **Respaldos** |
+| **Ver cuántos equipos permite mi licencia** | Sistema → Terminales POS (muestra "usados / permitidos"). Si necesitas más equipos (otra caja, tablet o pantalla de cocina), pide a tu proveedor que **amplíe el cupo de tu licencia**: no hay que cambiar la clave |
 
 **Respaldos:** el sistema respalda solo cada noche. Una vez por semana, entra a *Respaldos*, descarga el más reciente y **guárdalo fuera del equipo** (memoria USB o la nube).
 

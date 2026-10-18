@@ -5,13 +5,17 @@
  * app.use(kdsRouter).
  */
 
+/* global clearInterval */
+
 import { Router, Request, Response, NextFunction } from 'express';
 import { route, httpError, positiveInteger, clientIp } from '../lib/core.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { sseClients, sseMesaClients, notificarKDS } from '../lib/sse.js';
+import type { ServerResponse } from 'node:http';
 import { consumirTicketSse } from '../lib/sseTickets.js';
+import { evaluarLicenciaDeAcceso } from '../services/licenciaAccesoService.js';
 import { UserRole } from '../types/index.js';
 import { SQL_JOIN_CATEGORIA_PRODUCTO, sqlProductoEsBar } from '../services/destinoProducto.js';
 
@@ -48,6 +52,7 @@ async function autenticarSse(req: Request, res: Response, next: NextFunction): P
       ip: clientIp(req) || 'unknown',
       userAgent: req.headers['user-agent'] || 'unknown',
     };
+    res.locals.deviceId = ticket.deviceId;
     const ctx = ticket.isDueno ? { platform: true, empresaId: 1 } : { empresaId: ticket.empresaId };
     return runWithRequestContext(ctx, () => next());
   }
@@ -75,6 +80,34 @@ async function autorizarKDS(req: Request, res: Response, next: NextFunction): Pr
   res.status(401).json({ error: 'Sesión no válida o vencida.' });
 }
 
+/** Cada cuántos segundos un flujo abierto vuelve a comprobar que su equipo sigue teniendo licencia. */
+const SEGUNDOS_VIGILANCIA_LICENCIA = Math.max(1, Number(process.env.SSE_LICENCIA_SEGUNDOS ?? 30));
+
+/**
+ * Un flujo abierto no vuelve a pasar por la verificación de licencia de cada petición: si el equipo pierde la licencia
+ * (vence, se revoca, se borra o se desactiva) mientras el flujo sigue abierto, se le avisa con un evento `licencia` y
+ * se cierra. El propietario de la plataforma no depende de licencias de negocio.
+ */
+function vigilarLicencia(req: Request, res: Response, clientes: Set<ServerResponse>): void {
+  if (req.auth?.isDueno) {return;}
+  const deviceId = String(res.locals.deviceId ?? req.get('x-device-id') ?? '').trim() || null;
+  const empresaId = req.auth?.empresaId ?? null;
+  const reloj = setInterval(() => {
+    void evaluarLicenciaDeAcceso({ deviceId, empresaId }).then((estado) => {
+      if (estado.vigente) {return;}
+      try {
+        res.write(`event: licencia\ndata: ${JSON.stringify({ codigo: estado.codigo, motivo: estado.motivo })}\n\n`);
+        res.end();
+      } finally {
+        clientes.delete(res);
+        clearInterval(reloj);
+      }
+    }).catch(() => undefined); // un fallo momentáneo de la base no corta el flujo; se reintenta en el siguiente ciclo
+  }, SEGUNDOS_VIGILANCIA_LICENCIA * 1000);
+  reloj.unref();
+  req.on('close', () => clearInterval(reloj));
+}
+
 // GET /api/kds/stream (SSE Cocina): suscribe la respuesta y la retira al cerrarse
 router.get('/api/kds/stream', autenticarSse, (req: Request, res: Response): void => {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -84,6 +117,7 @@ router.get('/api/kds/stream', autenticarSse, (req: Request, res: Response): void
   res.flushHeaders();
   res.write(': connected\n\n');
   sseClients.add(res);
+  vigilarLicencia(req, res, sseClients);
   req.on('close', () => {
     sseClients.delete(res);
   });
@@ -98,12 +132,14 @@ router.get('/api/mesas/stream', autenticarSse, (req: Request, res: Response): vo
   res.flushHeaders();
   res.write(': connected\n\n');
   sseMesaClients.add(res);
+  vigilarLicencia(req, res, sseMesaClients);
   req.on('close', () => {
     sseMesaClients.delete(res);
   });
 });
 
-// GET /api/kds/:categoria/pedidos (Cocina o Bar): pendientes sin anular de cuentas abiertas.
+// GET /api/kds/:categoria/pedidos (Cocina o Bar): pendientes sin anular de cuentas abiertas y de pedidos
+// para llevar ya cobrados en las últimas 12 h (se pagan al ordenar, pero siguen en cocina hasta despacharse).
 // El destino sigue al GRUPO de la categoría del producto (alimentos → Cocina, bebidas → Bar); ver destinoProducto.ts.
 router.get('/api/kds/:categoria/pedidos', autorizarKDS, route(async (req: Request, res: Response): Promise<void> => {
   const db = getDatabase();
@@ -118,7 +154,8 @@ router.get('/api/kds/:categoria/pedidos', autorizarKDS, route(async (req: Reques
      ${SQL_JOIN_CATEGORIA_PRODUCTO}
      WHERE COALESCE(cd.estado_cocina, 'Pendiente') = 'Pendiente'
        AND cd.anulado_en IS NULL
-       AND c.estado = 'Abierta'
+       AND (c.estado = 'Abierta'
+            OR (c.tipo_servicio = 'Para Llevar' AND c.estado = 'Cerrada' AND c.fecha_cierre >= NOW() - INTERVAL '12 hours'))
        AND ${sqlProductoEsBar()} = ($1 = 'Bar')
      ORDER BY cd.hora_pedido ASC`,
     [categoria]

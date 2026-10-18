@@ -22,6 +22,7 @@ function ProductoGrid({
   mobileTab,
   apiUrl,
   cantidades = {},
+  etiquetaVolver = 'Mesas',
 }) {
   const [categoriasMenu, setCategoriasMenu] = useState([]);
   const [tipo, setTipo] = useState('comida');
@@ -104,7 +105,7 @@ function ProductoGrid({
     <section className="po-catalog" style={{ display: !isMobile || mobileTab === 'menu' ? 'flex' : 'none' }}>
       {!isMobile && (
         <header className="po-bar">
-          <button type="button" className="po-btn" onClick={onVolver}><ArrowLeft size={18} />Mesas</button>
+          <button type="button" className="po-btn" onClick={onVolver}><ArrowLeft size={18} />{etiquetaVolver}</button>
           <label className="po-search">
             <Search size={18} />
             <input

@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { toastAviso } from '../Toast.jsx';
 import GestionDispositivos from './GestionDispositivos.jsx';
 import FacturaActivacion from './FacturaActivacion.jsx';
+import LicenciaCupoModal from './LicenciaCupoModal.jsx';
 import { Crown, LockKeyhole, Trash2, Copy, KeyRound } from 'lucide-react';
 import PinPad from '../PinPad.jsx';
 import './admin.css';
 
 const TOKEN_KEY = 'POS_DUENO_TOKEN';
+/** Minutos sin usar el panel antes de cerrar la sesión del propietario. */
+const INACTIVIDAD_PROPIETARIO_MS = 15 * 60 * 1000;
 
 const DURACIONES = [
   { codigo: '7D', etiqueta: '7 días' },
@@ -167,6 +170,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const [cargando, setCargando] = useState(false);
   const [pinLongitud, setPinLongitud] = useState(0);
   const [pinNoConfigurado, setPinNoConfigurado] = useState(false);
+  // true cuando el PIN del propietario está incrustado en el sistema: no se crea ni se cambia desde la interfaz.
+  const [pinFijo, setPinFijo] = useState(false);
 
   const [tab, setTab] = useState('resumen');
   const [resumen, setResumen] = useState(null);
@@ -176,6 +181,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const [busquedaLicencia, setBusquedaLicencia] = useState('');
   const [filtroEstadoLicencia, setFiltroEstadoLicencia] = useState('todas');
   const [accionLicenciaId, setAccionLicenciaId] = useState(null);
+  const [licenciaCupoId, setLicenciaCupoId] = useState(null);
   const [facturas, setFacturas] = useState([]);
   const [facturaSeleccionada, setFacturaSeleccionada] = useState(null);
   const [metodosPago, setMetodosPago] = useState([]);
@@ -298,6 +304,14 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   };
   const borrarDigitoCambioPin = () => setPinDelPasoActual((prev) => prev.slice(0, -1));
 
+  // Longitud real del PIN vigente del dueño (4, 6, 8…). Se conoce de antemano
+  // (mismo fetch que usa el gate de login); si aún no llegó, se exige un
+  // mínimo de 4. El PIN NUEVO no tiene longitud "correcta": la elige el
+  // usuario en el paso 'nuevo', libremente entre 4 y 12.
+  const pinActualCambioCompleto = pinLongitud > 0
+    ? pinActualCambio.length === pinLongitud
+    : pinActualCambio.length >= 4;
+
   const enviarCambioPin = async () => {
     if (pinConfirmarCambio !== pinNuevoCambio) {
       setErrorCambioPin('Los dos PIN no coinciden.');
@@ -324,6 +338,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       localStorage.setItem(TOKEN_KEY, data.token);
       setToken(data.token);
       setPinLongitud(pinNuevoCambio.length);
+      cargarInfoPin();
       toastAviso('PIN actualizado correctamente.');
       setCambioPinAbierto(false);
     } catch {
@@ -336,7 +351,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const avanzarPasoCambioPin = () => {
     if (guardandoCambioPin) return;
     if (pasoCambioPin === 'actual') {
-      if (pinActualCambio.length < 4) return;
+      if (!pinActualCambioCompleto) return;
       setErrorCambioPin('');
       setPasoCambioPin('nuevo');
     } else if (pasoCambioPin === 'nuevo') {
@@ -349,6 +364,29 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       enviarCambioPin();
     }
   };
+
+  // Auto-envío del modal (lo ejecuta el PinPad): el paso 'actual' avanza al completar la longitud real y
+  // conocida del PIN vigente; el paso 'confirmar', al re-escribir tantos dígitos como el PIN nuevo recién
+  // elegido. El paso 'nuevo' queda siempre manual: ahí el usuario decide cuántos dígitos quiere (4 a 12).
+  const longitudAutoEnvioCambioPin =
+    pasoCambioPin === 'actual' ? (pinLongitud > 0 ? pinLongitud : 0)
+      : pasoCambioPin === 'confirmar' && pinNuevoCambio.length >= 4 ? pinNuevoCambio.length : 0;
+
+  // Al abrir el modal el foco pasa al diálogo (si no, lo conserva el botón "Cambiar PIN" que lo abrió) y
+  // Escape lo cierra. Dígitos, Backspace y Enter los resuelve el propio PinPad.
+  const dialogoCambioPin = useRef(null);
+  useEffect(() => {
+    if (cambioPinAbierto) dialogoCambioPin.current?.focus();
+  }, [cambioPinAbierto]);
+  useEffect(() => {
+    if (!cambioPinAbierto) return undefined;
+    const alTeclear = (evento) => {
+      if (evento.key === 'Escape' && !evento.defaultPrevented) { evento.preventDefault(); cerrarCambioPin(); }
+    };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cambioPinAbierto, guardandoCambioPin]);
 
   const resetearPinAdmin = async (lic) => {
     const nombre = lic.nombre_negocio || lic.empresa_nombre || 'este negocio';
@@ -427,21 +465,46 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Longitud(es) válidas del PIN del propietario. Con una sola se exige exacta y se auto-envía; con varias
+  // (OWNER_PIN + PIN guardado de otra longitud) o si falla la carga, queda en 0 y el envío es manual (mín. 4).
+  // También la necesita el modal "Cambiar mi PIN" (post-login), por eso corre aunque ya haya sesión.
+  const cargarInfoPin = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/pin-info`);
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data.longitudes)) return;
+      setPinLongitud(data.longitudes.length === 1 ? data.longitudes[0] : 0);
+      if (data.configurado === false) setPinNoConfigurado(true);
+      setPinFijo(data.fijo === true);
+    } catch {
+      // sin datos: mínimo de 4 dígitos y envío manual
+    }
+  };
+
   useEffect(() => {
-    if (token) return;
-    let activo = true;
-    (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/configuracion/sistema`);
-        const data = await res.json();
-        if (activo && data && data.owner_pin_longitud > 0) {
-          setPinLongitud(data.owner_pin_longitud);
-        }
-      } catch {
-        // Si falla, queda en 0 y solo se puede enviar con Enter/botón.
-      }
-    })();
-    return () => { activo = false; };
+    cargarInfoPin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl]);
+
+  // Cierre automático por inactividad: un panel con acceso a todas las licencias no debe quedar abierto sin nadie.
+  // Cualquier toque, tecla o desplazamiento reinicia el reloj; al vencer se revoca la sesión en el servidor.
+  useEffect(() => {
+    if (!token) return undefined;
+    let reloj;
+    const reiniciar = () => {
+      clearTimeout(reloj);
+      reloj = setTimeout(() => {
+        toastAviso('Sesión del propietario cerrada por inactividad.');
+        cerrarSesion();
+      }, INACTIVIDAD_PROPIETARIO_MS);
+    };
+    const eventos = ['pointerdown', 'keydown', 'scroll', 'wheel'];
+    eventos.forEach((nombre) => window.addEventListener(nombre, reiniciar, { passive: true }));
+    reiniciar();
+    return () => {
+      clearTimeout(reloj);
+      eventos.forEach((nombre) => window.removeEventListener(nombre, reiniciar));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -508,12 +571,12 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     }
   };
 
-  // Longitud efectiva: en modo login se auto-acepta al completarla (6 por
-  // defecto si aún se desconoce); en modo setup (crear PIN) el mínimo es 4
-  // y la confirmación siempre es manual.
-  // La longitud real del PIN del propietario puede ser cualquiera entre 4 y 12 (p. ej. si viene de OWNER_PIN),
-  // así que nunca se envía solo: se confirma con la tecla ➜ o Enter.
-  const longitudPinEfectiva = 4;
+  // Longitud real del PIN del propietario (4, 6, 8… hasta 12), conocida de
+  // antemano vía /api/dueno/pin-info. En modo login, con una única longitud
+  // posible se exige exacta antes de habilitar el envío y el PinPad auto-envía
+  // al completarla. Si no se conoce (falló la carga) o hay varias posibles, se
+  // exige un mínimo de 4 y el envío queda manual (Enter o el botón ➜).
+  const longitudPinLogin = pinLongitud > 0 ? pinLongitud : 4;
 
   const agregarNumeroPin = (num) => {
     if (cargando) return;
@@ -527,26 +590,6 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   };
 
   const borrarNumeroPin = () => setPin((prev) => prev.slice(0, -1));
-
-  useEffect(() => {
-    if (token) return;
-    const manejarTeclado = (evento) => {
-      if (evento.key >= '0' && evento.key <= '9') {
-        agregarNumeroPin(evento.key);
-      } else if (evento.key === 'Backspace' || evento.key === 'Delete') {
-        borrarNumeroPin();
-      } else if (evento.key === 'Enter') {
-        if (pinNoConfigurado) {
-          if (pin.length >= 4) establecerPin();
-        } else {
-          if (pin.length >= longitudPinEfectiva) login();
-        }
-      }
-    };
-    window.addEventListener('keydown', manejarTeclado);
-    return () => window.removeEventListener('keydown', manejarTeclado);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, pin, pinLongitud, pinNoConfigurado]);
 
   const [planForm, setPlanForm] = useState({ nombre: '', duracion_codigo: '30D', precio: '', moneda: 'RD$', destacado: false, activo: true, orden: 0 });
 
@@ -858,6 +901,12 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
   if (!token) {
     const pinLen = pinLongitud > 0 ? pinLongitud : 6;
+    // En setup el usuario elige su propia longitud (mínimo 4). En login la
+    // longitud ya es conocida: se exige el número exacto de dígitos antes de
+    // habilitar el envío, para no dejar confirmar un PIN a medio escribir.
+    const enviarDeshabilitado = pinNoConfigurado
+      ? pin.length < 4
+      : (pinLongitud > 0 ? pin.length !== longitudPinLogin : pin.length < longitudPinLogin);
     const formulario = (onSubmitForm, textoCarga) => (
       <form onSubmit={onSubmitForm} style={{ width: '100%' }}>
         <PinPad
@@ -868,7 +917,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
           onDigit={agregarNumeroPin}
           onDelete={borrarNumeroPin}
           asSubmit
-          submitDisabled={cargando || pin.length < longitudPinEfectiva}
+          submitDisabled={cargando || enviarDeshabilitado}
+          autoSubmitLength={pinNoConfigurado ? 0 : pinLongitud}
         />
         {cargando && <p className="gate__note">{textoCarga}</p>}
       </form>
@@ -931,7 +981,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>Acceso universal · Solo dueño</span>
-          <button onClick={abrirCambioPin} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}><KeyRound size={15} />Cambiar PIN</button>
+          {pinFijo ? (
+            <span title="El PIN del propietario está fijado en el código del sistema; para cambiarlo se regenera con «npm run propietario:pin» y se vuelve a desplegar." style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--admin-border)', color: 'var(--admin-text-muted)', padding: '8px 14px', borderRadius: '8px', fontSize: '0.8rem' }}><LockKeyhole size={14} />PIN fijado en el sistema</span>
+          ) : (
+            <button onClick={abrirCambioPin} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}><KeyRound size={15} />Cambiar PIN</button>
+          )}
           <button onClick={cerrarSesion} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-muted)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Cerrar sesión</button>
           <button onClick={alVolver} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Salir</button>
         </div>
@@ -1181,8 +1235,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>{lic.telefono}</div>
                             </td>
                             <td>
-                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: lic.dispositivos_activos > 0 ? 'var(--kpi-green)' : 'var(--admin-text-muted)' }}>
-                                {lic.dispositivos_activos || 0} activos
+                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: (lic.dispositivos_activos || 0) >= (lic.max_dispositivos || 2) ? 'var(--kpi-gold)' : (lic.dispositivos_activos > 0 ? 'var(--kpi-green)' : 'var(--admin-text-muted)') }}>
+                                {lic.dispositivos_activos || 0} / {lic.max_dispositivos || 2} activos
                               </span>
                               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>
                                 {lic.total_dispositivos || 0} total
@@ -1239,6 +1293,15 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                     Reactivar
                                   </button>
                                 )}
+
+                                <button
+                                  className="btn-solicitud pagada"
+                                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  onClick={() => setLicenciaCupoId(lic.id)}
+                                  title="Cambiar cuántos equipos permite esta licencia y ver el historial de cambios"
+                                >
+                                  Equipos
+                                </button>
 
                                 <button
                                   className="btn-solicitud atender"
@@ -1813,6 +1876,16 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         )}
       </div>
 
+      {licenciaCupoId !== null && licencias.some((l) => l.id === licenciaCupoId) && (
+        <LicenciaCupoModal
+          apiUrl={apiUrl}
+          token={token}
+          licencia={licencias.find((l) => l.id === licenciaCupoId)}
+          alCerrar={() => setLicenciaCupoId(null)}
+          alCambiar={cargarTodo}
+        />
+      )}
+
       {facturaSeleccionada && (
         <FacturaActivacion
           factura={facturaSeleccionada}
@@ -1823,8 +1896,9 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
       {cambioPinAbierto && (
         <div
+          ref={dialogoCambioPin} tabIndex={-1}
           role="dialog" aria-modal="true" aria-label="Cambiar mi PIN"
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: '16px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: '16px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', outline: 'none' }}
           onClick={cerrarCambioPin}
         >
           <div
@@ -1860,7 +1934,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                 onDigit={agregarDigitoCambioPin}
                 onDelete={borrarDigitoCambioPin}
                 asSubmit
-                submitDisabled={guardandoCambioPin || pinDelPasoActual.length < 4}
+                submitDisabled={
+                  guardandoCambioPin ||
+                  (pasoCambioPin === 'actual' ? !pinActualCambioCompleto : pinDelPasoActual.length < 4)
+                }
+                autoSubmitLength={longitudAutoEnvioCambioPin}
               />
               {guardandoCambioPin && <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--admin-text-muted)', marginTop: '8px' }}>Guardando…</p>}
             </form>

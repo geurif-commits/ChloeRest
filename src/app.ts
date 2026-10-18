@@ -5,7 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import express, { Express } from 'express';
+import express, { Express, Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { createLogger } from './lib/logger.js';
@@ -40,6 +40,9 @@ import dgiiReportesRouter from './routers/dgiiReportes.js';
 import kdsRouter from './routers/kds.js';
 import webhookRouter from './routers/webhook.js';
 import respaldosRouter from './routers/respaldos.js';
+import ventasRouter from './routers/ventas.js';
+import { opcionesCors } from './lib/corsEscritorio.js';
+import duenoLicenciasRouter from './routers/duenoLicencias.js';
 
 const logger = createLogger('app');
 
@@ -80,13 +83,11 @@ export const createApp = (): Express => {
   // Detrás de Passenger/cPanel el cliente real viene en el header X-Forwarded-For
   app.set('trust proxy', 1);
 
-  // CORS (misma lista de orígenes que el legacy)
+  // CORS: la lista de orígenes configurada (CORS_ORIGINS) para toda la API, más una excepción acotada para que la app
+  // de escritorio consulte planes, métodos de pago y la solicitud de licencia en el central (ver lib/corsEscritorio.ts).
   app.use(
-    cors({
-      origin: config.corsOrigins,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      maxAge: 3600,
+    cors<Request>((req, callback) => {
+      callback(null, opcionesCors(req.headers.origin, req.path, config.corsOrigins));
     })
   );
 
@@ -122,7 +123,7 @@ export const createApp = (): Express => {
       const mem = process.memoryUsage();
       res.json({
         estado: 'ok',
-        version: '2.4.1',
+        version: '2.6.0',
         baseDeDatos: 'conectada',
         migracion: ultimaMig,
         zonaHorariaBd,
@@ -139,7 +140,7 @@ export const createApp = (): Express => {
       });
       res.status(503).json({
         estado: 'error',
-        version: '2.4.1',
+        version: '2.6.0',
         baseDeDatos: 'degradada',
         telegram: telegramActivo() ? 'activo' : 'inactivo',
       });
@@ -190,6 +191,8 @@ export const createApp = (): Express => {
   app.use(kdsRouter);
   app.use(webhookRouter);
   app.use(respaldosRouter);
+  app.use(ventasRouter);
+  app.use(duenoLicenciasRouter);
 
   // ── Frontend compilado (SPA) en producción/dev ──
   const frontendDist = resolverFrontendDist();

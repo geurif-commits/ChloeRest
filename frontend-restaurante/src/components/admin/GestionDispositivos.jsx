@@ -11,6 +11,7 @@ import './admin.css';
 
 export default function GestionDispositivos({ apiUrl, token }) {
   const [dispositivos, setDispositivos] = useState([]);
+  const [limite, setLimite] = useState(2);
   const [cargando, setCargando] = useState(true);
   const myDeviceId = obtenerDeviceId();
 
@@ -30,6 +31,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
         return;
       }
       setDispositivos(data.dispositivos || []);
+      setLimite(Number.isInteger(data.limiteMaximo) && data.limiteMaximo > 0 ? data.limiteMaximo : 2);
     } catch {
       toastAviso('Error cargando dispositivos. Verifica la conexión.');
     } finally {
@@ -200,7 +202,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
         </div>
       </div>
 
-      {/* ── Barra Informativa de Límite de Licencia (Máximo 2 Dispositivos) ── */}
+      {/* ── Barra Informativa de Límite de Licencia (el cupo lo define cada licencia; el propietario lo amplía) ── */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -215,7 +217,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Info size={16} style={{ color: 'var(--kpi-gold)', flexShrink: 0 }} />
           <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-            Límite por licencia: <strong>Máximo 2 dispositivos activos simultáneos</strong> (Caja POS / Tablet de Salón o KDS).
+            Límite por licencia: <strong>Máximo {limite} {limite === 1 ? 'dispositivo activo' : 'dispositivos activos simultáneos'}</strong> (Caja POS / Tablet de Salón o KDS). ¿Necesitas más equipos? Pide ampliar el cupo de tu licencia.
           </span>
         </div>
         <div style={{
@@ -224,13 +226,13 @@ export default function GestionDispositivos({ apiUrl, token }) {
           gap: '6px',
           padding: '4px 10px',
           borderRadius: '20px',
-          background: kpis.activos >= 2 ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'rgba(16, 185, 129, 0.2)',
-          border: `1px solid ${kpis.activos >= 2 ? 'var(--kpi-gold)' : 'var(--kpi-green)'}`,
+          background: kpis.activos >= limite ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'rgba(16, 185, 129, 0.2)',
+          border: `1px solid ${kpis.activos >= limite ? 'var(--kpi-gold)' : 'var(--kpi-green)'}`,
           fontSize: '0.78rem',
           fontWeight: 700,
-          color: kpis.activos >= 2 ? 'var(--kpi-gold)' : 'var(--kpi-green)'
+          color: kpis.activos >= limite ? 'var(--kpi-gold)' : 'var(--kpi-green)'
         }}>
-          <span>{kpis.activos} / 2 En Uso</span>
+          <span>{kpis.activos} / {limite} En Uso</span>
         </div>
       </div>
 

@@ -57,7 +57,13 @@ export async function verificarBloqueo(claves: Array<string | null | undefined>)
   }
 }
 
-export async function registrarFallo(claves: Array<string | null | undefined>): Promise<void> {
+/** Límites propios de una clave (por ejemplo, el acceso del propietario es más estricto que el login normal). */
+export interface ILimiteFallos {
+  maxIntentos?: number;
+  bloqueoMin?: number;
+}
+
+export async function registrarFallo(claves: Array<string | null | undefined>, limite: ILimiteFallos = {}): Promise<void> {
   const db = getDatabase();
   const keys = claves.filter((k): k is string => Boolean(k));
   for (const clave of keys) {
@@ -77,7 +83,7 @@ export async function registrarFallo(claves: Array<string | null | undefined>): 
           SET intentos = 0,
               bloqueado_hasta = CURRENT_TIMESTAMP + ($1 || ' minutes')::interval
         WHERE clave = $2 AND intentos >= $3 AND (bloqueado_hasta IS NULL OR bloqueado_hasta <= CURRENT_TIMESTAMP)`,
-      [String(LOCKOUT_MIN), clave, MAX_INTENTOS]
+      [String(limite.bloqueoMin ?? LOCKOUT_MIN), clave, limite.maxIntentos ?? MAX_INTENTOS]
     );
   }
   logger.warn({ action: 'LOGIN_INTENTO_FALLIDO', claves: keys });

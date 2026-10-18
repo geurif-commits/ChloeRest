@@ -577,6 +577,27 @@ const navegarRuta = (ruta) => {
     };
   }, []);
 
+  // El servidor comprueba la licencia en cada petición: si deja de haber licencia vigente (venció, se revocó, se
+  // borró o el equipo se desactivó), se cierra la sesión y se muestra la pantalla de activación o de licencia.
+  useEffect(() => {
+    const handler = (evento) => {
+      const { codigo, motivo } = evento.detail || {};
+      setUsuario(null);
+      setViendoKDS(null);
+      if (codigo === 'DISPOSITIVO_NO_ACTIVADO') {
+        recordarActivacion(false);
+        setDispositivoActivado(false);
+      } else {
+        setEstadoLicencia({ bloqueado: true, motivo: motivo || 'No hay una licencia vigente.', contacto: 'Comunícate con soporte técnico.' });
+      }
+      toastAviso(`🔒 ${motivo || 'No hay una licencia vigente.'}`);
+    };
+    window.addEventListener('pos-licencia-invalida', handler);
+    return () => {
+      window.removeEventListener('pos-licencia-invalida', handler);
+    };
+  }, []);
+
   // ==========================================================
   // ESTADO DE RED
   // ==========================================================
@@ -1079,6 +1100,7 @@ function App() {
         </div>
       )}
 
+      {esElectronApp() && <div className="px-windrag" aria-hidden="true" />}
       {esElectronApp() && (
         <div className="px-winctl" role="group" aria-label="Controles de ventana">
           <button type="button" onClick={() => window.electronPOS?.minimizarVentana()} title="Minimizar" aria-label="Minimizar"><Minus size={15} /></button>

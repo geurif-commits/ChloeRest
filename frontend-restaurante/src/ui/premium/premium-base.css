@@ -152,3 +152,11 @@ html.is-electron .caja-topbar,
 html.is-electron .kd-head,
 html.is-electron .lg-pin__top-unused { padding-right: calc(var(--px-gutter, 24px) + var(--px-winctl-w)); }
 html.is-electron .po-ticket__head { padding-right: calc(24px + var(--px-winctl-w)); }
+
+/* Arrastrar la ventana (Electron sin marco): las barras superiores hacen de barra de título y, para las
+   pantallas sin barra, una franja fina pegada al borde. Todo control dentro de una barra queda fuera de la
+   zona de arrastre, porque una zona de arrastre se traga los clics. */
+html.is-electron :is(.ld-nav, .adm-top, .mp-top, .caja-topbar, .kd-head, .lg-pin__top) { -webkit-app-region: drag; }
+html.is-electron :is(.ld-nav, .adm-top, .mp-top, .caja-topbar, .kd-head, .lg-pin__top)
+  :is(button, a, input, select, textarea, label, summary, [role='button'], [role='tab'], [tabindex]) { -webkit-app-region: no-drag; }
+.px-windrag { position: fixed; top: 0; left: 0; right: var(--px-winctl-w, 138px); height: 8px; z-index: 99998; -webkit-app-region: drag; }

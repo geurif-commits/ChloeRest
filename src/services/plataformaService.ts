@@ -12,6 +12,8 @@ import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { registrarAuditoria } from './auditoriaService.js';
 import { parsearDuracion, vencimientoDesdeMeses } from '../lib/licencias.js';
 import { hashPin } from './authService.js';
+import { asegurarCupo, bloquearCupo, bloquearCupoPorHash, enmascararClave } from './licenciaCupoService.js';
+import { evaluarLicenciaDeAcceso, invalidarCacheLicencias } from './licenciaAccesoService.js';
 import { createLogger } from '../lib/logger.js';
 
 const logger = createLogger('plataformaService');
@@ -32,29 +34,53 @@ export interface IVerificacionLicencia {
   motivo?: string;
   contacto?: string;
   diasRestantes?: number;
+  /** Fecha de vencimiento de la licencia del equipo (ISO), si no es vitalicia. */
+  venceEn?: string;
+  /** Código del motivo cuando está bloqueado (el mismo que devuelve el servidor en cada petición). */
+  codigo?: string;
 }
 
-export async function verificarLicenciaPublica(): Promise<IVerificacionLicencia> {
+/**
+ * Estado de la licencia que ve la pantalla (público: la usa la pantalla de acceso). Es la MISMA regla que aplica el
+ * servidor en cada petición (`licenciaAccesoService`) para el equipo que pregunta; así la pantalla de bloqueo y el
+ * control de acceso no pueden discrepar. Se retiró la antigua cuenta por antigüedad de `negocio_config`
+ * (`duracion_meses` + `fecha_instalacion`, 7 días de prueba por defecto): no se reiniciaba al renovar con una clave
+ * nueva y bloqueaba licencias en regla.
+ */
+export async function verificarLicenciaPublica(deviceId: string | null = null): Promise<IVerificacionLicencia> {
   const db = getDatabase();
-  const result = await db.queryUnscoped<{
-    fecha_instalacion: Date | null;
-    duracion_meses: number;
-    licencia_bloqueada: boolean;
-  }>('SELECT fecha_instalacion, duracion_meses, licencia_bloqueada FROM negocio_config ORDER BY id LIMIT 1');
-  if (!result.rowCount) {return { bloqueado: false, esNuevo: true };}
-  const negocio = result.rows[0];
-  if (negocio.licencia_bloqueada) {
-    return { bloqueado: true, motivo: 'La licencia se encuentra suspendida.', contacto: 'Comunícate con soporte técnico.' };
+  const negocios = await db.queryUnscoped<{ licencia_bloqueada: boolean }>('SELECT licencia_bloqueada FROM negocio_config ORDER BY id LIMIT 1');
+  if (!negocios.rowCount) {return { bloqueado: false, esNuevo: true };}
+  if (!deviceId) {return { bloqueado: false, esNuevo: true };}
+
+  const equipo = await db.queryUnscoped<{ empresa_id: number | null; estado: string; licencia_vencimiento: Date | null }>(
+    'SELECT empresa_id, estado, licencia_vencimiento FROM dispositivos WHERE device_id = $1',
+    [deviceId]
+  );
+  const fila = equipo.rows[0];
+  const empresaId = fila?.empresa_id ?? 1;
+
+  const suspendida = await db.queryUnscoped<{ licencia_bloqueada: boolean }>(
+    'SELECT licencia_bloqueada FROM negocio_config WHERE empresa_id = $1 ORDER BY id LIMIT 1',
+    [empresaId]
+  );
+  if (suspendida.rows[0]?.licencia_bloqueada) {
+    return { bloqueado: true, codigo: 'LICENCIA_REVOCADA', motivo: 'La licencia se encuentra suspendida.', contacto: 'Comunícate con soporte técnico.' };
   }
-  if (negocio.duracion_meses === -1) {return { bloqueado: false, tipo: 'Vitalicia' };}
-  const daysAllowed = negocio.duracion_meses > 0 ? negocio.duracion_meses * 30 : 7;
-  // Bug-for-bug con el legacy: fecha nula equivale a la época (new Date(null)).
-  const fechaInstalacion = negocio.fecha_instalacion === null ? new Date(0) : new Date(negocio.fecha_instalacion);
-  const elapsedDays = (Date.now() - fechaInstalacion.getTime()) / 86400000;
-  if (elapsedDays > daysAllowed) {
-    return { bloqueado: true, motivo: 'El período de licencia ha finalizado.', contacto: 'Comunícate con soporte técnico.' };
+  // Un equipo sin activar no tiene licencia que mostrar: la pantalla lo lleva a la activación.
+  if (!fila || fila.estado !== 'Activo') {return { bloqueado: false, esNuevo: true };}
+
+  const estado = await evaluarLicenciaDeAcceso({ deviceId, empresaId });
+  if (!estado.vigente) {
+    return { bloqueado: true, codigo: estado.codigo, motivo: estado.motivo, contacto: 'Comunícate con soporte técnico.' };
   }
-  return { bloqueado: false, diasRestantes: Math.ceil(daysAllowed - elapsedDays) };
+  if (!fila.licencia_vencimiento) {return { bloqueado: false, tipo: 'Vitalicia' };}
+  const vence = new Date(fila.licencia_vencimiento);
+  return {
+    bloqueado: false,
+    diasRestantes: Math.max(0, Math.ceil((vence.getTime() - Date.now()) / 86400000)),
+    venceEn: vence.toISOString(),
+  };
 }
 
 // ──── Registro público de dispositivo (POST /api/dispositivo/registrar) ────
@@ -224,18 +250,10 @@ export async function activarDispositivo(params: {
 
   const activacion = await runWithRequestContext({ empresaId }, () =>
     db.transaction(async (client) => {
-      // Serializa activaciones concurrentes de la misma clave antes de contar.
-      // PG10 no tiene hashtextextended (PG14+): se deriva la llave en Node.
-      const lockKey = BigInt('0x' + claveHash.slice(0, 15));
-      await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [lockKey]);
-      const contador = await client.query<{ total: number }>(
-        `SELECT COUNT(*)::int AS total FROM dispositivos
-         WHERE estado = 'Activo' AND clave_activacion = $1 AND empresa_id = $2 AND id != $3`,
-        [claveCanonica, empresaId, dispositivo.id]
-      );
-      if (contador.rows[0].total >= 2) {
-        throw httpError(403, 'Esta clave de licencia ya tiene 2 dispositivos activos. Usa otra clave o gestiona los dispositivos activos.');
-      }
+      // Serializa activaciones concurrentes de la misma clave antes de contar y aplica el cupo de la licencia
+      // (licenciaCupoService: la misma regla que la reactivación desde el panel).
+      await bloquearCupoPorHash(client, claveHash);
+      await asegurarCupo(client, { empresaId, clave: claveCanonica, excluirDispositivoId: dispositivo.id });
 
       // El dispositivo pendiente puede estar en LEGACY; la reasignación queda
       // explícitamente limitada a la empresa de la licencia resuelta.
@@ -264,9 +282,10 @@ export async function activarDispositivo(params: {
           [empresaId, ncRnc, licencia.meses]
         );
       }
+      // Sin índice único por empresa, "ON CONFLICT DO NOTHING" no evitaba nada: cada equipo activado añadía otra fila.
       await client.query(
         `INSERT INTO configuracion_sistema (empresa_id, setup_completado)
-         VALUES ($1, FALSE) ON CONFLICT DO NOTHING`,
+         SELECT $1::int, FALSE WHERE NOT EXISTS (SELECT 1 FROM configuracion_sistema WHERE empresa_id = $1::int)`,
         [empresaId]
       );
       if (stored && stored.admin_pin_hash) {
@@ -314,6 +333,7 @@ export async function activarDispositivo(params: {
     })
   );
   const vencimiento = activacion.vencimiento;
+  invalidarCacheLicencias();
   return {
     activado: true,
     empresaId,
@@ -348,6 +368,7 @@ export interface IDispositivoGestion {
 const COLUMNAS_DISPOSITIVO = `id, device_id, nombre, navegador, ip, estado, intentos_fallidos, activado_en,
               licencia_duracion, licencia_vencimiento, creado_en, ultimo_acceso, empresa_id, clave_activacion`;
 
+/** El propietario ve la clave completa; el Administrador del negocio solo una versión enmascarada. */
 export async function listarDispositivos(esDueno: boolean, empresaId: number): Promise<IDispositivoGestion[]> {
   const db = getDatabase();
   const result = esDueno
@@ -356,21 +377,38 @@ export async function listarDispositivos(esDueno: boolean, empresaId: number): P
         `SELECT ${COLUMNAS_DISPOSITIVO} FROM dispositivos WHERE empresa_id = $1 ORDER BY creado_en DESC`,
         [empresaId]
       );
-  return result.rows;
+  return esDueno ? result.rows : result.rows.map((d) => ({ ...d, clave_activacion: enmascararClave(d.clave_activacion) }));
 }
 
+/**
+ * Cambia el estado de un equipo. Pasar a 'Activo' respeta el cupo de su licencia igual que activar con clave
+ * (antes esta ruta no contaba y permitía superar el límite).
+ */
 export async function cambiarEstadoDispositivo(id: number, estado: string): Promise<{ id: number; device_id: string }> {
   const db = getDatabase();
-  const result = await db.query<{ id: number; device_id: string }>(
-    `UPDATE dispositivos
-       SET estado = $1::VARCHAR,
-           activado_en = CASE WHEN $1::VARCHAR = 'Activo' THEN COALESCE(activado_en, CURRENT_TIMESTAMP) ELSE activado_en END,
-           intentos_fallidos = 0
-     WHERE id = $2 RETURNING id, device_id`,
-    [estado, id]
-  );
-  if (!result.rowCount) {throw httpError(404, 'Dispositivo no encontrado.');}
-  return result.rows[0];
+  const resultado = await db.transaction(async (client) => {
+    const actual = await client.query<{ id: number; device_id: string; estado: string; empresa_id: number; clave_activacion: string | null }>(
+      'SELECT id, device_id, estado, empresa_id, clave_activacion FROM dispositivos WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+    if (!actual.rowCount) {throw httpError(404, 'Dispositivo no encontrado.');}
+    const dispositivo = actual.rows[0];
+    if (estado === 'Activo' && dispositivo.estado !== 'Activo') {
+      await bloquearCupo(client, dispositivo.clave_activacion);
+      await asegurarCupo(client, { empresaId: dispositivo.empresa_id, clave: dispositivo.clave_activacion, excluirDispositivoId: dispositivo.id });
+    }
+    const result = await client.query<{ id: number; device_id: string }>(
+      `UPDATE dispositivos
+         SET estado = $1::VARCHAR,
+             activado_en = CASE WHEN $1::VARCHAR = 'Activo' THEN COALESCE(activado_en, CURRENT_TIMESTAMP) ELSE activado_en END,
+             intentos_fallidos = 0
+       WHERE id = $2 RETURNING id, device_id`,
+      [estado, id]
+    );
+    return result.rows[0];
+  });
+  invalidarCacheLicencias();
+  return resultado;
 }
 
 export async function eliminarDispositivo(id: number, esDueno: boolean, empresaId: number): Promise<void> {
@@ -382,6 +420,7 @@ export async function eliminarDispositivo(id: number, esDueno: boolean, empresaI
         empresaId,
       ]);
   if (!result.rowCount) {throw httpError(404, 'Dispositivo no encontrado.');}
+  invalidarCacheLicencias();
 }
 
 // ──── Activación por Administrador (POST /api/licencia/activar) ────
@@ -434,6 +473,7 @@ export async function activarLicenciaDesdeSesion(params: {
     detalle: { duration },
     ip: params.ip,
   });
+  invalidarCacheLicencias();
   return { ok: true };
 }
 
@@ -506,6 +546,7 @@ export async function revocarLicencia(id: number, motivo: string): Promise<void>
     await client.query('UPDATE negocio_config SET licencia_bloqueada = TRUE WHERE empresa_id = $1', [empresaId]);
     await client.query('DELETE FROM app_sessions WHERE empresa_id = $1', [empresaId]);
   });
+  invalidarCacheLicencias();
   logger.info({ action: 'LICENCIA_REVOCADA', licenciaId: id, empresaId });
 }
 
@@ -519,6 +560,7 @@ export async function reactivarLicencia(id: number): Promise<void> {
     await client.query("UPDATE dispositivos SET estado = 'Activo' WHERE empresa_id = $1", [empresaId]);
     await client.query('UPDATE negocio_config SET licencia_bloqueada = FALSE WHERE empresa_id = $1', [empresaId]);
   });
+  invalidarCacheLicencias();
   logger.info({ action: 'LICENCIA_REACTIVADA', licenciaId: id, empresaId });
 }
 
@@ -599,6 +641,7 @@ export async function eliminarLicencia(id: number): Promise<void> {
       await client.query('DELETE FROM empresas WHERE id = $1', [empresaId]);
     }
   });
+  invalidarCacheLicencias();
   logger.info({ action: 'LICENCIA_ELIMINADA', licenciaId: id, empresaId });
 }
 
@@ -618,6 +661,7 @@ export interface ILicenciaDueno {
   nombre_negocio: string | null;
   total_dispositivos: number;
   dispositivos_activos: number;
+  max_dispositivos: number;
   propietario: string | null;
   email: string | null;
   telefono: string | null;
@@ -639,15 +683,19 @@ export async function listarLicenciasDueno(): Promise<ILicenciaDueno[]> {
        l.activada_en,
        l.vencimiento,
        e.nombre AS empresa_nombre,
-       cfg.nombre_negocio,
+       (SELECT c.nombre_negocio FROM configuracion_sistema c WHERE c.empresa_id = l.empresa_id ORDER BY c.id LIMIT 1) AS nombre_negocio,
        (SELECT COUNT(*)::int FROM dispositivos d WHERE d.empresa_id = l.empresa_id) AS total_dispositivos,
-       (SELECT COUNT(*)::int FROM dispositivos d WHERE d.empresa_id = l.empresa_id AND d.estado = 'Activo') AS dispositivos_activos,
+       -- Activos de ESTA clave (el cupo es por licencia); si la licencia no guardó su clave, se cuenta por empresa.
+       CASE WHEN l.clave_texto IS NOT NULL
+            THEN (SELECT COUNT(*)::int FROM dispositivos d WHERE d.empresa_id = l.empresa_id AND d.estado = 'Activo' AND d.clave_activacion = l.clave_texto)
+            ELSE (SELECT COUNT(*)::int FROM dispositivos d WHERE d.empresa_id = l.empresa_id AND d.estado = 'Activo')
+       END AS dispositivos_activos,
+       l.max_dispositivos,
        (SELECT s.propietario FROM solicitudes_licencia s WHERE s.clave_generada = l.clave_texto LIMIT 1) AS propietario,
        (SELECT s.email FROM solicitudes_licencia s WHERE s.clave_generada = l.clave_texto LIMIT 1) AS email,
        (SELECT s.telefono FROM solicitudes_licencia s WHERE s.clave_generada = l.clave_texto LIMIT 1) AS telefono
      FROM licencias l
      JOIN empresas e ON e.id = l.empresa_id
-     LEFT JOIN configuracion_sistema cfg ON cfg.empresa_id = l.empresa_id
      ORDER BY l.creado_en DESC`
   );
   return result.rows;
@@ -804,6 +852,7 @@ export async function eliminarMetodoPagoDueno(id: number): Promise<void> {
 interface IConfigFila {
   owner_pin_hash: string | null;
   owner_pin_longitud: number | null;
+  owner_token_epoch: number | null;
 }
 
 /** Borra los datos de prueba preservando el PIN del Dueño y la empresa raíz. */
@@ -814,10 +863,13 @@ export async function resetearDatosPruebas(): Promise<void> {
     // Preservar el PIN del dueño: es independiente de los datos de prueba y no
     // debe perderse al resetear (el dueño conserva el control total del sistema).
     const owner = await client.query<IConfigFila>(
-      'SELECT owner_pin_hash, owner_pin_longitud FROM configuracion_sistema WHERE id = 1'
+      'SELECT owner_pin_hash, owner_pin_longitud, owner_token_epoch FROM configuracion_sistema WHERE id = 1'
     );
     const ownerHash = owner.rows[0]?.owner_pin_hash || null;
     const ownerLongitud = owner.rows[0]?.owner_pin_longitud || 6;
+    // El borrado completo también cierra las sesiones del propietario: el contador de sesiones sube (nunca vuelve a 1,
+    // que dejaría vivos los tokens firmados antes del borrado).
+    const epochNuevo = Number(owner.rows[0]?.owner_token_epoch || 1) + 1;
 
     // TRUNCATE con CASCADE: vacía todas las tablas de datos en una sola
     // sentencia, sin importar el orden ni constraints adicionales, y reinicia
@@ -841,14 +893,15 @@ export async function resetearDatosPruebas(): Promise<void> {
     );
     await client.query(
       `INSERT INTO configuracion_sistema
-        (id, empresa_id, nombre_negocio, tema_activo, estilo_login, setup_completado, owner_pin_hash, owner_pin_longitud)
-       VALUES (1, 1, 'Mi Restaurante', 'noche', 'moderno', FALSE, $1, $2)
+        (id, empresa_id, nombre_negocio, tema_activo, estilo_login, setup_completado, owner_pin_hash, owner_pin_longitud, owner_token_epoch)
+       VALUES (1, 1, 'Mi Restaurante', 'noche', 'moderno', FALSE, $1, $2, $3)
        ON CONFLICT (id) DO UPDATE SET
          nombre_negocio = 'Mi Restaurante',
          setup_completado = FALSE,
          owner_pin_hash = COALESCE($1, configuracion_sistema.owner_pin_hash),
-         owner_pin_longitud = COALESCE($2, configuracion_sistema.owner_pin_longitud)`,
-      [ownerHash, ownerLongitud]
+         owner_pin_longitud = COALESCE($2, configuracion_sistema.owner_pin_longitud),
+         owner_token_epoch = $3`,
+      [ownerHash, ownerLongitud, epochNuevo]
     );
     await client.query(
       `INSERT INTO negocio_config (id, nombre_comercial, empresa_id)
@@ -863,5 +916,6 @@ export async function resetearDatosPruebas(): Promise<void> {
     await client.query(`SELECT setval(pg_get_serial_sequence('configuracion_sistema', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM configuracion_sistema), 1), true)`);
     await client.query(`SELECT setval(pg_get_serial_sequence('negocio_config', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM negocio_config), 1), true)`);
   });
+  invalidarCacheLicencias();
   logger.info({ action: 'RESET_PRUEBAS_OK' });
 }

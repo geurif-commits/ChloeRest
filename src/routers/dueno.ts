@@ -13,6 +13,15 @@ import { requireDueno } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { assertValidPin, firmarDuenoTok, hashPin, verifyPin } from '../services/authService.js';
 import {
+  DURACION_SESION_DUENO_MS,
+  limiteFallosPropietario,
+  esPinDelPropietario,
+  infoPinPropietario,
+  pinPropietarioFijo,
+  pinPropietarioSinConfigurar,
+  registrarAccesoPropietario,
+} from '../services/propietarioService.js';
+import {
   resetearDatosPruebas,
   revocarLicencia,
   reactivarLicencia,
@@ -151,41 +160,40 @@ router.post('/api/dueno/licencias/:id/reset-pin', requireDueno, route(async (req
   res.json({ ok: true, pin: resultado.pin, mensaje: 'Nuevo PIN de administrador generado. Entrégalo al cliente: se exigirá cambiarlo al ingresar.' });
 }));
 
+// GET /api/dueno/pin-info (público, como el login): ¿hay PIN de propietario y de qué longitud(es)?
+// Pueden coexistir OWNER_PIN (env) y el PIN guardado, con longitudes distintas tras un "Cambiar PIN";
+// el teclado de acceso solo auto-envía cuando hay una única longitud posible.
+router.get('/api/dueno/pin-info', route(async (_req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(await infoPinPropietario());
+}));
+
 // POST /api/dueno/login (acceso universal del dueño, sin rate-limit de sesión)
 router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
-  const db = getDatabase();
   const ip = clientIp(req);
-  const claves = ['ip:' + (ip || 'unknown')];
+  // Clave propia del propietario (no se mezcla con los errores de PIN del personal) y más estricta que el login normal.
+  const claves = ['dueno:ip:' + (ip || 'unknown')];
   await verificarBloqueo(claves);
   const pin = String(req.body.pin || '').trim();
   assertValidPin(pin);
+  const agente = String(req.get('user-agent') || '');
 
-  // Obtener hash del PIN del dueño desde BD o config
-  const cfg = await db.queryUnscoped<{ owner_pin_hash: string | null }>(
-    'SELECT owner_pin_hash FROM configuracion_sistema ORDER BY id LIMIT 1'
-  );
-  const storedHash = cfg.rows[0]?.owner_pin_hash || null;
-
-  let esValido = false;
-  if (config.ownerPin && pin === String(config.ownerPin).trim()) {esValido = true;}
-  else if (storedHash && verifyPin(pin, storedHash)) {esValido = true;}
-  // Seguridad: eliminado el auto-claim que convertía el PIN de cualquier
-  // Administrador (de cualquier empresa) en el PIN del dueño de la plataforma
-  // cuando owner_pin_hash estaba vacío. El PIN del dueño solo se establece vía
-  // OWNER_PIN (env) o POST /api/dueno/establecer-pin en instalación fresca.
-
-  if (!esValido) {
-    await registrarFallo(claves);
+  // Seguridad: no hay auto-claim (el PIN de un Administrador nunca vale como PIN del dueño). Con una credencial
+  // incrustada en el código fuente, esa es la única válida; si no, OWNER_PIN o el PIN guardado.
+  if (!(await esPinDelPropietario(pin))) {
+    await registrarFallo(claves, limiteFallosPropietario());
+    await new Promise<void>((resolver) => setTimeout(resolver, 400)); // frena la fuerza bruta aun antes del bloqueo
+    await registrarAccesoPropietario({ resultado: 'DUENO_LOGIN_FALLIDO', ip, agente, via: 'panel' });
     // Sin PIN configurado en ningún lado → el frontend ofrece crearlo (modo setup).
-    const sinConfigurar = !config.ownerPin && !storedHash;
-    res.status(401).json({ error: 'PIN de propietario incorrecto.', pinNoConfigurado: sinConfigurar });
+    res.status(401).json({ error: 'PIN de propietario incorrecto.', pinNoConfigurado: await pinPropietarioSinConfigurar() });
     return;
   }
 
   // Al autenticarse el dueño con éxito, liberamos cualquier bloqueo previo en esta IP
   await registrarExito(claves);
-  logger.info({ action: 'DUENO_LOGIN_OK' });
-  const exp = Date.now() + 12 * 3600 * 1000;
+  await registrarAccesoPropietario({ resultado: 'DUENO_LOGIN_OK', ip, agente, via: 'panel' });
+  const exp = Date.now() + DURACION_SESION_DUENO_MS;
+  res.set('Cache-Control', 'no-store');
   res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
 }));
 
@@ -193,6 +201,9 @@ router.post('/api/dueno/login', route(async (req: Request, res: Response) => {
 // Permite crear el PIN inicial en instalaciones frescas. De un solo uso:
 // si ya existe PIN (env o BD), se rechaza.
 router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Response) => {
+  if (pinPropietarioFijo()) {
+    throw httpError(409, 'El PIN del propietario está fijado en el código del sistema: no se puede crear desde aquí.', 'PIN_FIJO');
+  }
   // Quien llegue primero a una instalación sin PIN se queda con la plataforma: solo se permite desde el
   // propio equipo servidor. En un servidor remoto el PIN inicial se define con OWNER_PIN.
   if (!esPeticionLocal(req)) {
@@ -229,13 +240,16 @@ router.post('/api/dueno/establecer-pin', route(async (req: Request, res: Respons
   // Al crear/rotar el PIN del dueño, invalida cualquier token Dueño anterior.
   await bumpDuenoEpoch();
   logger.info({ action: 'DUENO_PIN_CREADO' });
-  const exp = Date.now() + 12 * 3600 * 1000;
+  const exp = Date.now() + DURACION_SESION_DUENO_MS;
   res.json({ token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
 }));
 
 // POST /api/dueno/cambiar-pin (ya con sesión iniciada): permite al propietario elegir su propio
 // PIN en vez de depender de uno generado. Pide el PIN actual como confirmación.
 router.post('/api/dueno/cambiar-pin', requireDueno, route(async (req: Request, res: Response) => {
+  if (pinPropietarioFijo()) {
+    throw httpError(409, 'El PIN del propietario está fijado en el código del sistema. Para cambiarlo ejecuta "npm run propietario:pin" y vuelve a desplegar.', 'PIN_FIJO');
+  }
   const db = getDatabase();
   const ip = clientIp(req);
   const claves = ['ip:' + (ip || 'unknown')];
@@ -272,7 +286,7 @@ router.post('/api/dueno/cambiar-pin', requireDueno, route(async (req: Request, r
   // un token fresco ya con el epoch nuevo, para no cerrarle la sesión por cambiar su propio PIN.
   await bumpDuenoEpoch();
   logger.info({ action: 'DUENO_PIN_CAMBIADO' });
-  const exp = Date.now() + 12 * 3600 * 1000;
+  const exp = Date.now() + DURACION_SESION_DUENO_MS;
   res.json({ ok: true, token: firmarDuenoTok({ rol: 'Dueno', exp, ep: await getDuenoEpoch() }), expiraEn: new Date(exp).toISOString() });
 }));
 

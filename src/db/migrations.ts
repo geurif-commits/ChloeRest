@@ -22,6 +22,24 @@ interface IMigracion {
   sql: string;
 }
 
+/**
+ * Deja UNA fila de configuracion_sistema por empresa. Hasta la v2.5 cada equipo activado añadía otra fila repetida
+ * (el `ON CONFLICT DO NOTHING` no tenía índice único). Se conserva, por empresa: la fila 1 (guarda el PIN y las
+ * sesiones del propietario), si no la configurada más recientemente. Todas las escrituras de la aplicación actualizan
+ * todas las filas de la empresa, así que las repetidas eran copias.
+ */
+export const SQL_UNIFICAR_CONFIGURACION_SISTEMA = `
+  DELETE FROM configuracion_sistema c
+   USING (
+     SELECT id, ROW_NUMBER() OVER (
+              PARTITION BY empresa_id
+              ORDER BY (id = 1) DESC, setup_completado DESC, actualizado_en DESC NULLS LAST, id ASC
+            ) AS posicion
+       FROM configuracion_sistema
+   ) d
+   WHERE c.id = d.id AND d.posicion > 1;
+`;
+
 const migrations: IMigracion[] = [{
   id: '001_security_and_audit',
   sql: `
@@ -903,6 +921,43 @@ const migrations: IMigracion[] = [{
       ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS cuenta_origen_id BIGINT;
       ALTER TABLE cuentas DROP CONSTRAINT IF EXISTS chk_cuentas_descuento;
       ALTER TABLE cuentas ADD CONSTRAINT chk_cuentas_descuento CHECK (descuento >= 0);
+    `,
+  },
+  {
+    id: '053_cupo_dispositivos_por_licencia',
+    sql: `
+      -- Cuántos equipos activos admite cada licencia (antes: un 2 fijo en el código) y quién lo cambió y por qué.
+      ALTER TABLE licencias ADD COLUMN IF NOT EXISTS max_dispositivos INTEGER NOT NULL DEFAULT 2;
+      ALTER TABLE licencias DROP CONSTRAINT IF EXISTS chk_licencias_max_dispositivos;
+      ALTER TABLE licencias ADD CONSTRAINT chk_licencias_max_dispositivos CHECK (max_dispositivos BETWEEN 1 AND 50);
+      CREATE TABLE IF NOT EXISTS licencia_cambios (
+        id BIGSERIAL PRIMARY KEY,
+        licencia_id BIGINT NOT NULL REFERENCES licencias(id) ON DELETE CASCADE,
+        empresa_id INTEGER NOT NULL,
+        campo VARCHAR(40) NOT NULL,
+        valor_anterior TEXT,
+        valor_nuevo TEXT,
+        motivo TEXT NOT NULL,
+        actor VARCHAR(120),
+        ip VARCHAR(100),
+        creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_licencia_cambios_licencia ON licencia_cambios(licencia_id, id DESC);
+      -- El historial es de la plataforma: solo el propietario lo consulta y lo escribe.
+      ALTER TABLE licencia_cambios ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE licencia_cambios FORCE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS aislamiento_plataforma ON licencia_cambios;
+      CREATE POLICY aislamiento_plataforma ON licencia_cambios
+        USING (current_setting('app.platform', true) = 'true')
+        WITH CHECK (current_setting('app.platform', true) = 'true');
+    `,
+  },
+  {
+    id: '054_configuracion_sistema_unica_por_empresa',
+    sql: `
+      ${SQL_UNIFICAR_CONFIGURACION_SISTEMA}
+      -- Con el índice único, "una configuración por empresa" deja de depender de que el código se acuerde de comprobarlo.
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_configuracion_sistema_empresa ON configuracion_sistema(empresa_id);
     `,
   },
 ];

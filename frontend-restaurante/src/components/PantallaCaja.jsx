@@ -8,11 +8,12 @@ import ConfirmModal from './ConfirmModal';
 import { redondearMoneda } from '../utils/input.js';
 import { calcularTotales, porcentajePropina } from '../utils/dinero.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
-import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote } from 'lucide-react';
+import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote, ShoppingCart } from 'lucide-react';
 import './caja/caja.css';
 
 import MesaGridPanel from './caja/MesaGridPanel';
 import CierreView from './caja/CierreView';
+import VentaRapida from './caja/VentaRapida';
 
 function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const urlBase = apiUrl;
@@ -86,6 +87,10 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [guardandoApertura, setGuardandoApertura] = useState(false);
   const [confirmData, setConfirmData] = useState(null);
   const [cierreReciente, setCierreReciente] = useState(null);
+
+  // Venta rápida: la venta armada que espera su cobro, y un contador que la pantalla usa para empezar de cero.
+  const [ventaRapidaPendiente, setVentaRapidaPendiente] = useState(null);
+  const [reinicioVentaRapida, setReinicioVentaRapida] = useState(0);
 
   const formatearRD = (val) => {
     return Number(val || 0).toLocaleString('es-DO', {
@@ -441,6 +446,29 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
     }
   };
 
+  // Venta rápida: abre el cobro de siempre sobre la venta armada. Las líneas toman la forma de las de una cuenta
+  // (precio, cantidad, tasa de ITBIS) para que los totales salgan con la misma fórmula que el servidor.
+  const iniciarCobroVentaRapida = ({ lineas, cliente, enviarACocina }) => {
+    setVentaRapidaPendiente({ lineas, cliente, enviarACocina });
+    setCuentaMesa(lineas.map((linea) => ({
+      id: linea.itemKey,
+      nombre: linea.nombre,
+      cantidad: linea.cantidad,
+      precio: linea.precio,
+      tasa_itbis: linea.tasa_itbis,
+      notas: linea.notas,
+      guarnicion: linea.guarnicion,
+      termino: linea.termino
+    })));
+    setMesaSeleccionada({
+      id: 'venta-rapida',
+      nombre_numero: 'Venta rápida',
+      nombreTicket: 'Para llevar',
+      camarero: usuario.nombre,
+      esVentaRapida: true
+    });
+  };
+
   const verificarPinMesa = async () => {
     if (!/^\d{6}$/.test(pinVerificacion)) {
       return toastAviso(
@@ -658,15 +686,36 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       }
     }
 
+    // Venta rápida: el servidor crea la cuenta "Para llevar" y la cobra en un solo paso (si el cobro falla no queda
+    // nada creado). Sus líneas viajan solo con producto, cantidad y opciones: el precio lo pone el servidor.
+    const esVentaRapida = Boolean(mesaSeleccionada?.esVentaRapida);
+    const datosVentaRapida = esVentaRapida && ventaRapidaPendiente
+      ? {
+        comanda: ventaRapidaPendiente.lineas.map((linea) => ({
+          id: linea.id,
+          cantidad: linea.cantidad,
+          notas: linea.notas,
+          guarnicion: linea.guarnicion,
+          termino: linea.termino
+        })),
+        cliente_nombre: ventaRapidaPendiente.cliente?.nombre || '',
+        cliente_telefono: ventaRapidaPendiente.cliente?.telefono || '',
+        enviar_a_cocina: ventaRapidaPendiente.enviarACocina
+      }
+      : {};
+
     try {
       const res = await fetch(
-        `${urlBase}/api/cuentas/${mesaSeleccionada.id}/cerrar`,
+        esVentaRapida
+          ? `${urlBase}/api/ventas/rapida`
+          : `${urlBase}/api/cuentas/${mesaSeleccionada.id}/cerrar`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
+            ...datosVentaRapida,
             metodo_pago: metodoPago,
             moneda_pago: monedaPago,
 
@@ -753,6 +802,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           tipoComprobante,
 
           mesa:
+            mesaSeleccionada.nombreTicket ||
             mesaSeleccionada.nombre_numero,
 
           cajero:
@@ -799,6 +849,10 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         setMonedaPago('DOP');
         setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
         setDividir({ activo: false, cantidades: {} });
+        if (esVentaRapida) {
+          setVentaRapidaPendiente(null);
+          setReinicioVentaRapida((n) => n + 1);
+        }
 
         await cargarMesas();
 
@@ -1037,6 +1091,17 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
               <Lock size={16} />
               Cierre de caja
             </button>
+
+            <button
+              type="button"
+              role="tab"
+              aria-selected={vistaActual === 'venta-rapida'}
+              className={`caja-topbar__tab ${vistaActual === 'venta-rapida' ? 'caja-topbar__tab--active' : ''}`}
+              onClick={() => setVistaActual('venta-rapida')}
+            >
+              <ShoppingCart size={16} />
+              Venta Rápida
+            </button>
           </div>
 
           <div className="caja-topbar__end">
@@ -1262,6 +1327,21 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                   setVistaActual('mesas')
                 }
                 apiUrl={urlBase}
+              />
+            )}
+
+            {/* =========================
+                VENTA RÁPIDA
+            ========================== */}
+            {vistaActual === 'venta-rapida' && (
+              <VentaRapida
+                usuario={usuario}
+                apiUrl={urlBase}
+                configNegocio={configNegocio}
+                cajaAbierta={cajaAbierta}
+                reinicio={reinicioVentaRapida}
+                onCobrar={iniciarCobroVentaRapida}
+                onVolver={() => setVistaActual('mesas')}
               />
             )}
 
@@ -1607,7 +1687,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         ========================== */}
         {mesaSeleccionada &&
           !ticketPrechequeModal &&
-          vistaActual === 'mesas' && (
+          (vistaActual === 'mesas' || (vistaActual === 'venta-rapida' && mesaSeleccionada.esVentaRapida)) && (
             <CobroModal
               config={{
                 mesa:
@@ -1651,7 +1731,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
                   confirmarCobroFinal,
 
                 onImprimirPreCheque:
-                  imprimirPreCheque,
+                  mesaSeleccionada.esVentaRapida
+                    ? undefined
+                    : imprimirPreCheque,
 
                 formatearRD,
 
@@ -1660,6 +1742,7 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
               onClose={() => {
                 setMesaSeleccionada(null);
                 setCuentaMesa([]);
+                setVentaRapidaPendiente(null);
                 setMontoEntregado('');
                 setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
                 setDividir({ activo: false, cantidades: {} });

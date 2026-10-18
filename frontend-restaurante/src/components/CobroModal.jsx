@@ -132,7 +132,7 @@ export default function CobroModal({ config, onClose }) {
                 <span className="cobro-header__icono"><UtensilsCrossed size={22} /></span>
                 <div>
                   <h2>{mesa?.nombre_numero || 'Mesa'}</h2>
-                  <p className="cobro-header__sub">Cuenta abierta · {cuentaMesa.length} artículo{cuentaMesa.length !== 1 ? 's' : ''}</p>
+                  <p className="cobro-header__sub">{mesa?.esVentaRapida ? 'Para llevar' : 'Cuenta abierta'} · {cuentaMesa.length} artículo{cuentaMesa.length !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </div>
@@ -166,10 +166,12 @@ export default function CobroModal({ config, onClose }) {
               </div>
 
               <div className="cobro-extras">
-                <button type="button" className={`cobro-extra ${dividir.activo ? 'is-on' : ''}`} aria-pressed={dividir.activo}
-                  onClick={() => setDividir((d) => ({ activo: !d.activo, cantidades: d.activo ? {} : Object.fromEntries(cuentaMesa.map((i) => [i.id, Number(i.cantidad || 0)])) }))}>
-                  <Split size={15} /> Dividir cuenta
-                </button>
+                {!mesa?.esVentaRapida && (
+                  <button type="button" className={`cobro-extra ${dividir.activo ? 'is-on' : ''}`} aria-pressed={dividir.activo}
+                    onClick={() => setDividir((d) => ({ activo: !d.activo, cantidades: d.activo ? {} : Object.fromEntries(cuentaMesa.map((i) => [i.id, Number(i.cantidad || 0)])) }))}>
+                    <Split size={15} /> Dividir cuenta
+                  </button>
+                )}
                 <button type="button" className={`cobro-extra ${Number(descuentoCobro.valor) > 0 || descuentoAbierto ? 'is-on' : ''}`} aria-pressed={descuentoAbierto} onClick={() => setDescuentoAbierto((v) => !v)}>
                   <Percent size={15} /> Descuento
                 </button>

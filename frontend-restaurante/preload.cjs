@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronPOS', {
   reenfocarVentana: () => ipcRenderer.send('reenfocar-ventana'),
   exportarPDF: ({ html, nombre }) => ipcRenderer.invoke('exportar-pdf', { html, nombre }),
   listarImpresoras: () => ipcRenderer.invoke('listar-impresoras'),
+  elegirCarpeta: () => ipcRenderer.invoke('elegir-carpeta'),
   imprimirHTML: ({ html, impresora, ancho = 80 }) => ipcRenderer.invoke('imprimir-html', { html, impresora, ancho }),
   salirSistema: () => ipcRenderer.send('salir-sistema'),
   abrirLinkPago: (url) => ipcRenderer.invoke('abrir-link-pago', url),

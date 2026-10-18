@@ -12,6 +12,8 @@ export interface ISseTicket {
   nombre: string;
   userRole: string;
   isDueno: boolean;
+  /** Equipo desde el que se pidió el ticket (para vigilar su licencia mientras el flujo siga abierto). */
+  deviceId: string | null;
   exp: number;
 }
 

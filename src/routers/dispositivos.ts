@@ -29,6 +29,7 @@ import {
   obtenerSolicitudPorId,
   generarFacturaSolicitud,
 } from '../services/licenciasService.js';
+import { cupoDeLaEmpresa, DISPOSITIVOS_POR_DEFECTO } from '../services/licenciaCupoService.js';
 import { notificarSolicitud, notificarPago } from '../services/telegramBotService.js';
 import { createLogger } from '../lib/logger.js';
 
@@ -59,8 +60,8 @@ function idDeParametro(value: string, mensaje: string): number {
 }
 
 // GET /api/licencia/verificar (público, pantalla de login)
-router.get('/api/licencia/verificar', route(async (_req: Request, res: Response) => {
-  res.json(await verificarLicenciaPublica());
+router.get('/api/licencia/verificar', route(async (req: Request, res: Response) => {
+  res.json(await verificarLicenciaPublica(String(req.get('x-device-id') || '').trim() || null));
 }));
 
 // POST /api/dispositivo/registrar (público)
@@ -91,21 +92,34 @@ router.post('/api/dispositivo/activar', route(async (req: Request, res: Response
 // GET /api/dispositivos (Administrador o Dueño)
 router.get('/api/dispositivos', requireAdminODueno, route(async (req: Request, res: Response) => {
   const esDueno = req.auth!.isDueno;
-  const filas = await listarDispositivos(esDueno, req.auth!.empresaId ?? 1);
+  const empresaId = req.auth!.empresaId ?? 1;
+  const filas = await listarDispositivos(esDueno, empresaId);
+  // El Administrador ve el cupo de la licencia de su negocio; el propietario administra el de cada licencia desde su panel.
+  const licencias = esDueno ? [] : await cupoDeLaEmpresa(empresaId);
   res.json({
     dispositivos: filas,
-    limiteMaximo: 2,
+    limiteMaximo: licencias[0]?.max_dispositivos ?? DISPOSITIVOS_POR_DEFECTO,
+    licencias,
     licenciaConfigurada: Boolean(config.licenseActivationKey),
     ...(esDueno ? { claveMaestra: config.licenseActivationKey || '' } : {}),
   });
 }));
 
-// POST /api/dispositivos/:id/estado (Administrador o Dueño)
+// POST /api/dispositivos/:id/estado (Administrador o Dueño): pasar a Activo respeta el cupo de la licencia.
 router.post('/api/dispositivos/:id/estado', requireAdminODueno, route(async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const estado = String(req.body.estado || '').trim();
   if (!['Activo', 'Inactivo'].includes(estado)) {throw httpError(400, 'Estado inválido.');}
-  res.json({ ok: true, dispositivo: await cambiarEstadoDispositivo(id, estado) });
+  const dispositivo = await cambiarEstadoDispositivo(id, estado);
+  await registrarAuditoria(getDatabase(), {
+    usuarioId: req.auth!.isDueno ? null : req.auth!.userId,
+    accion: 'CAMBIAR_ESTADO_DISPOSITIVO',
+    entidad: 'dispositivos',
+    entidadId: id,
+    detalle: { deviceId: dispositivo.device_id, estado },
+    ip: clientIp(req),
+  });
+  res.json({ ok: true, dispositivo });
 }));
 
 // DELETE /api/dispositivos/:id (Administrador o Dueño)

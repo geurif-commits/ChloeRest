@@ -12,6 +12,7 @@ import { UserRole, IRequestContext } from '../types/index.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { verificarDuenoTok } from '../services/authService.js';
 import { verificarDuenoEpoch } from '../services/seguridadService.js';
+import { errorDeLicencia, evaluarLicenciaDeAcceso } from '../services/licenciaAccesoService.js';
 
 const logger = createLogger('auth');
 
@@ -53,6 +54,12 @@ async function identidadOperativaDueno(): Promise<{ userId: number; nombre: stri
   }
   return { userId: 0, nombre: 'Propietario Sistema', empresaId: 1 };
 }
+
+/**
+ * Rutas que una sesión puede usar aunque la licencia no esté vigente: cerrar la sesión y activar una clave nueva
+ * (renovar). Todo lo demás exige licencia vigente en cada petición.
+ */
+const RUTAS_SIN_LICENCIA = new Set(['/api/logout', '/api/licencia/activar']);
 
 function extractToken(req: Request): string {
   const header = req.get('authorization') || (req.query?.token ? `Bearer ${req.query.token}` : '');
@@ -102,6 +109,16 @@ export const requireAuth = async (req: Request, _res: Response, next: NextFuncti
     }
     if (row.device_id && row.device_id !== deviceId) {
       return next(httpError(401, 'La sesión pertenece a otro dispositivo.', 'DEVICE_MISMATCH'));
+    }
+
+    // La licencia se verifica en CADA petición, no solo al iniciar sesión: si venció, se revocó, se borró o el equipo
+    // se desactivó, la sesión deja de servir de inmediato (el cambio rige en segundos).
+    if (!RUTAS_SIN_LICENCIA.has((req.originalUrl || req.url).split('?')[0])) {
+      const licencia = await evaluarLicenciaDeAcceso({ deviceId: row.device_id, empresaId: row.empresa_id });
+      if (!licencia.vigente) {
+        logger.warn({ action: 'ACCESO_SIN_LICENCIA', codigo: licencia.codigo, empresaId: row.empresa_id, ip: getClientIp(req) });
+        return next(errorDeLicencia(licencia));
+      }
     }
 
     req.auth = {
@@ -183,7 +200,10 @@ export const requireAdminODueno = async (req: Request, res: Response, next: Next
     runWithRequestContext({ platform: true, empresaId: identidad.empresaId }, () => next());
     return;
   }
-  return requireAuth(req, res, () => {
+  return requireAuth(req, res, (error?: unknown) => {
+    // Si la autenticación falló (sesión inválida, sin licencia…) ese es el error que se informa: antes se perdía y
+    // toda falla salía como un 403 genérico "sin permiso", sin el código que la interfaz usa para pedir la licencia.
+    if (error) {return next(error as Error);}
     if (!req.auth || (req.auth.userRole !== 'Administrador' && !req.auth.isDueno)) {
       return next(httpError(403, 'No tienes permiso para realizar esta acción.', 'FORBIDDEN'));
     }

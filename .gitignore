@@ -18,6 +18,8 @@ build/
 *.tsbuildinfo
 release/
 bundle.cjs
+bundle-pin-prueba.cjs
+bundle-pruebas.cjs
 ServidorPOS.exe
 ServidorPOS.cjs
 out/

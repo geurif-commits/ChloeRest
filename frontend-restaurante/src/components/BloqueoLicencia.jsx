@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Lock, Phone, KeyRound } from 'lucide-react';
 import { obtenerDeviceId } from '../utils/dispositivo.js';
 import PinPad from './PinPad.jsx';
@@ -51,25 +51,7 @@ function BloqueoLicencia({ motivo, apiUrl, alIniciarSesionAdmin }) {
     }
   };
 
-  // El PIN puede tener 4 a 12 dígitos: se envía al pulsar Enter o el botón ➜.
-
-  // Capturar eventos del teclado físico
-  useEffect(() => {
-    if (!mostrandoLogin) return;
-
-    const manejarTeclado = (evento) => {
-      if (evento.key >= '0' && evento.key <= '9') {
-        agregarNumero(evento.key);
-      } else if (evento.key === 'Backspace' || evento.key === 'Delete') {
-        borrarNumero();
-      } else if (evento.key === 'Enter' && pin.length >= 4) {
-        intentarLoginAdmin(pin);
-      }
-    };
-
-    window.addEventListener('keydown', manejarTeclado);
-    return () => window.removeEventListener('keydown', manejarTeclado);
-  }, [mostrandoLogin, pin]);
+  // El PIN puede tener 4 a 12 dígitos: se envía al pulsar Enter (teclado físico, lo resuelve el PinPad) o el botón ➜.
 
   return (
     <div className="gate" role="dialog" aria-modal="true" aria-labelledby="bloqueo-title">
