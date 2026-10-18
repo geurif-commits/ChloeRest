@@ -48,7 +48,7 @@ Entra con tu PIN al panel administrativo. Lo esencial:
 |---|---|
 | Ver ventas del día y mesas | Principal → Centro de mando |
 | Crear o cambiar productos y precios | Operaciones → Catálogo de Menú (categorías: las de bebidas van al Bar) |
-| Importar el menú desde un archivo | Catálogo de Menú → Importar CSV |
+| Cargar el menú completo desde un archivo | Catálogo de Menú → **Subida Masiva** (ver abajo) |
 | Agregar empleados y sus PIN | Equipo → Personal y Accesos |
 | Ver entradas y salidas, y cambiar los horarios de turno | Equipo → Turnos y Asistencia → Horarios |
 | Activar ITBIS o propina, elegir el % de propina | Equipo → Datos de la Empresa → Fiscal & Cuentas |
@@ -57,6 +57,8 @@ Entra con tu PIN al panel administrativo. Lo esencial:
 | Cambiar tema, logo, fondo y pantalla de acceso | Sistema → Tema y Colores / Logotipo y Fondo |
 | **Respaldar los datos** | Equipo → Datos de la Empresa → **Respaldos** |
 | **Ver cuántos equipos permite mi licencia** | Sistema → Terminales POS (muestra "usados / permitidos"). Si necesitas más equipos (otra caja, tablet o pantalla de cocina), pide a tu proveedor que **amplíe el cupo de tu licencia**: no hay que cambiar la clave |
+
+**Subida Masiva del menú (CSV):** en *Catálogo de Menú → Subida Masiva* descarga la plantilla en blanco, llénala (en Excel, guárdala como **CSV UTF-8**) y súbela. Trae los mismos campos que el formulario de crear producto: `nombre` y `precio` son obligatorios y el resto es opcional (`categoria`, `descripcion`, `tipo_destino` cocina/bar, `tipo_plato`, `tasa_itbis` 0/16/18, `aplica_propina` SI/NO, `requiere_guarnicion`, `requiere_termino`, `imagen_url`). Las categorías que no existan se crean solas, con su grupo (alimentos → Cocina, bebidas → Bar). Una fila sin nombre o sin precio se descarta y se te dice en qué línea; los productos que ya existen (mismo nombre y categoría) se omiten, así que subir el mismo archivo dos veces no duplica nada.
 
 **Respaldos:** el sistema respalda solo cada noche. Una vez por semana, entra a *Respaldos*, descarga el más reciente y **guárdalo fuera del equipo** (memoria USB o la nube).
 

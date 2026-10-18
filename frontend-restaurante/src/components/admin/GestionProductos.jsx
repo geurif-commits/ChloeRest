@@ -284,7 +284,7 @@ function GestionProductos({ apiUrl }) {
     if (!archivo.name.toLowerCase().endsWith('.csv')) { setImportError('Selecciona un archivo CSV válido.'); setArchivoImportacionValido(false); return; }
     const reader = new FileReader();
     reader.onload = () => {
-      const text = String(reader.result || '');
+      const text = String(reader.result || '').replace(/^﻿/, '');
       const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
       if (!lines.length) { setImportError('El archivo CSV está vacío.'); setArchivoImportacionValido(false); return; }
       const header = parseCsvLine(lines[0]).map((v) => v.toLowerCase().trim());
@@ -309,17 +309,22 @@ function GestionProductos({ apiUrl }) {
         body: formData
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error importando productos.');
+      if (!res.ok) {
+        if (Array.isArray(data.invalidRows) && data.invalidRows.length) setImportErrorDetalles(data.invalidRows);
+        throw new Error(data.error || 'Error importando productos.');
+      }
       const inserciones = data.insertados || 0;
       const invalidRows = data.invalidRows || [];
       const skipped = invalidRows.length;
-      const label = `Importación completada: ${inserciones} productos agregados.`;
+      const nuevasCategorias = Array.isArray(data.categoriasCreadas) ? data.categoriasCreadas.length : 0;
+      const label = `Importación completada: ${inserciones} productos agregados${nuevasCategorias ? ` y ${nuevasCategorias} categorías creadas` : ''}.`;
       if (skipped) { setImportError('Algunos registros no se importaron por errores.'); setImportErrorDetalles(invalidRows); setImportSuccessMessage(`${label} ${skipped} fila(s) omitida(s).`); }
       else { setImportSuccessMessage(`${label} No hubo errores.`); }
       toastAviso(skipped ? `${label} ${skipped} fila(s) omitida(s).` : label);
       setArchivoImportacion(null);
       if (importFileInputRef.current) importFileInputRef.current.value = '';
       cargarProductos();
+      cargarCategorias();
     } catch (error) { setImportError(error.message); }
     finally { setImportandoProductos(false); }
   };
@@ -899,7 +904,7 @@ function GestionProductos({ apiUrl }) {
           <div>
             <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-primary)' }}>Importación Masiva de Productos</h3>
             <p className="import-texto-ayuda" style={{ margin: '4px 0 0', color: 'var(--text-muted)' }}>
-              Descarga la plantilla CSV oficial en blanco con los parámetros del sistema, edítala y súbela:
+              Descarga la plantilla CSV oficial en blanco (trae todos los campos del formulario de creación de productos), edítala y súbela. Solo nombre y precio son obligatorios; las categorías que falten se crean solas y los productos que ya existen se omiten, así que repetir la carga no duplica nada. Si la editas en Excel, guárdala como «CSV UTF-8»:
             </p>
           </div>
 
@@ -916,10 +921,15 @@ function GestionProductos({ apiUrl }) {
             </strong>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px', fontSize: '0.78rem' }}>
               <div><code style={{ color: 'var(--text-primary)' }}>nombre</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Nombre del producto.</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>precio</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Precio en RD$ (ej. 650.00).</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>categoria</code>: <span>(Opcional)</span> Alimentos, Bar, Postres...</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>precio</code>: <span style={{ color: 'var(--kpi-green)' }}>(Obligatorio)</span> Precio en RD$ con punto decimal (ej. 650.00). Sin precio, la fila se descarta.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>categoria</code>: <span>(Opcional)</span> Alimentos, Bar, Postres... Las que no existan se crean solas (por omisión: Alimentos).</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>descripcion</code>: <span>(Opcional)</span> Texto libre.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>tipo_destino</code>: <span>(Opcional)</span> cocina o bar (lo define el grupo de la categoría).</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>tipo_plato</code>: <span>(Opcional)</span> entrada, plato_fuerte, postre, guarnicion o bebida.</div>
               <div><code style={{ color: 'var(--text-primary)' }}>tasa_itbis</code>: <span>(Opcional)</span> 0 (exento, por defecto), 16 o 18.</div>
-              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> 0 o NO (por defecto), o 10 / SI para aplicarla.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>aplica_propina</code>: <span>(Opcional)</span> NO (por defecto) o SI / 10 para aplicar la propina legal.</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>requiere_guarnicion</code>: <span>(Opcional)</span> SI o NO (por defecto).</div>
+              <div><code style={{ color: 'var(--text-primary)' }}>requiere_termino</code>: <span>(Opcional)</span> SI o NO (por defecto): pide el término de cocción.</div>
               <div><code style={{ color: 'var(--text-primary)' }}>imagen_url</code>: <span>(Opcional)</span> Enlace URL a la foto.</div>
             </div>
           </div>

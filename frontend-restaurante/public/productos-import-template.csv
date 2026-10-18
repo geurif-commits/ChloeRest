@@ -1,1 +1,1 @@
-nombre,precio,categoria,tasa_itbis,aplica_propina,imagen_url
+nombre,descripcion,precio,categoria,tipo_destino,tipo_plato,tasa_itbis,aplica_propina,requiere_guarnicion,requiere_termino,imagen_url

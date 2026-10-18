@@ -7,14 +7,15 @@
 
 import fs from 'node:fs';
 import { Router, Request, Response } from 'express';
-import { route, httpError, positiveInteger, money, clientIp, parseCsvLine } from '../lib/core.js';
+import { route, httpError, positiveInteger, money, clientIp } from '../lib/core.js';
 import { getDatabase } from '../db/index.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { upload, uploadCsv, validarImagenSubida, uploadUrl } from '../lib/uploads.js';
 import { ROLES_ADMIN } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
-import { resolverTipoDestino } from '../services/destinoProducto.js';
+import { resolverTipoDestino, grupoParaCategoria } from '../services/destinoProducto.js';
+import { analizarCsvProductos } from '../services/importacionProductos.js';
 
 const router = Router();
 const logger = createLogger('productosRouter');
@@ -40,16 +41,6 @@ interface IFilaProducto {
   es_guarnicion: boolean;
   requiere_guarnicion: boolean;
   requiere_termino: boolean;
-}
-
-/** Fila importable (orden de columnas del INSERT múltiple del legacy). */
-type FilaImportable = [string, number, string | null, string, number, boolean, boolean, number, string];
-
-/** Fila descartada de la importación CSV (línea física 1-based del archivo). */
-interface IFilaInvalida {
-  linea: number;
-  datos: string[];
-  error: string;
 }
 
 /** Campos fiscales/de menú calculados a partir del body (algoritmo del legacy). */
@@ -137,87 +128,116 @@ router.post('/api/productos', requireAuth, requireRoles(...ROLES_ADMIN), upload.
   res.status(201).json({ mensaje: 'Producto creado correctamente.' });
 }));
 
-// POST /api/productos/importar (Administrador): importa CSV con cabecera
-// (nombre, precio, categoria, tasa_itbis, propina_legal, imagen_url) y
-// respeta el archivo temporal: lo borra tras leerlo, igual que el legacy.
+// POST /api/productos/importar (Administrador): importa un CSV con los mismos campos que el formulario de creación
+// (nombre y precio obligatorios; ver services/importacionProductos.ts). Crea las categorías que falten con su grupo
+// (alimentos/bebidas), reutiliza las existentes sin tocarlas, omite lo que ya está cargado (mismo nombre y categoría)
+// y aplica todo en una transacción. Borra el archivo temporal tras leerlo.
 router.post('/api/productos/importar', requireAuth, requireRoles(...ROLES_ADMIN), uploadCsv.single('archivo_csv'), route(async (req: Request, res: Response) => {
   const db = getDatabase();
   if (!req.file) {throw httpError(400, 'Archivo CSV requerido.');}
   const csvContent = fs.readFileSync(req.file.path, 'utf-8');
   fs.unlinkSync(req.file.path);
 
-  const lines = csvContent.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
-  if (lines.length < 2) {throw httpError(400, 'El archivo CSV está vacío o no contiene datos.');}
-
-  const header = parseCsvLine(lines[0]).map((value) => value.toLowerCase().trim());
-  const missingColumns = ['nombre', 'precio'].filter((col) => !header.includes(col));
-  if (missingColumns.length) {throw httpError(400, `Columnas obligatorias faltantes: ${missingColumns.join(', ')}.`);}
-
-  const nombreIdx = header.indexOf('nombre');
-  const precioIdx = header.indexOf('precio');
-  const categoriaIdx = header.indexOf('categoria');
-  const itbisIdx = header.indexOf('tasa_itbis');
-  const propinaIdx = header.indexOf('aplica_propina') !== -1 ? header.indexOf('aplica_propina') : header.indexOf('propina_legal');
-  const imagenIdx = header.indexOf('imagen_url');
-
-  const insertable: FilaImportable[] = [];
-  const invalidRows: IFilaInvalida[] = [];
-
-  for (let rowIndex = 1; rowIndex < lines.length; rowIndex += 1) {
-    const row = parseCsvLine(lines[rowIndex]);
-    if (row.every((cell) => cell.trim() === '')) {continue;}
-    const nombre = String(row[nombreIdx] || '').trim();
-    const precio = money(row[precioIdx] || '');
-    const categoria = categoriaIdx !== -1 && row[categoriaIdx] ? String(row[categoriaIdx]).trim() : 'Alimentos';
-    const imagen_url = imagenIdx !== -1 && row[imagenIdx] ? String(row[imagenIdx]).trim() : null;
-
-    // Parse ITBIS: sin columna o vacío = exento; solo 16 o 18 lo aplican.
-    const itbisVal = itbisIdx !== -1 ? String(row[itbisIdx] ?? '').trim().toUpperCase() : '';
-    let aplicaItbis = false;
-    let tasaItbis = 0;
-    if (['16', '16%'].includes(itbisVal)) {
-      aplicaItbis = true;
-      tasaItbis = 16;
-    } else if (['18', '18%'].includes(itbisVal)) {
-      aplicaItbis = true;
-      tasaItbis = 18;
-    }
-
-    // Parse Propina Legal: sin columna o vacío = no aplica; solo un valor afirmativo la activa.
-    const propinaVal = propinaIdx !== -1 ? String(row[propinaIdx] ?? '').trim().toUpperCase() : '';
-    let aplicaPropina = false;
-    let tasaPropina = 0;
-    if (['10', '10%', 'SI', 'SÍ', 'TRUE', '1'].includes(propinaVal)) {
-      aplicaPropina = true;
-      tasaPropina = 10;
-    }
-
-    if (!nombre || !Number.isFinite(precio) || precio < 0) {
-      invalidRows.push({ linea: rowIndex + 1, datos: row, error: 'Nombre o precio inválido.' });
-      continue;
-    }
-
-    const tipoDestino = await resolverTipoDestino(db, categoria, 'cocina');
-    insertable.push([nombre, precio, imagen_url, categoria, tasaItbis, aplicaItbis, aplicaPropina, tasaPropina, tipoDestino]);
-  }
-
-  if (!insertable.length) {
+  const { productos, invalidRows } = analizarCsvProductos(csvContent);
+  if (!productos.length) {
     res.status(400).json({ error: 'No se encontraron filas válidas para importar.', invalidRows });
     return;
   }
 
-  const queryText = 'INSERT INTO productos (nombre, precio, imagen_url, categoria, estado, tasa_itbis, aplica_itbis, aplica_propina, tasa_propina, tipo_destino) VALUES ' +
-    insertable.map((_, idx) => `($${idx * 9 + 1}, $${idx * 9 + 2}, $${idx * 9 + 3}, $${idx * 9 + 4}, 'Activo', $${idx * 9 + 5}, $${idx * 9 + 6}, $${idx * 9 + 7}, $${idx * 9 + 8}, $${idx * 9 + 9})`).join(', ');
-  await db.query(queryText, insertable.flat());
+  const empresaId = req.auth!.empresaId || 1;
+  const clave = (texto: string): string => texto.trim().toLowerCase();
+
+  const { insertables, categoriasCreadas } = await db.transaction(async (client) => {
+    // 1) Categorías: se usa el nombre de la existente (aunque difiera en mayúsculas) y se crean las que falten.
+    const existentes = await client.query<{ nombre: string; activo: boolean }>('SELECT nombre, activo FROM menu_categorias ORDER BY activo DESC, id');
+    const categorias = new Map<string, { nombre: string; activo: boolean }>();
+    for (const c of existentes.rows) {
+      if (!categorias.has(clave(c.nombre))) {categorias.set(clave(c.nombre), c);}
+    }
+    const creadas: string[] = [];
+    for (const p of productos) {
+      const conocida = categorias.get(clave(p.categoria));
+      if (conocida) {
+        p.categoria = conocida.nombre;
+        if (!conocida.activo) {
+          await client.query('UPDATE menu_categorias SET activo = TRUE WHERE nombre = $1', [conocida.nombre]);
+          conocida.activo = true;
+        }
+        continue;
+      }
+      const grupo = grupoParaCategoria(p.categoria, p.tipoDestino === 'bar' ? 'bebidas' : 'alimentos');
+      await client.query(
+        `INSERT INTO menu_categorias (empresa_id, nombre, grupo, activo) VALUES ($1, $2, $3, TRUE)
+         ON CONFLICT (empresa_id, nombre) DO UPDATE SET activo = TRUE`,
+        [empresaId, p.categoria, grupo]
+      );
+      categorias.set(clave(p.categoria), { nombre: p.categoria, activo: true });
+      creadas.push(p.categoria);
+    }
+
+    // 2) Productos que ya existen (o repetidos dentro del archivo): se omiten y se informan.
+    const yaCargados = await client.query<{ nombre: string; categoria: string }>("SELECT nombre, categoria FROM productos WHERE estado = 'Activo'");
+    const vistos = new Set(yaCargados.rows.map((r) => `${clave(r.nombre)}|${clave(r.categoria)}`));
+    const destinoPorCategoria = new Map<string, 'cocina' | 'bar'>();
+    const nuevos: unknown[][] = [];
+    for (const p of productos) {
+      const llave = `${clave(p.nombre)}|${clave(p.categoria)}`;
+      if (vistos.has(llave)) {
+        invalidRows.push({ linea: p.linea, datos: [p.nombre, String(p.precio), p.categoria], error: 'Ya existe un producto con ese nombre en la categoría.' });
+        continue;
+      }
+      vistos.add(llave);
+
+      // 3) El destino lo manda la categoría (su grupo); el tipo de plato sigue al destino si no se indicó.
+      let destino = destinoPorCategoria.get(clave(p.categoria));
+      if (!destino) {
+        destino = await resolverTipoDestino(client, p.categoria, p.tipoDestino);
+        destinoPorCategoria.set(clave(p.categoria), destino);
+      }
+      const tipoPlato = destino === 'bar' ? 'bebida' : (p.tipoPlato && p.tipoPlato !== 'bebida' ? p.tipoPlato : 'plato_fuerte');
+      const campos = camposProducto({
+        aplica_itbis: p.tasaItbis > 0, tasa_itbis: p.tasaItbis, aplica_propina: p.aplicaPropina,
+        tipo_destino: destino, tipo_plato: tipoPlato, requiere_guarnicion: p.requiereGuarnicion, requiere_termino: p.requiereTermino,
+      });
+      nuevos.push([
+        p.nombre, p.descripcion, p.precio, p.imagenUrl, p.categoria,
+        campos.tasaItbis, campos.aplicaItbis, campos.aplicaPropina, campos.tasaPropina,
+        destino, campos.tipoPlato, campos.esPlatoFuerte, campos.esEntrada, campos.esPostre, campos.esGuarnicion,
+        campos.requiereGuarnicion, campos.requiereTermino,
+      ]);
+    }
+
+    // 4) Inserción por tandas (17 parámetros por producto).
+    const POR_TANDA = 200;
+    for (let desde = 0; desde < nuevos.length; desde += POR_TANDA) {
+      const tanda = nuevos.slice(desde, desde + POR_TANDA);
+      await client.query(
+        `INSERT INTO productos (
+          nombre, descripcion, precio, imagen_url, categoria, estado, tasa_itbis, aplica_itbis, aplica_propina, tasa_propina,
+          tipo_destino, tipo_plato, es_plato_fuerte, es_entrada, es_postre, es_guarnicion, requiere_guarnicion, requiere_termino
+        ) VALUES ` + tanda.map((_, i) => {
+          const b = i * 17;
+          return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, 'Activo', ${Array.from({ length: 12 }, (__, k) => `$${b + 6 + k}`).join(', ')})`;
+        }).join(', '),
+        tanda.flat()
+      );
+    }
+    return { insertables: nuevos.length, categoriasCreadas: creadas };
+  });
+
+  if (!insertables) {
+    res.status(400).json({ error: 'No se encontraron filas nuevas para importar: todos los productos ya existen.', invalidRows });
+    return;
+  }
   await registrarAuditoria(db, {
     usuarioId: req.auth!.userId,
     accion: 'IMPORTAR_PRODUCTOS',
     entidad: 'productos',
-    detalle: { insertados: insertable.length, invalidRows: invalidRows.length },
+    detalle: { insertados: insertables, categoriasCreadas: categoriasCreadas.length, invalidRows: invalidRows.length },
     ip: clientIp(req),
   });
-  logger.info({ action: 'IMPORTAR_PRODUCTOS', userId: req.auth!.userId, insertados: insertable.length, invalidRows: invalidRows.length });
-  res.json({ mensaje: 'Importación completada.', insertados: insertable.length, invalidRows });
+  logger.info({ action: 'IMPORTAR_PRODUCTOS', userId: req.auth!.userId, insertados: insertables, categoriasCreadas: categoriasCreadas.length, invalidRows: invalidRows.length });
+  res.json({ mensaje: 'Importación completada.', insertados: insertables, categoriasCreadas, invalidRows });
 }));
 
 // PUT /api/productos/:id (Administrador): actualiza el producto; si llega
