@@ -970,7 +970,9 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const nombreNegocio = config?.nombre_negocio || resumen?.negocio?.nombre_comercial || 'ChloeRestaurant';
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'sans-serif', overflow: 'hidden' }}>
+    // `#root` es un flex centrado (pantallas de acceso): sin `width: 100%` el panel se ajustaba al contenido de la pestaña activa
+    // y cambiaba de ancho al navegar entre pestañas.
+    <div style={{ width: '100%', minWidth: 0, height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-elevated))', borderBottom: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'color-mix(in srgb, var(--gold) 16%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 50%, transparent)', display: 'grid', placeItems: 'center', color: 'var(--gold)' }}><Crown size={22} /></div>
@@ -991,7 +993,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '24px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable', padding: '24px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
           {TABS.map((t) => (
             <button
