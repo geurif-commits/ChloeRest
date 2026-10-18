@@ -14,6 +14,7 @@
     "backup:verify": "tsx scripts/verify-backup.ts",
     "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node18 --format=esm --outfile=dist/server.js",
     "typecheck": "tsc --noEmit",
+    "audit:prod": "node scripts/audit-gate.mjs",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,json}\"",
