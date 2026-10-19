@@ -90,11 +90,13 @@ export async function grabar(page, { dir, fps = 30, calidad = 92, ancho = 1920, 
   fs.mkdirSync(dir, { recursive: true });
   const cdp = await page.context().newCDPSession(page);
   const marcas = [];
+  const llegadas = [];
   let n = 0;
   const pendientes = [];
   cdp.on('Page.screencastFrame', ({ data, metadata, sessionId }) => {
     const i = n++;
     marcas.push(metadata.timestamp);
+    llegadas.push(Date.now() / 1000);
     pendientes.push(fs.promises.writeFile(path.join(dir, `f${String(i).padStart(6, '0')}.jpg`), Buffer.from(data, 'base64')));
     cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
   });
@@ -104,18 +106,23 @@ export async function grabar(page, { dir, fps = 30, calidad = 92, ancho = 1920, 
       await pausa(400);
       await cdp.send('Page.stopScreencast').catch(() => {});
       await Promise.all(pendientes);
-      const lista = marcas.map((t, i) => {
-        const dur = i < marcas.length - 1 ? Math.max(0.001, marcas[i + 1] - t) : 0.5;
-        return `file 'f${String(i).padStart(6, '0')}.jpg'\nduration ${dur.toFixed(4)}`;
+      // algunos fotogramas llegan desordenados (con una marca anterior): se ordenan por su instante real para no dilatar el video
+      const orden = marcas.map((t, i) => ({ t, i })).sort((a, b) => a.t - b.t || a.i - b.i);
+      const lista = orden.map(({ t, i }, k) => {
+        const dur = k < orden.length - 1 ? Math.max(0.001, orden[k + 1].t - t) : 0.5;
+        return `file 'f${String(i).padStart(6, '0')}.jpg'
+duration ${dur.toFixed(4)}`;
       });
-      lista.push(`file 'f${String(marcas.length - 1).padStart(6, '0')}.jpg'`);
+      lista.push(`file 'f${String(orden[orden.length - 1].i).padStart(6, '0')}.jpg'`);
       fs.writeFileSync(path.join(dir, 'lista.txt'), lista.join('\n'));
+      fs.writeFileSync(path.join(dir, 'tiempos.json'), JSON.stringify({ marcas, llegadas }));
       fs.mkdirSync(path.dirname(salida), { recursive: true });
       const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', path.join(dir, 'lista.txt'),
         '-vf', `fps=${fps},scale=${ancho}:${alto}:flags=lanczos,format=yuv420p`, '-c:v', 'libx264', '-crf', '17', '-preset', 'medium',
         '-movflags', '+faststart', ...extra, salida], { encoding: 'utf8' });
       if (r.status !== 0) throw new Error(`ffmpeg falló: ${r.stderr}`);
-      return { archivo: salida, fotogramas: marcas.length, segundos: marcas.length ? marcas[marcas.length - 1] - marcas[0] : 0, inicio: marcas[0] };
+      const ts = [...marcas].sort((a, b) => a - b);
+      return { archivo: salida, fotogramas: marcas.length, segundos: ts.length ? ts[ts.length - 1] - ts[0] : 0, inicio: ts[0] };
     },
   };
 }

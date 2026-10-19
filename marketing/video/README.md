@@ -28,6 +28,11 @@ node montar.mjs                    # monta el video final (velocidades, música,
 
 Salida en `salida/` (no se versiona): `borrador.mp4`, `marcas.json` (inicio y fin de cada escena), `error_N.png` si algo falla.
 
+`montar.mjs` genera `comercial.mp4` (con música ambiental creada con ffmpeg, sin derechos de autor) y, con `--sin-musica`, la versión
+silenciosa. Aplica una velocidad distinta a cada escena (tabla `VELOCIDAD`: los tramos de escritura se aceleran un poco) y un
+fundido final. Nota técnica: algunos fotogramas del screencast llegan desordenados; el grabador los ordena por su marca de tiempo
+antes de codificar, para que la duración del video coincida con `marcas.json`.
+
 ## Qué hace
 
 `correr.mjs` reinicia el entorno de prueba, `preparar.mjs` crea el negocio **ChloeRestaurant** (administrador con PIN

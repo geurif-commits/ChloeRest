@@ -37,9 +37,9 @@ h1 b{background:linear-gradient(180deg,#FFE9A6,#E19A14 62%,#8E5300);-webkit-back
 .dom{margin-top:40px;font-weight:800;font-size:38px;letter-spacing:.06em;color:#F5B83D;opacity:0;animation:sube .9s ease-out 3.1s forwards}
 @keyframes sube{to{opacity:1;transform:none}}
 .brillo{position:absolute;left:50%;top:44%;width:560px;height:560px;margin:-280px 0 0 -280px;border-radius:50%;pointer-events:none;
-  background:conic-gradient(from 0deg,transparent 0 62%,rgba(255,233,166,.28) 70%,transparent 78% 100%);mix-blend-mode:screen;filter:blur(8px);
+  background:conic-gradient(from 0deg,transparent 0 62%,rgba(255,233,166,.28) 70%,transparent 78% 100%);mix-blend-mode:screen;filter:blur(22px);
   opacity:0;animation:gira 3.4s linear 1.2s infinite,aparece .8s ease-out 1.2s forwards}
-@keyframes gira{to{transform:rotate(360deg)}}@keyframes aparece{to{opacity:.9}}
+@keyframes gira{to{transform:rotate(360deg)}}@keyframes aparece{to{opacity:.5}}
 `;
 
 export function htmlIntro() {
