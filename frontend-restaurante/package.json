@@ -79,6 +79,9 @@
       "shortcutName": "ChloeRestaurant",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
+      "installerSidebar": "build/instalador-lateral.bmp",
+      "uninstallerSidebar": "build/instalador-lateral.bmp",
+      "installerHeader": "build/instalador-encabezado.bmp",
       "uninstallDisplayName": "Desinstalar ChloeRestaurant",
       "differentialPackage": false
     }

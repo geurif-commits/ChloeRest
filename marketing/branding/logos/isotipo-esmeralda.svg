@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs>
+    <linearGradient id="i-esmeralda-metal" x1="0.15" y1="0.05" x2="0.85" y2="0.95"><stop offset="0.00" stop-color="#DBFFEC"/><stop offset="0.25" stop-color="#8EEBBA"/><stop offset="0.50" stop-color="#46C283"/><stop offset="0.75" stop-color="#7FE0AE"/><stop offset="1.00" stop-color="#1C7A52"/></linearGradient>
+    <linearGradient id="i-esmeralda-metalOsc" x1="0" y1="0" x2="1" y2="1"><stop offset="0.00" stop-color="#52C98B"/><stop offset="0.50" stop-color="#2FA06A"/><stop offset="1.00" stop-color="#1B6B47"/></linearGradient>
+    <radialGradient id="i-esmeralda-disco" cx="50%" cy="36%" r="78%">
+      <stop offset="0" stop-color="#14301F"/><stop offset=".72" stop-color="#0C1F15"/><stop offset="1" stop-color="#050E09"/>
+    </radialGradient>
+    <linearGradient id="i-esmeralda-gorro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset=".7" stop-color="#F4EFE3"/><stop offset="1" stop-color="#DDD5C0"/>
+    </linearGradient>
+    <linearGradient id="i-esmeralda-cubierto" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFBEA"/><stop offset="1" stop-color="#C9F6DE"/>
+    </linearGradient>
+    <filter id="i-esmeralda-sombra" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#000" flood-opacity=".55"/>
+    </filter></defs><g id="i-esmeralda-isotipo"><circle cx="256" cy="306" r="206" fill="url(#i-esmeralda-disco)"/>
+         <circle cx="256" cy="306" r="200" fill="none" stroke="url(#i-esmeralda-metal)" stroke-width="12"/>
+         <circle cx="256" cy="306" r="181" fill="none" stroke="#46C283" stroke-opacity=".28" stroke-width="2"/><path d="M337.55 231.90 A116 116 0 1 0 337.55 384.10 L321.36 357.86 A76 76 0 1 1 321.36 258.14 Z" fill="url(#i-esmeralda-metal)" stroke="url(#i-esmeralda-metal)" stroke-width="7" stroke-linejoin="round" filter="url(#i-esmeralda-sombra)"/><path d="M150 294 C152 252 176 220 214 208" fill="none" stroke="#FFFFFF" stroke-opacity=".38" stroke-width="5" stroke-linecap="round"/>
+    <g fill="none" stroke="#C9F6DE" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M252 252 V286 Q252 310 268 310 Q284 310 284 286 V252" stroke-width="7"/>
+      <path d="M268 252 V310" stroke-width="7"/>
+      <path d="M268 310 V376" stroke-width="10"/>
+    </g><g transform="translate(268 356) rotate(-6) scale(1)">
+      <path d="M0 0 C-34 -2 -54 -30 -46 -60 C-14 -58 6 -32 0 0 Z" fill="url(#i-esmeralda-metalOsc)" stroke="#C9F6DE" stroke-width="1.6"/>
+      <path d="M-40 -52 L-3 -6" stroke="#1B6B47" stroke-width="2.4" stroke-linecap="round"/>
+    </g><g transform="translate(268 356) rotate(28) scale(-0.68 0.68)">
+      <path d="M0 0 C-34 -2 -54 -30 -46 -60 C-14 -58 6 -32 0 0 Z" fill="url(#i-esmeralda-metalOsc)" stroke="#C9F6DE" stroke-width="1.6"/>
+      <path d="M-40 -52 L-3 -6" stroke="#1B6B47" stroke-width="2.4" stroke-linecap="round"/>
+    </g><g filter="url(#i-esmeralda-sombra)"><g fill="url(#i-esmeralda-metal)" stroke="url(#i-esmeralda-metal)" stroke-width="11" stroke-linejoin="round"><circle cx="212" cy="102" r="32"/><circle cx="256" cy="84" r="40"/><circle cx="300" cy="102" r="32"/><path d="M196 140 C186 124 180 110 184 96 L328 96 C332 110 326 124 316 140 Z"/></g></g>
+                <g fill="url(#i-esmeralda-gorro)"><circle cx="212" cy="102" r="32"/><circle cx="256" cy="84" r="40"/><circle cx="300" cy="102" r="32"/><path d="M196 140 C186 124 180 110 184 96 L328 96 C332 110 326 124 316 140 Z"/></g><g fill="none" stroke="#CFC6AE" stroke-width="2.6" stroke-linecap="round" opacity=".9">
+               <path d="M230 136 C226 120 227 108 232 96"/><path d="M282 136 C286 120 285 108 280 96"/><path d="M256 134 V108"/>
+             </g><rect x="190" y="134" width="132" height="30" rx="8" fill="url(#i-esmeralda-metal)" stroke="#7A4A00" stroke-opacity=".4" stroke-width="1.5"/></g></svg>
