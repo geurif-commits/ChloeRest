@@ -67,3 +67,5 @@ frontend-restaurante/dist/
 .esbuild/
 # Video comercial: fotogramas, borradores y montaje (se regeneran con marketing/video)
 marketing/video/salida/
+# Imágenes subidas durante las pruebas locales (logotipos de demostración)
+uploads/*.png
