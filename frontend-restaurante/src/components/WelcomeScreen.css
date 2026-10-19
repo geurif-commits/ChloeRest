@@ -16,8 +16,8 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background:
-    radial-gradient(circle at 15% 15%, rgba(0, 245, 118, 0.08), transparent 45%),
-    radial-gradient(circle at 85% 85%, rgba(214, 164, 77, 0.09), transparent 45%),
+    radial-gradient(circle at 15% 15%, color-mix(in srgb, var(--gold) 8%, transparent), transparent 45%),
+    radial-gradient(circle at 85% 85%, color-mix(in srgb, var(--gold) 9%, transparent), transparent 45%),
     linear-gradient(180deg, #07090f 0%, #0c1220 50%, #070a11 100%);
   color: #f0f4f8;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -74,9 +74,9 @@
   display: grid;
   place-items: center;
   border-radius: 14px;
-  border: 1px solid rgba(214, 164, 77, 0.4);
-  background: linear-gradient(145deg, rgba(214, 164, 77, 0.2), rgba(214, 164, 77, 0.05));
-  box-shadow: 0 0 20px rgba(214, 164, 77, 0.15);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--gold) 20%, transparent), color-mix(in srgb, var(--gold) 5%, transparent));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--gold) 15%, transparent);
   flex-shrink: 0;
 }
 
@@ -87,7 +87,7 @@
 }
 
 .welcome-brand-tag {
-  color: #d6a44d;
+  color: var(--gold);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -139,7 +139,7 @@
 }
 
 .welcome-panel-header svg {
-  color: #d6a44d;
+  color: var(--gold);
 }
 
 .welcome-panel-text {
@@ -150,7 +150,7 @@
 }
 
 .welcome-panel-text strong {
-  color: #00f576;
+  color: var(--gold);
 }
 
 .welcome-plans-grid {
@@ -177,25 +177,25 @@
 }
 
 .welcome-plan-card:hover {
-  border-color: rgba(214, 164, 77, 0.4);
-  background: rgba(214, 164, 77, 0.06);
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+  background: color-mix(in srgb, var(--gold) 6%, transparent);
   transform: translateY(-2px);
 }
 
 .welcome-plan-card.selected {
-  border-color: #00f576;
-  background: rgba(0, 245, 118, 0.1);
-  box-shadow: 0 0 16px rgba(0, 245, 118, 0.2);
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--gold) 20%, transparent);
 }
 
 .welcome-plan-card.plan-highlight {
-  border-color: rgba(214, 164, 77, 0.4);
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
 }
 
 .welcome-plan-badge {
   position: absolute;
   top: -8px;
-  background: linear-gradient(135deg, #d6a44d, #b8862a);
+  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
   color: #050b14;
   font-size: 0.58rem;
   font-weight: 800;
@@ -214,11 +214,11 @@
 .welcome-plan-price {
   font-size: 0.95rem;
   font-weight: 800;
-  color: #00f576;
+  color: var(--gold);
 }
 
 .welcome-plan-card.selected .welcome-plan-name {
-  color: #00f576;
+  color: var(--gold);
 }
 
 .welcome-plan-duration {
@@ -285,7 +285,7 @@
 .welcome-progress-header span {
   font-size: 0.65rem;
   font-weight: 700;
-  color: #d6a44d;
+  color: var(--gold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -305,9 +305,9 @@
 .welcome-progress-fill {
   height: 100%;
   width: 50%;
-  background: linear-gradient(90deg, #00f576, #00b852);
+  background: linear-gradient(90deg, var(--gold), var(--gold-dark));
   border-radius: 999px;
-  box-shadow: 0 0 10px rgba(0, 245, 118, 0.4);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--gold) 40%, transparent);
 }
 
 .welcome-selected-plan {
@@ -317,8 +317,8 @@
   padding: 10px 14px;
   margin-bottom: 16px;
   border-radius: 12px;
-  border: 1px solid rgba(0, 245, 118, 0.35);
-  background: rgba(0, 245, 118, 0.08);
+  border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+  background: color-mix(in srgb, var(--gold) 8%, transparent);
   box-sizing: border-box;
 }
 
@@ -329,7 +329,7 @@
 }
 
 .welcome-selected-plan span strong {
-  color: #00f576;
+  color: var(--gold);
 }
 
 .welcome-btn-change {
@@ -379,7 +379,7 @@
 }
 
 .welcome-label svg {
-  color: #d6a44d;
+  color: var(--gold);
 }
 
 .welcome-input-wrapper {
@@ -406,8 +406,8 @@
 }
 
 .welcome-input:focus {
-  border-color: #00f576;
-  box-shadow: 0 0 0 3px rgba(0, 245, 118, 0.15);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 15%, transparent);
 }
 
 .welcome-input-wrapper.with-prefix {
@@ -462,8 +462,8 @@
 }
 
 .welcome-select:focus {
-  border-color: #00f576;
-  box-shadow: 0 0 0 3px rgba(0, 245, 118, 0.15);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 15%, transparent);
 }
 
 .welcome-select option {
@@ -492,7 +492,7 @@
   height: 46px;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, #00f576 0%, #00b852 100%);
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
   color: #050b14;
   font-weight: 800;
   font-size: 0.95rem;
@@ -501,7 +501,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 8px 20px rgba(0, 245, 118, 0.25);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--gold) 25%, transparent);
   margin-top: 6px;
   transition: transform 0.15s ease, filter 0.2s ease;
 }
@@ -535,7 +535,7 @@
 }
 
 .welcome-trust-badges span svg {
-  color: #00f576;
+  color: var(--gold);
 }
 
 /* ================================================================
@@ -544,7 +544,7 @@
 
 .welcome-sent-card {
   background: rgba(18, 24, 42, 0.94);
-  border: 1px solid rgba(0, 245, 118, 0.4);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
   border-radius: 20px;
   padding: 36px 28px;
   max-width: 480px;
@@ -559,11 +559,11 @@
   height: 64px;
   margin: 0 auto 16px;
   border-radius: 50%;
-  background: rgba(0, 245, 118, 0.12);
-  border: 1px solid rgba(0, 245, 118, 0.4);
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
   display: grid;
   place-items: center;
-  color: #00f576;
+  color: var(--gold);
 }
 
 .welcome-sent-card h2 {

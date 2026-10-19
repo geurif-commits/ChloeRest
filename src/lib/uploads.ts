@@ -21,17 +21,28 @@ const storage = multer.diskStorage({
   },
 });
 
+const LIMITE_ARCHIVO = 5 * 1024 * 1024;
+
+const soloImagenes: NonNullable<multer.Options['fileFilter']> = (_req, file, callback) => {
+  callback(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
+};
+
 export const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
-  fileFilter: (_req, file, callback) => {
-    callback(null, ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype));
-  },
+  limits: { fileSize: LIMITE_ARCHIVO, files: 1 },
+  fileFilter: soloImagenes,
+});
+
+/** Fondo y logo viajan juntos: con `files: 1` multer rechazaba la petición completa al llegar el segundo archivo. */
+const uploadDosImagenes = multer({
+  storage,
+  limits: { fileSize: LIMITE_ARCHIVO, files: 2 },
+  fileFilter: soloImagenes,
 });
 
 export const uploadCsv = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: LIMITE_ARCHIVO, files: 1 },
   fileFilter: (_req, file, callback) => {
     const allowed = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
     const isCsv = allowed.includes(file.mimetype) || file.originalname.toLowerCase().endsWith('.csv');
@@ -76,7 +87,7 @@ export function validarImagenesSubidas(req: Request, _res: Response, next: NextF
   return next();
 }
 
-export const uploadImagenesSistema = upload.fields([
+export const uploadImagenesSistema = uploadDosImagenes.fields([
   { name: 'fondo_archivo', maxCount: 1 },
   { name: 'logo_archivo', maxCount: 1 },
 ]);

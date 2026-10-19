@@ -5,12 +5,13 @@ import { toastAviso } from '../Toast.jsx';
 import {
   Monitor, CheckCircle2, Ban, Laptop, RefreshCw,
   Power, ShieldCheck, Clock, Wifi, Info, Trash2,
-  Smartphone, Tablet, Globe, Cpu
+  Smartphone, Tablet, Cpu
 } from 'lucide-react';
 import './admin.css';
 
 export default function GestionDispositivos({ apiUrl, token }) {
   const [dispositivos, setDispositivos] = useState([]);
+  const [limite, setLimite] = useState(2);
   const [cargando, setCargando] = useState(true);
   const myDeviceId = obtenerDeviceId();
 
@@ -30,6 +31,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
         return;
       }
       setDispositivos(data.dispositivos || []);
+      setLimite(Number.isInteger(data.limiteMaximo) && data.limiteMaximo > 0 ? data.limiteMaximo : 2);
     } catch {
       toastAviso('Error cargando dispositivos. Verifica la conexión.');
     } finally {
@@ -200,7 +202,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
         </div>
       </div>
 
-      {/* ── Barra Informativa de Límite de Licencia (Máximo 2 Dispositivos) ── */}
+      {/* ── Barra Informativa de Límite de Licencia (el cupo lo define cada licencia; el propietario lo amplía) ── */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -208,14 +210,14 @@ export default function GestionDispositivos({ apiUrl, token }) {
         flexWrap: 'wrap',
         gap: '10px',
         padding: '12px 16px',
-        background: 'rgba(245, 184, 61, 0.06)',
-        border: '1px solid rgba(245, 184, 61, 0.25)',
+        background: 'color-mix(in srgb, var(--gold) 6%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--gold) 25%, transparent)',
         borderRadius: '12px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Info size={16} style={{ color: 'var(--kpi-gold)', flexShrink: 0 }} />
           <span style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-            Límite por licencia: <strong>Máximo 2 dispositivos activos simultáneos</strong> (Caja POS / Tablet de Salón o KDS).
+            Límite por licencia: <strong>Máximo {limite} {limite === 1 ? 'dispositivo activo' : 'dispositivos activos simultáneos'}</strong> (Caja POS / Tablet de Salón o KDS). ¿Necesitas más equipos? Pide ampliar el cupo de tu licencia.
           </span>
         </div>
         <div style={{
@@ -224,13 +226,13 @@ export default function GestionDispositivos({ apiUrl, token }) {
           gap: '6px',
           padding: '4px 10px',
           borderRadius: '20px',
-          background: kpis.activos >= 2 ? 'rgba(245, 184, 61, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-          border: `1px solid ${kpis.activos >= 2 ? 'var(--kpi-gold)' : 'var(--kpi-green)'}`,
+          background: kpis.activos >= limite ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'rgba(16, 185, 129, 0.2)',
+          border: `1px solid ${kpis.activos >= limite ? 'var(--kpi-gold)' : 'var(--kpi-green)'}`,
           fontSize: '0.78rem',
           fontWeight: 700,
-          color: kpis.activos >= 2 ? 'var(--kpi-gold)' : 'var(--kpi-green)'
+          color: kpis.activos >= limite ? 'var(--kpi-gold)' : 'var(--kpi-green)'
         }}>
-          <span>{kpis.activos} / 2 En Uso</span>
+          <span>{kpis.activos} / {limite} En Uso</span>
         </div>
       </div>
 
@@ -337,7 +339,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                               border: '1px solid rgba(56, 189, 248, 0.45)',
                               boxShadow: '0 0 8px rgba(56, 189, 248, 0.2)'
                             }}>
-                              📍 Este dispositivo (actual)
+                              Este dispositivo (actual)
                             </span>
                           )}
                           <span style={{
@@ -360,7 +362,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                             ID: {d.device_id || '—'}
                           </span>
                           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '1px 6px', borderRadius: '4px' }}>
-                            🖥️ {info.so} • {info.navegadorNombre}
+                            {info.so} • {info.navegadorNombre}
                           </span>
                         </div>
                       </div>
@@ -414,7 +416,7 @@ export default function GestionDispositivos({ apiUrl, token }) {
                   }}>
                     {d.licencia_duracion && (
                       <span style={{ color: 'var(--kpi-gold)', fontWeight: 600 }}>
-                        {d.licencia_duracion === 'L' ? '✨ Licencia Vitalicia' : `Plan ${d.licencia_duracion}`}
+                        {d.licencia_duracion === 'L' ? 'Licencia Vitalicia' : `Plan ${d.licencia_duracion}`}
                         {restante != null && ` (${restante} días rest.)`}
                       </span>
                     )}

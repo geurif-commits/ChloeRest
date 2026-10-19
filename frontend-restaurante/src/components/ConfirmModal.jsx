@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import './caja/caja.css';
 
 export default function ConfirmModal({ mensaje, onConfirm, onCancel, textoConfirmar = 'Confirmar', textoCancelar = 'Cancelar', variante = 'danger' }) {
   const cancelRef = useRef(null);

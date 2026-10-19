@@ -69,12 +69,39 @@ export const errorHandler = (err: Error, req: Request, res: Response, _next: Nex
       method: req.method,
       path: req.path,
     });
+  } else if (err instanceof Error && ['42P01', '42703', '42501'].includes(String((err as Error & { code?: string }).code))) {
+    // Esquema desactualizado o sin permisos: falta aplicar migraciones (en producción no corren al arrancar)
+    // o conceder privilegios al rol de la aplicación sobre las tablas nuevas.
+    const pgCode = String((err as Error & { code?: string }).code);
+    statusCode = 503;
+    response = {
+      success: false,
+      error: pgCode === '42501'
+        ? 'La base de datos no concede permisos sobre una tabla nueva. Ejecuta el paso de permisos del despliegue (GRANT al rol de la aplicación).'
+        : 'La base de datos no está actualizada para esta función. Ejecuta las migraciones del despliegue (RUN_MIGRATIONS=1 con el rol DDL) y reinicia.',
+      code: 'DB_SCHEMA_OUTDATED',
+      timestamp,
+    };
+
+    logger.error({
+      action: 'DB_SCHEMA_OUTDATED',
+      pgCode,
+      error: { message: err.message },
+      method: req.method,
+      path: req.path,
+      userId: req.auth?.userId,
+    });
   } else if (err instanceof Error && (err as Error & { name?: string }).name === 'MulterError') {
     // Errores de subida de archivos (multer): tamaño u otros límites
     statusCode = 400;
+    const motivos: Record<string, string> = {
+      LIMIT_FILE_SIZE: 'El archivo supera el tamaño máximo permitido (5 MB).',
+      LIMIT_FILE_COUNT: 'Se enviaron más archivos de los permitidos.',
+      LIMIT_UNEXPECTED_FILE: 'Campo de archivo no esperado.',
+    };
     response = {
       success: false,
-      error: 'El archivo no cumple con los requisitos.',
+      error: motivos[String((err as Error & { code?: string }).code)] ?? 'El archivo no cumple con los requisitos.',
       code: 'UPLOAD_INVALID',
       timestamp,
     };

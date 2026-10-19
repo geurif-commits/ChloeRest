@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { qrComoImagen } from '../utils/qr.js';
 
 function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
   const ticketRef = useRef(null);
@@ -24,6 +25,8 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     camarero,
     items = [],
     subtotal = 0,
+    subtotalBruto,
+    descuento = 0,
     itbis = 0,
     propina = 0,
     total = 0,
@@ -37,6 +40,9 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
   const formatearRD = (val) => {
     return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
+
+  // Porcentaje efectivo de la propina de esta cuenta (sirve también al reimprimir facturas antiguas).
+  const porcentajePropinaTicket = subtotal > 0 ? Math.round((Number(propina) / Number(subtotal)) * 1000) / 10 : 0;
 
   // Función para agrupar automáticamente artículos idénticos modificando la cantidad
   const agruparArticulos = (listaItems = []) => {
@@ -205,16 +211,24 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
           <div style={{display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11px'}}>
             <div style={{display: 'flex', justifyContent: 'space-between'}}>
               <span>Subtotal:</span>
-              <strong>RD$ {formatearRD(subtotal)}</strong>
+              <strong>RD$ {formatearRD(Number(descuento) > 0 ? (subtotalBruto ?? Number(subtotal) + Number(descuento)) : subtotal)}</strong>
             </div>
+            {Number(descuento) > 0 && (
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span>Descuento:</span>
+                <strong>- RD$ {formatearRD(descuento)}</strong>
+              </div>
+            )}
             <div style={{display: 'flex', justifyContent: 'space-between'}}>
-              <span>ITBIS (18%):</span>
+              <span>ITBIS:</span>
               <strong>RD$ {formatearRD(itbis)}</strong>
             </div>
-            <div style={{display: 'flex', justifyContent: 'space-between'}}>
-              <span>Propina Legal (10%):</span>
-              <strong>RD$ {formatearRD(propina)}</strong>
-            </div>
+            {propina > 0 && (
+              <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                <span>Propina ({porcentajePropinaTicket}%):</span>
+                <strong>RD$ {formatearRD(propina)}</strong>
+              </div>
+            )}
             
             <div style={{borderTop: '2px solid #000', marginTop: '4px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold'}}>
               <span>TOTAL A PAGAR:</span>
@@ -240,7 +254,7 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
                 const qrUrl = (tipoComprobante === 'e-CF' || (ncfGenerado && ncfGenerado.startsWith('E')))
                   ? `https://ecf.dgii.gov.do/fe/consultatimbrefiscal?RncEmisor=${encodeURIComponent(rncNegocio.replace(/[^0-9]/g, ''))}&RncComprador=${encodeURIComponent((rncCliente || '').replace(/[^0-9]/g, ''))}&eNCF=${encodeURIComponent(ncfGenerado || '')}&MontoTotal=${total}`
                   : `https://chloerestaurant.lat/verificar-factura?ncf=${encodeURIComponent(ncfGenerado || '')}&total=${total}`;
-                const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&margin=2&data=${encodeURIComponent(qrUrl)}`;
+                const qrImgSrc = qrComoImagen(qrUrl);
                 return (
                   <div>
                     <img

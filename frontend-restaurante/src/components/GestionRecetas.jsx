@@ -3,8 +3,7 @@ import { sanitizarDecimal } from '../utils/input.js';
 import { toastAviso } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
 import {
-  ChefHat, Plus, Trash2, Search, ArrowLeft, UtensilsCrossed,
-  Package, Layers, AlertCircle, Save, CheckCircle
+  ChefHat, Plus, Trash2, Search, ArrowLeft, UtensilsCrossed
 } from 'lucide-react';
 
 function GestionRecetas({ alVolver, apiUrl }) {
@@ -82,7 +81,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al guardar insumo en receta.');
       }
-    } catch (error) {
+    } catch {
       toastAviso("Error al guardar ingrediente en receta.");
     }
   };
@@ -97,7 +96,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
             toastAviso('Insumo removido de la receta.');
             seleccionarProducto(productoSeleccionado);
           }
-        } catch (error) {
+        } catch {
           toastAviso("Error al eliminar ingrediente de receta.");
         }
       }
@@ -181,8 +180,8 @@ function GestionRecetas({ alVolver, apiUrl }) {
                         padding: '12px 14px',
                         borderRadius: '10px',
                         cursor: 'pointer',
-                        background: seleccionado ? 'rgba(245, 184, 61, 0.14)' : 'var(--bg-card-hover)',
-                        border: seleccionado ? '1px solid rgba(245, 184, 61, 0.5)' : '1px solid var(--border-subtle)',
+                        background: seleccionado ? 'color-mix(in srgb, var(--gold) 14%, transparent)' : 'var(--bg-card-hover)',
+                        border: seleccionado ? '1px solid color-mix(in srgb, var(--gold) 50%, transparent)' : '1px solid var(--border-subtle)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',

@@ -1,0 +1,16 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   PREMIUM — pantallas previas al ingreso (activación, bienvenida, propietario)
+   Tipografía display y acentos de marca; los colores viven en cada módulo.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root .activacion-title,
+:root .welcome-header h1,
+:root .welcome-hero-title,
+:root .welcome-sent-card h2,
+:root .owner-pin-card h2 {
+  font-family: var(--px-font-display); font-weight: 600; letter-spacing: -.02em;
+}
+:root .activacion-title { color: #f3d489; font-size: 1.7rem; }
+:root .welcome-hero-title { font-size: clamp(2rem, 3.6vw, 3rem); line-height: 1.08; }
+:root .welcome-header h1 { font-size: 1.5rem; }
+:root .owner-pin-card h2 { font-size: 1.7rem; }

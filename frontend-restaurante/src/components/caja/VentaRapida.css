@@ -1,0 +1,17 @@
+/* Venta rápida: solo lo que el comandero (pedido.css) no trae. Todo lleva el prefijo vr- y los tokens del sistema. */
+
+.vr-cliente { margin-top: 16px; border: 1px solid var(--px-line-2); border-radius: var(--px-r-sm); background: var(--px-surface); }
+.vr-cliente > summary { min-height: 46px; padding: 0 14px; display: flex; align-items: center; font: 650 14px var(--px-font-ui); color: var(--px-ink); cursor: pointer; }
+.vr-cliente > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: var(--px-r-sm); }
+.vr-cliente__campos { display: grid; gap: 6px; padding: 0 14px 14px; }
+.vr-cliente__campos label { font-size: 13px; font-weight: 600; color: var(--px-ink-2); }
+
+.vr-opcion { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; cursor: pointer; }
+.vr-opcion input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--gold); }
+.vr-opcion strong { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--px-ink); }
+.vr-opcion small { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.35; color: var(--px-ink-2); }
+
+.vr-aviso { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-left: 4px solid var(--px-bad, #d24439); border-radius: var(--px-r-sm); background: var(--px-surface-2); font-size: 13.5px; font-weight: 600; color: var(--px-ink); }
+.vr-aviso svg { flex: none; color: var(--px-bad, #d24439); }
+
+.vr-vaciar { width: 100%; margin-top: 8px; justify-content: center; }

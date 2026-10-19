@@ -2,10 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { toastAviso } from '../Toast.jsx';
 import GestionDispositivos from './GestionDispositivos.jsx';
 import FacturaActivacion from './FacturaActivacion.jsx';
-import { Delete, LockKeyhole } from 'lucide-react';
+import LicenciaCupoModal from './LicenciaCupoModal.jsx';
+import { LockKeyhole, Trash2, Copy, KeyRound } from 'lucide-react';
+import PinPad from '../PinPad.jsx';
 import './admin.css';
 
 const TOKEN_KEY = 'POS_DUENO_TOKEN';
+/** Minutos sin usar el panel antes de cerrar la sesión del propietario. */
+const INACTIVIDAD_PROPIETARIO_MS = 15 * 60 * 1000;
 
 const DURACIONES = [
   { codigo: '7D', etiqueta: '7 días' },
@@ -21,7 +25,7 @@ const DURACIONES = [
 
 const TABS = [
   { id: 'resumen', label: 'Resumen' },
-  { id: 'licencias', label: '🔑 Licencias Usadas' },
+  { id: 'licencias', label: 'Licencias Usadas' },
   { id: 'solicitudes', label: 'Solicitudes' },
   { id: 'claves', label: 'Generar claves' },
   { id: 'planes', label: 'Planes y precios' },
@@ -153,7 +157,7 @@ function FilaPlan({ plan, onGuardar, onEliminar }) {
       </td>
       <td>
         {guardando && <span style={{ fontSize: '0.7rem', color: 'var(--admin-text-muted)', marginRight: '6px' }}>Guardando…</span>}
-        <button className="btn-accion delete" onClick={() => onEliminar(plan)} title="Eliminar plan">🗑️</button>
+        <button className="btn-accion delete" onClick={() => onEliminar(plan)} title="Eliminar plan" aria-label="Eliminar plan"><Trash2 size={15} /></button>
       </td>
     </tr>
   );
@@ -166,6 +170,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const [cargando, setCargando] = useState(false);
   const [pinLongitud, setPinLongitud] = useState(0);
   const [pinNoConfigurado, setPinNoConfigurado] = useState(false);
+  // true cuando el PIN del propietario está incrustado en el sistema: no se crea ni se cambia desde la interfaz.
+  const [pinFijo, setPinFijo] = useState(false);
 
   const [tab, setTab] = useState('resumen');
   const [resumen, setResumen] = useState(null);
@@ -175,6 +181,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const [busquedaLicencia, setBusquedaLicencia] = useState('');
   const [filtroEstadoLicencia, setFiltroEstadoLicencia] = useState('todas');
   const [accionLicenciaId, setAccionLicenciaId] = useState(null);
+  const [licenciaCupoId, setLicenciaCupoId] = useState(null);
   const [facturas, setFacturas] = useState([]);
   const [facturaSeleccionada, setFacturaSeleccionada] = useState(null);
   const [metodosPago, setMetodosPago] = useState([]);
@@ -185,6 +192,12 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const headers = () => ({ 'Authorization': `Bearer ${token}` });
 
   const cerrarSesion = () => {
+    // Revoca el token Dueño en el servidor (item 7) sin bloquear el cierre local.
+    try {
+      fetch(`${apiUrl}/api/dueno/logout`, { method: 'POST', headers: headers() }).catch(() => {});
+    } catch {
+      /* ignorar */
+    }
     localStorage.removeItem(TOKEN_KEY);
     setToken('');
     setPin('');
@@ -260,6 +273,144 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     }
   };
 
+  const [pinReseteado, setPinReseteado] = useState(null);
+
+  // ── Cambiar mi propio PIN (el propietario elige el suyo, en vez de depender de uno generado) ──
+  const [cambioPinAbierto, setCambioPinAbierto] = useState(false);
+  const [pasoCambioPin, setPasoCambioPin] = useState('actual'); // 'actual' | 'nuevo' | 'confirmar'
+  const [pinActualCambio, setPinActualCambio] = useState('');
+  const [pinNuevoCambio, setPinNuevoCambio] = useState('');
+  const [pinConfirmarCambio, setPinConfirmarCambio] = useState('');
+  const [errorCambioPin, setErrorCambioPin] = useState('');
+  const [guardandoCambioPin, setGuardandoCambioPin] = useState(false);
+
+  const abrirCambioPin = () => {
+    setPasoCambioPin('actual');
+    setPinActualCambio('');
+    setPinNuevoCambio('');
+    setPinConfirmarCambio('');
+    setErrorCambioPin('');
+    setCambioPinAbierto(true);
+  };
+  const cerrarCambioPin = () => { if (!guardandoCambioPin) setCambioPinAbierto(false); };
+
+  const pinDelPasoActual =
+    pasoCambioPin === 'actual' ? pinActualCambio : pasoCambioPin === 'nuevo' ? pinNuevoCambio : pinConfirmarCambio;
+  const setPinDelPasoActual =
+    pasoCambioPin === 'actual' ? setPinActualCambio : pasoCambioPin === 'nuevo' ? setPinNuevoCambio : setPinConfirmarCambio;
+  const agregarDigitoCambioPin = (n) => {
+    setErrorCambioPin('');
+    setPinDelPasoActual((prev) => (prev.length < 12 ? prev + n : prev));
+  };
+  const borrarDigitoCambioPin = () => setPinDelPasoActual((prev) => prev.slice(0, -1));
+
+  // Longitud real del PIN vigente del dueño (4, 6, 8…). Se conoce de antemano
+  // (mismo fetch que usa el gate de login); si aún no llegó, se exige un
+  // mínimo de 4. El PIN NUEVO no tiene longitud "correcta": la elige el
+  // usuario en el paso 'nuevo', libremente entre 4 y 12.
+  const pinActualCambioCompleto = pinLongitud > 0
+    ? pinActualCambio.length === pinLongitud
+    : pinActualCambio.length >= 4;
+
+  const enviarCambioPin = async () => {
+    if (pinConfirmarCambio !== pinNuevoCambio) {
+      setErrorCambioPin('Los dos PIN no coinciden.');
+      setPinConfirmarCambio('');
+      return;
+    }
+    setGuardandoCambioPin(true);
+    setErrorCambioPin('');
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/cambiar-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers() },
+        body: JSON.stringify({ pinActual: pinActualCambio, pinNuevo: pinNuevoCambio }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorCambioPin(data.error || 'No se pudo cambiar el PIN.');
+        setPasoCambioPin('actual');
+        setPinActualCambio('');
+        setPinNuevoCambio('');
+        setPinConfirmarCambio('');
+        return;
+      }
+      localStorage.setItem(TOKEN_KEY, data.token);
+      setToken(data.token);
+      setPinLongitud(pinNuevoCambio.length);
+      cargarInfoPin();
+      toastAviso('PIN actualizado correctamente.');
+      setCambioPinAbierto(false);
+    } catch {
+      setErrorCambioPin('Error de conexión con el servidor.');
+    } finally {
+      setGuardandoCambioPin(false);
+    }
+  };
+
+  const avanzarPasoCambioPin = () => {
+    if (guardandoCambioPin) return;
+    if (pasoCambioPin === 'actual') {
+      if (!pinActualCambioCompleto) return;
+      setErrorCambioPin('');
+      setPasoCambioPin('nuevo');
+    } else if (pasoCambioPin === 'nuevo') {
+      if (pinNuevoCambio.length < 4) return;
+      if (pinNuevoCambio === pinActualCambio) { setErrorCambioPin('El PIN nuevo debe ser distinto al actual.'); return; }
+      setErrorCambioPin('');
+      setPasoCambioPin('confirmar');
+    } else {
+      if (pinConfirmarCambio.length < 4) return;
+      enviarCambioPin();
+    }
+  };
+
+  // Auto-envío del modal (lo ejecuta el PinPad): el paso 'actual' avanza al completar la longitud real y
+  // conocida del PIN vigente; el paso 'confirmar', al re-escribir tantos dígitos como el PIN nuevo recién
+  // elegido. El paso 'nuevo' queda siempre manual: ahí el usuario decide cuántos dígitos quiere (4 a 12).
+  const longitudAutoEnvioCambioPin =
+    pasoCambioPin === 'actual' ? (pinLongitud > 0 ? pinLongitud : 0)
+      : pasoCambioPin === 'confirmar' && pinNuevoCambio.length >= 4 ? pinNuevoCambio.length : 0;
+
+  // Al abrir el modal el foco pasa al diálogo (si no, lo conserva el botón "Cambiar PIN" que lo abrió) y
+  // Escape lo cierra. Dígitos, Backspace y Enter los resuelve el propio PinPad.
+  const dialogoCambioPin = useRef(null);
+  useEffect(() => {
+    if (cambioPinAbierto) dialogoCambioPin.current?.focus();
+  }, [cambioPinAbierto]);
+  useEffect(() => {
+    if (!cambioPinAbierto) return undefined;
+    const alTeclear = (evento) => {
+      if (evento.key === 'Escape' && !evento.defaultPrevented) { evento.preventDefault(); cerrarCambioPin(); }
+    };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cambioPinAbierto, guardandoCambioPin]);
+
+  const resetearPinAdmin = async (lic) => {
+    const nombre = lic.nombre_negocio || lic.empresa_nombre || 'este negocio';
+    if (!window.confirm(`¿Generar un NUEVO PIN de administrador para "${nombre}"? El PIN actual dejará de funcionar de inmediato.`)) return;
+    setAccionLicenciaId(lic.id);
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/licencias/${lic.id}/reset-pin`, {
+        method: 'POST',
+        headers: headers(),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toastAviso(data.error || 'Error generando el PIN.');
+        return;
+      }
+      setPinReseteado({ negocio: nombre, pin: data.pin });
+      cargarTodo();
+    } catch {
+      toastAviso('Error al generar el PIN.');
+    } finally {
+      setAccionLicenciaId(null);
+    }
+  };
+
   const limpiarDatosPrueba = async () => {
     if (confirmacionReset !== 'BORRAR PRUEBAS') return;
     setResetEstado('Borrando información…');
@@ -314,21 +465,46 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Longitud(es) válidas del PIN del propietario. Con una sola se exige exacta y se auto-envía; con varias
+  // (OWNER_PIN + PIN guardado de otra longitud) o si falla la carga, queda en 0 y el envío es manual (mín. 4).
+  // También la necesita el modal "Cambiar mi PIN" (post-login), por eso corre aunque ya haya sesión.
+  const cargarInfoPin = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/dueno/pin-info`);
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data.longitudes)) return;
+      setPinLongitud(data.longitudes.length === 1 ? data.longitudes[0] : 0);
+      if (data.configurado === false) setPinNoConfigurado(true);
+      setPinFijo(data.fijo === true);
+    } catch {
+      // sin datos: mínimo de 4 dígitos y envío manual
+    }
+  };
+
   useEffect(() => {
-    if (token) return;
-    let activo = true;
-    (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/configuracion/sistema`);
-        const data = await res.json();
-        if (activo && data && data.owner_pin_longitud > 0) {
-          setPinLongitud(data.owner_pin_longitud);
-        }
-      } catch {
-        // Si falla, queda en 0 y solo se puede enviar con Enter/botón.
-      }
-    })();
-    return () => { activo = false; };
+    cargarInfoPin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl]);
+
+  // Cierre automático por inactividad: un panel con acceso a todas las licencias no debe quedar abierto sin nadie.
+  // Cualquier toque, tecla o desplazamiento reinicia el reloj; al vencer se revoca la sesión en el servidor.
+  useEffect(() => {
+    if (!token) return undefined;
+    let reloj;
+    const reiniciar = () => {
+      clearTimeout(reloj);
+      reloj = setTimeout(() => {
+        toastAviso('Sesión del propietario cerrada por inactividad.');
+        cerrarSesion();
+      }, INACTIVIDAD_PROPIETARIO_MS);
+    };
+    const eventos = ['pointerdown', 'keydown', 'scroll', 'wheel'];
+    eventos.forEach((nombre) => window.addEventListener(nombre, reiniciar, { passive: true }));
+    reiniciar();
+    return () => {
+      clearTimeout(reloj);
+      eventos.forEach((nombre) => window.removeEventListener(nombre, reiniciar));
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -359,7 +535,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       setToken(data.token);
       cargarTodo(data.token);
     } catch {
-      setErrorLogin('No se pudo conectar con el servidor.');
+      setErrorLogin(`No se pudo conectar con el servidor (${apiUrl}). Verifica que el backend esté en ejecución.`);
+      setPin('');
     } finally {
       setCargando(false);
     }
@@ -387,13 +564,22 @@ function PanelDueno({ apiUrl, config, alVolver }) {
       setPinNoConfigurado(false);
       cargarTodo(data.token);
     } catch {
-      setErrorLogin('No se pudo conectar con el servidor.');
+      setErrorLogin(`No se pudo conectar con el servidor (${apiUrl}). Verifica que el backend esté en ejecución.`);
+      setPin('');
     } finally {
       setCargando(false);
     }
   };
 
+  // Longitud real del PIN del propietario (4, 6, 8… hasta 12), conocida de
+  // antemano vía /api/dueno/pin-info. En modo login, con una única longitud
+  // posible se exige exacta antes de habilitar el envío y el PinPad auto-envía
+  // al completarla. Si no se conoce (falló la carga) o hay varias posibles, se
+  // exige un mínimo de 4 y el envío queda manual (Enter o el botón ➜).
+  const longitudPinLogin = pinLongitud > 0 ? pinLongitud : 4;
+
   const agregarNumeroPin = (num) => {
+    if (cargando) return;
     setPin((prev) => {
       if (prev.length < 12) {
         setErrorLogin('');
@@ -404,31 +590,6 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   };
 
   const borrarNumeroPin = () => setPin((prev) => prev.slice(0, -1));
-
-  useEffect(() => {
-    if (!token && !pinNoConfigurado && pinLongitud > 0 && pin.length === pinLongitud) login();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, pinLongitud]);
-
-  useEffect(() => {
-    if (token) return;
-    const manejarTeclado = (evento) => {
-      if (evento.key >= '0' && evento.key <= '9') {
-        agregarNumeroPin(evento.key);
-      } else if (evento.key === 'Backspace' || evento.key === 'Delete') {
-        borrarNumeroPin();
-      } else if (evento.key === 'Enter') {
-        if (pinNoConfigurado) {
-          if (pin.length >= 4) establecerPin();
-        } else {
-          if (pinLongitud === 0 || pin.length === pinLongitud) login();
-        }
-      }
-    };
-    window.addEventListener('keydown', manejarTeclado);
-    return () => window.removeEventListener('keydown', manejarTeclado);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, pin, pinLongitud, pinNoConfigurado]);
 
   const [planForm, setPlanForm] = useState({ nombre: '', duracion_codigo: '30D', precio: '', moneda: 'RD$', destacado: false, activo: true, orden: 0 });
 
@@ -739,82 +900,57 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   };
 
   if (!token) {
-    const pinInput = (
-      <div className="owner-pin-display" style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        {[...Array(pinLongitud > 0 ? pinLongitud : 6)].map((_, i) => (
-          <span key={i} style={{
-            width: '40px', height: '40px', borderRadius: '8px', border: '2px solid #d6a44d',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem',
-            background: i < pin.length ? '#d6a44d' : 'transparent',
-            color: i < pin.length ? '#000' : 'transparent'
-          }}>
-            •
-          </span>
-        ))}
-      </div>
-    );
-
-    const numpad = (
-      <div className="owner-pin-keypad" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px', maxWidth: '240px', margin: '0 auto 12px auto' }}>
-        {['1','2','3','4','5','6','7','8','9'].map((n) => (
-          <button className="owner-pin-key" key={n} type="button" onClick={() => agregarNumeroPin(n)}>{n}</button>
-        ))}
-        <button className="owner-pin-key owner-pin-delete" type="button" onClick={borrarNumeroPin} aria-label="Borrar último dígito"><Delete size={18} /></button>
-        <button className="owner-pin-key" type="button" onClick={() => agregarNumeroPin('0')}>0</button>
-        <button
-          type="submit"
-          disabled={cargando || pin.length < (pinNoConfigurado ? 4 : (pinLongitud > 0 ? pinLongitud : 4))}
-          className="owner-pin-enter"
-          aria-label="Confirmar PIN"
-        >
-          →
-        </button>
-      </div>
+    const pinLen = pinLongitud > 0 ? pinLongitud : 6;
+    // En setup el usuario elige su propia longitud (mínimo 4). En login la
+    // longitud ya es conocida: se exige el número exacto de dígitos antes de
+    // habilitar el envío, para no dejar confirmar un PIN a medio escribir.
+    const enviarDeshabilitado = pinNoConfigurado
+      ? pin.length < 4
+      : (pinLongitud > 0 ? pin.length !== longitudPinLogin : pin.length < longitudPinLogin);
+    const formulario = (onSubmitForm, textoCarga) => (
+      <form onSubmit={onSubmitForm} style={{ width: '100%' }}>
+        <PinPad
+          value={pin}
+          length={pinLen}
+          error={errorLogin}
+          disabled={cargando}
+          onDigit={agregarNumeroPin}
+          onDelete={borrarNumeroPin}
+          asSubmit
+          submitDisabled={cargando || enviarDeshabilitado}
+          autoSubmitLength={pinNoConfigurado ? 0 : pinLongitud}
+        />
+        {cargando && <p className="gate__note">{textoCarga}</p>}
+      </form>
     );
 
     return (
-      <div className="owner-pin-screen" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', maxHeight: '100dvh', background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, fontFamily: 'sans-serif', padding: '16px', boxSizing: 'border-box', overflow: 'auto' }}>
-        <div className="owner-pin-card" style={{ background: '#181820', border: '2px solid #d6a44d', borderRadius: '16px', padding: '24px 20px', maxWidth: '420px', width: '100%', textAlign: 'center', boxShadow: '0 20px 50px rgba(214,164,77,0.2)', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div className="owner-pin-badge"><LockKeyhole size={22} /></div>
+      <div className="gate">
+        <div className="gate__card">
+          <span className="gate__badge"><LockKeyhole size={26} /></span>
 
           {pinNoConfigurado ? (
             <>
-              <h2 style={{ color: '#d6a44d', fontSize: '1.2rem', margin: '0 0 8px 0' }}>Configurar PIN del Propietario</h2>
-              <p style={{ color: '#9494ad', fontSize: '0.82rem', marginBottom: '16px', lineHeight: '1.4' }}>
-                El PIN del propietario no ha sido configurado. Ingresa un PIN de 4 a 12 digitos para acceder al panel.
+              <span className="px-eyebrow">Primer acceso</span>
+              <h2>Configurar PIN del propietario</h2>
+              <p className="gate__lead">
+                El PIN del propietario aún no ha sido configurado. Ingresa un PIN de 4 a 12 dígitos para acceder al panel.
               </p>
-              <form onSubmit={establecerPin}>
-                {pinInput}
-                {errorLogin && <p style={{ color: '#ff5252', fontSize: '0.8rem', margin: '0 0 8px 0' }}>{errorLogin}</p>}
-                {numpad}
-                <p style={{ color: '#88889d', fontSize: '0.68rem', margin: '0 0 10px 0' }}>
-                  Minimo 4 digitos. Este PIN se usara para acceder al panel del propietario.
-                </p>
-                {cargando && <p style={{ color: '#d6a44d', fontSize: '0.8rem', margin: '0 0 8px 0' }}>Configurando...</p>}
-              </form>
+              {formulario(establecerPin, 'Configurando…')}
+              <p className="gate__note">Mínimo 4 dígitos. Este PIN se usará para acceder al panel del propietario.</p>
             </>
           ) : (
             <>
-              <div className="owner-pin-kicker">OWNER ACCESS · CHLOERESTAURANT</div>
-              <h2 style={{ color: '#d6a44d', fontSize: '1.3rem', margin: '0 0 8px 0' }}>Acceso del propietario</h2>
-              <p style={{ color: '#9494ad', fontSize: '0.85rem', marginBottom: '16px', lineHeight: '1.4' }}>
+              <span className="px-eyebrow">Owner access · ChloeRestaurant</span>
+              <h2>Acceso del propietario</h2>
+              <p className="gate__lead">
                 Acceso universal y exclusivo del dueño del sistema. Ingresa tu PIN para administrar planes, precios, claves, solicitudes y dispositivos.
               </p>
-              <form onSubmit={login}>
-                {pinInput}
-                {errorLogin && <p style={{ color: '#ff5252', fontSize: '0.8rem', margin: '0 0 8px 0' }}>{errorLogin}</p>}
-                {numpad}
-                <p style={{ color: '#88889d', fontSize: '0.68rem', margin: '0 0 10px 0' }}>
-                  Digita tu PIN y confirma para continuar.
-                </p>
-                {cargando && <p style={{ color: '#d6a44d', fontSize: '0.8rem', margin: '0 0 8px 0' }}>Verificando...</p>}
-              </form>
+              {formulario(login, 'Verificando…')}
             </>
           )}
 
-          <button onClick={alVolver} style={{ marginTop: 'auto', background: 'transparent', color: '#d6a44d', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', fontWeight: 600 }}>
-            Volver al inicio
-          </button>
+          <button type="button" className="gate__link" onClick={alVolver}>Volver al inicio</button>
         </div>
       </div>
     );
@@ -822,9 +958,11 @@ function PanelDueno({ apiUrl, config, alVolver }) {
 
   if (!resumen && cargandoDatos) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#0d0d12', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, fontFamily: 'sans-serif', flexDirection: 'column', gap: '14px' }}>
-        <div style={{ fontSize: '2.5rem' }}>👑</div>
-        <p style={{ color: '#9494ad' }}>Cargando panel del propietario...</p>
+      <div className="gate">
+        <div className="gate__loading">
+          <span className="gate__badge" style={{ width: 84, height: 84, background: 'transparent', boxShadow: 'none' }}><img src="/icons.svg" alt="ChloeRestaurant" width="84" height="84" style={{ display: 'block' }} /></span>
+          <p>Cargando panel del propietario…</p>
+        </div>
       </div>
     );
   }
@@ -832,10 +970,12 @@ function PanelDueno({ apiUrl, config, alVolver }) {
   const nombreNegocio = config?.nombre_negocio || resumen?.negocio?.nombre_comercial || 'ChloeRestaurant';
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'sans-serif', overflow: 'hidden' }}>
-      <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-elevated))', borderBottom: '1px solid rgba(214,164,77,0.35)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
+    // `#root` es un flex centrado (pantallas de acceso): sin `width: 100%` el panel se ajustaba al contenido de la pestaña activa
+    // y cambiaba de ancho al navegar entre pestañas.
+    <div style={{ width: '100%', minWidth: 0, height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'sans-serif', overflow: 'hidden' }}>
+      <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-elevated))', borderBottom: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(214,164,77,0.16)', border: '1px solid rgba(214,164,77,0.5)', display: 'grid', placeItems: 'center', fontSize: '1.3rem' }}>👑</div>
+          <img src="/icons.svg" alt="ChloeRestaurant" width="52" height="52" style={{ display: 'block', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--kpi-gold)', fontWeight: 700 }}>Panel del Propietario</div>
             <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{nombreNegocio}</div>
@@ -843,19 +983,24 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>Acceso universal · Solo dueño</span>
+          {pinFijo ? (
+            <span title="El PIN del propietario está fijado en el código del sistema; para cambiarlo se regenera con «npm run propietario:pin» y se vuelve a desplegar." style={{ display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid var(--admin-border)', color: 'var(--admin-text-muted)', padding: '8px 14px', borderRadius: '8px', fontSize: '0.8rem' }}><LockKeyhole size={14} />PIN fijado en el sistema</span>
+          ) : (
+            <button onClick={abrirCambioPin} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}><KeyRound size={15} />Cambiar PIN</button>
+          )}
           <button onClick={cerrarSesion} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text-muted)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Cerrar sesión</button>
           <button onClick={alVolver} style={{ background: 'transparent', border: '1px solid var(--admin-border)', color: 'var(--admin-text)', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>Salir</button>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '24px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', scrollbarGutter: 'stable', padding: '24px' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px' }}>
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               style={{
-                background: tab === t.id ? 'linear-gradient(135deg, #d6a44d, #b3862f)' : 'var(--admin-surface)',
+                background: tab === t.id ? 'linear-gradient(135deg, var(--gold), var(--gold-dark))' : 'var(--admin-surface)',
                 color: tab === t.id ? '#000' : 'var(--admin-text)',
                 border: tab === t.id ? 'none' : '1px solid var(--admin-border)',
                 padding: '10px 16px', borderRadius: '10px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
@@ -908,7 +1053,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🔑 Licencias Emitidas, Activas y Usadas
+                  Licencias Emitidas, Activas y Usadas
                 </h3>
                 <span style={{ fontSize: '0.8rem', color: 'var(--admin-text-muted)' }}>
                   Control de licencias y terminales. Puedes revocar el acceso a cualquier restaurante o eliminar licencias permanentemente.
@@ -919,7 +1064,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   type="text"
-                  placeholder="🔍 Buscar por negocio, clave, dueño..."
+                  placeholder="Buscar por negocio, clave, dueño..."
                   value={busquedaLicencia}
                   onChange={(e) => setBusquedaLicencia(e.target.value)}
                   style={{ ...inputStyle, width: '240px', padding: '6px 12px', fontSize: '0.82rem' }}
@@ -941,7 +1086,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                         fontWeight: 600,
                         border: 'none',
                         cursor: 'pointer',
-                        background: filtroEstadoLicencia === f.id ? 'var(--gold, #f5b842)' : 'transparent',
+                        background: filtroEstadoLicencia === f.id ? 'var(--gold, var(--gold))' : 'transparent',
                         color: filtroEstadoLicencia === f.id ? '#000' : 'var(--admin-text-muted)',
                       }}
                     >
@@ -951,6 +1096,52 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                 </div>
               </div>
             </div>
+
+            {/* PIN regenerado (se muestra una sola vez) */}
+            {pinReseteado && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap',
+                padding: '14px 16px', marginBottom: '16px', borderRadius: '12px',
+                background: 'color-mix(in srgb, var(--green) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--green) 35%, transparent)'
+              }}>
+                <KeyRound size={20} style={{ color: 'var(--gold)' }} />
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <strong style={{ color: 'var(--green)', fontSize: '0.9rem', display: 'block' }}>
+                    Nuevo PIN de {pinReseteado.negocio}
+                  </strong>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--admin-text-muted)' }}>
+                    Entrégalo al cliente ahora: solo se muestra esta vez. Se exigirá cambiarlo al ingresar.
+                  </span>
+                </div>
+                <code style={{
+                  fontSize: '1.6rem', fontWeight: 900, letterSpacing: '6px',
+                  color: '#0b0f19', background: 'var(--green)',
+                  padding: '6px 14px 6px 20px', borderRadius: '10px'
+                }}>
+                  {pinReseteado.pin}
+                </code>
+                <button
+                  type="button"
+                  className="btn-solicitud atender"
+                  style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                  onClick={() => {
+                    try { navigator.clipboard.writeText(pinReseteado.pin); toastAviso('PIN copiado.'); } catch {}
+                  }}
+                >
+                  Copiar
+                </button>
+                <button
+                  type="button"
+                  className="btn-accion"
+                  onClick={() => setPinReseteado(null)}
+                  title="Ocultar"
+                  style={{ fontSize: '1rem' }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {/* Tarjetas resumen de licencias */}
             <div className="tarjetas-grid" style={{ marginBottom: '18px' }}>
@@ -1032,7 +1223,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                 style={{ padding: '2px 6px', fontSize: '0.7rem', marginTop: '4px' }}
                                 onClick={() => copiarClave(lic.clave)}
                               >
-                                📋 Copiar
+                                Copiar
                               </button>
                             </td>
                             <td>
@@ -1046,8 +1237,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>{lic.telefono}</div>
                             </td>
                             <td>
-                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: lic.dispositivos_activos > 0 ? 'var(--kpi-green)' : 'var(--admin-text-muted)' }}>
-                                {lic.dispositivos_activos || 0} activos
+                              <span style={{ fontSize: '0.82rem', fontWeight: 'bold', color: (lic.dispositivos_activos || 0) >= (lic.max_dispositivos || 2) ? 'var(--kpi-gold)' : (lic.dispositivos_activos > 0 ? 'var(--kpi-green)' : 'var(--admin-text-muted)') }}>
+                                {lic.dispositivos_activos || 0} / {lic.max_dispositivos || 2} activos
                               </span>
                               <div style={{ fontSize: '0.72rem', color: 'var(--admin-text-dim)' }}>
                                 {lic.total_dispositivos || 0} total
@@ -1055,8 +1246,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                             </td>
                             <td>
                               {estaActiva ? (
-                                <span className="badge-rol cajero" style={{ background: 'rgba(0,245,118,0.15)', color: 'var(--kpi-green)', border: '1px solid rgba(0,245,118,0.3)' }}>
-                                  🟢 Activa
+                                <span className="badge-rol cajero" style={{ background: 'color-mix(in srgb, var(--green) 15%, transparent)', color: 'var(--kpi-green)', border: '1px solid color-mix(in srgb, var(--green) 30%, transparent)' }}>
+                                  Activa
                                 </span>
                               ) : (
                                 <div>
@@ -1101,9 +1292,28 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                     onClick={() => reactivarLicencia(lic)}
                                     title="Desbloquear y reactivar esta licencia"
                                   >
-                                    ✅ Reactivar
+                                    Reactivar
                                   </button>
                                 )}
+
+                                <button
+                                  className="btn-solicitud pagada"
+                                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  onClick={() => setLicenciaCupoId(lic.id)}
+                                  title="Cambiar cuántos equipos permite esta licencia y ver el historial de cambios"
+                                >
+                                  Equipos
+                                </button>
+
+                                <button
+                                  className="btn-solicitud atender"
+                                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  disabled={accionLicenciaId === lic.id}
+                                  onClick={() => resetearPinAdmin(lic)}
+                                  title="Generar nuevo PIN de administrador para este negocio"
+                                >
+                                  PIN Admin
+                                </button>
 
                                 <button
                                   className="btn-accion delete"
@@ -1112,7 +1322,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                   onClick={() => eliminarLicencia(lic)}
                                   title="Eliminar licencia permanentemente"
                                 >
-                                  🗑️ Eliminar
+                                  Eliminar
                                 </button>
                               </div>
                             </td>
@@ -1196,7 +1406,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                   onClick={() => setDurSeleccionada(d.codigo)}
                   style={{
                     padding: '10px', borderRadius: '8px', border: durSeleccionada === d.codigo ? '2px solid var(--admin-accent)' : '1px solid var(--admin-border)',
-                    background: durSeleccionada === d.codigo ? 'rgba(0,245,118,0.1)' : 'var(--admin-surface)',
+                    background: durSeleccionada === d.codigo ? 'color-mix(in srgb, var(--green) 10%, transparent)' : 'var(--admin-surface)',
                     color: 'var(--admin-text)', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem',
                   }}
                 >
@@ -1211,7 +1421,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                 <label style={labelStyle}>Clave generada</label>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <input readOnly value={claveGenerada} style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '1px', flex: 1 }} />
-                  <button className="btn-guardar-admin" type="button" onClick={() => copiarClave(claveGenerada)}>📋</button>
+                  <button className="btn-guardar-admin" type="button" onClick={() => copiarClave(claveGenerada)} aria-label="Copiar clave"><Copy size={15} /></button>
                 </div>
                 {pinInicialGenerado && (
                   <p style={{ color: 'var(--kpi-gold)', margin: '10px 0 0', fontSize: '0.85rem' }}>
@@ -1240,9 +1450,9 @@ function PanelDueno({ apiUrl, config, alVolver }) {
               {/* Subtabs: Pendientes / Histórico / Todas */}
               <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-input, rgba(255,255,255,0.03))', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
                 {[
-                  { id: 'pendientes', label: `📥 Pendientes (${solicitudes.filter(s => s.estado === 'Pendiente').length})` },
-                  { id: 'historico', label: `📜 Histórico Atendidas (${solicitudes.filter(s => s.estado === 'Atendida' || s.estado === 'Pagada').length})` },
-                  { id: 'todas', label: `📑 Todas (${solicitudes.length})` }
+                  { id: 'pendientes', label: `Pendientes (${solicitudes.filter(s => s.estado === 'Pendiente').length})` },
+                  { id: 'historico', label: `Histórico Atendidas (${solicitudes.filter(s => s.estado === 'Atendida' || s.estado === 'Pagada').length})` },
+                  { id: 'todas', label: `Todas (${solicitudes.length})` }
                 ].map(sub => (
                   <button
                     key={sub.id}
@@ -1255,7 +1465,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                       fontWeight: 600,
                       cursor: 'pointer',
                       border: 'none',
-                      background: filtroSolicitud === sub.id ? 'var(--gold, #f5b842)' : 'transparent',
+                      background: filtroSolicitud === sub.id ? 'var(--gold, var(--gold))' : 'transparent',
                       color: filtroSolicitud === sub.id ? '#000' : 'var(--admin-text-muted)',
                       transition: 'all 0.2s ease'
                     }}
@@ -1278,7 +1488,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                   <div style={{ padding: '30px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px dashed var(--admin-border)' }}>
                     <p style={{ margin: 0, color: 'var(--admin-text-muted)', fontSize: '0.9rem' }}>
                       {filtroSolicitud === 'pendientes'
-                        ? '✨ No hay solicitudes pendientes de atender. Las solicitudes nuevas aparecerán aquí.'
+                        ? 'No hay solicitudes pendientes de atender. Las solicitudes nuevas aparecerán aquí.'
                         : 'No hay registros en esta sección.'}
                     </p>
                   </div>
@@ -1324,7 +1534,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                   <div style={{ fontSize: '0.68rem', color: 'var(--admin-text-dim)' }}>Sin enviar aún</div>
                                 )}
                                 <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                  <button className="btn-solicitud atender" style={{ padding: '3px 7px', fontSize: '0.72rem' }} onClick={() => copiarClave(s.clave_generada)}>📋 Copiar</button>
+                                  <button className="btn-solicitud atender" style={{ padding: '3px 7px', fontSize: '0.72rem' }} onClick={() => copiarClave(s.clave_generada)}>Copiar</button>
                                   {s.email && (
                                     <button
                                       className="btn-solicitud atender"
@@ -1333,7 +1543,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                       disabled={enviandoEmail === s.id}
                                       title="Enviar correo con la clave, pasos de activación y soporte"
                                     >
-                                      📧 {enviandoEmail === s.id ? 'Enviando…' : 'Enviar Email'}
+                                      {enviandoEmail === s.id ? 'Enviando…' : 'Enviar Email'}
                                     </button>
                                   )}
                                 </div>
@@ -1347,9 +1557,9 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                               {s.estado === 'Pendiente' ? (
                                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                                  <button className="btn-solicitud pagada" onClick={() => cambiarSolicitud(s.id, 'Pagada')}>✅ Pagada</button>
+                                  <button className="btn-solicitud pagada" onClick={() => cambiarSolicitud(s.id, 'Pagada')}>Pagada</button>
                                   <button className="btn-solicitud atender" onClick={() => cambiarSolicitud(s.id, 'Atendida')}>Atender</button>
-                                  <button className="btn-solicitud rechazar" onClick={() => cambiarSolicitud(s.id, 'Rechazada')} title="Rechazar y eliminar automáticamente">❌ Rechazar</button>
+                                  <button className="btn-solicitud rechazar" onClick={() => cambiarSolicitud(s.id, 'Rechazada')} title="Rechazar y eliminar automáticamente">Rechazar</button>
                                 </div>
                               ) : (
                                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -1373,7 +1583,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                     disabled={enviandoClave === s.id}
                                     onClick={() => generarClaveSolicitud(s)}
                                   >
-                                    {enviandoClave === s.id ? 'Generando…' : '🔑 Generar Clave'}
+                                    {enviandoClave === s.id ? 'Generando…' : 'Generar Clave'}
                                   </button>
                                 </div>
                               )}
@@ -1384,7 +1594,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                                 onClick={() => eliminarSolicitud(s.id, s.negocio || s.propietario)}
                                 title="Eliminar solicitud permanentemente"
                               >
-                                🗑️ Eliminar
+                                Eliminar
                               </button>
                             </div>
                           </td>
@@ -1431,7 +1641,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      📧 Correo de Activación
+                      Correo de Activación
                     </h3>
                     <button
                       onClick={() => setModalEmail(null)}
@@ -1473,7 +1683,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                       }}
                       style={{ padding: '8px 14px', fontSize: '0.82rem' }}
                     >
-                      📋 Copiar Texto Completo
+                      Copiar Texto Completo
                     </button>
                     {modalEmail.mailtoUrl && (
                       <a
@@ -1523,7 +1733,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                           {f.comprobante && <div style={{ fontSize: '0.7rem', color: 'var(--admin-text-dim)' }}>Comp.: {f.comprobante}</div>}
                         </td>
                         <td>
-                          <button className="btn-solicitud atender" onClick={() => setFacturaSeleccionada(f)}>🖨️ Ver factura</button>
+                          <button className="btn-solicitud atender" onClick={() => setFacturaSeleccionada(f)}>Ver factura</button>
                         </td>
                       </tr>
                     ))}
@@ -1570,8 +1780,8 @@ function PanelDueno({ apiUrl, config, alVolver }) {
                               <input type="checkbox" checked={Boolean(m.activo)} onChange={() => guardarMetodoCambioActivo({ ...m, activo: !m.activo })} />
                             </td>
                             <td>
-                              <button className="btn-accion" onClick={() => editarMetodo(m)} title="Editar">✏️</button>
-                              <button className="btn-accion delete" onClick={() => eliminarMetodo(m)} title="Eliminar">🗑️</button>
+                              <button className="btn-accion" onClick={() => editarMetodo(m)} title="Editar"></button>
+                              <button className="btn-accion delete" onClick={() => eliminarMetodo(m)} title="Eliminar" aria-label="Eliminar"><Trash2 size={15} /></button>
                             </td>
                           </tr>
                         );
@@ -1668,12 +1878,84 @@ function PanelDueno({ apiUrl, config, alVolver }) {
         )}
       </div>
 
+      {licenciaCupoId !== null && licencias.some((l) => l.id === licenciaCupoId) && (
+        <LicenciaCupoModal
+          apiUrl={apiUrl}
+          token={token}
+          licencia={licencias.find((l) => l.id === licenciaCupoId)}
+          alCerrar={() => setLicenciaCupoId(null)}
+          alCambiar={cargarTodo}
+        />
+      )}
+
       {facturaSeleccionada && (
         <FacturaActivacion
           factura={facturaSeleccionada}
           nombreNegocio={nombreNegocio}
           alCerrar={() => setFacturaSeleccionada(null)}
         />
+      )}
+
+      {cambioPinAbierto && (
+        <div
+          ref={dialogoCambioPin} tabIndex={-1}
+          role="dialog" aria-modal="true" aria-label="Cambiar mi PIN"
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: '16px', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', outline: 'none' }}
+          onClick={cerrarCambioPin}
+        >
+          <div
+            style={{ width: '100%', maxWidth: '380px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '18px', padding: '28px 24px', borderRadius: '16px', background: 'var(--admin-surface)', border: '1px solid var(--admin-border)', boxShadow: '0 30px 70px rgba(0,0,0,0.5)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <KeyRound size={18} style={{ color: 'var(--gold)' }} />
+                <strong style={{ fontSize: '1rem' }}>Cambiar mi PIN</strong>
+              </div>
+              <button type="button" onClick={cerrarCambioPin} disabled={guardandoCambioPin} style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-muted)', fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1 }} aria-label="Cerrar">✕</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {['actual', 'nuevo', 'confirmar'].map((p) => (
+                <span key={p} style={{ width: '8px', height: '8px', borderRadius: '50%', background: p === pasoCambioPin ? 'var(--gold)' : 'var(--admin-border)' }} />
+              ))}
+            </div>
+
+            <p style={{ margin: 0, textAlign: 'center', fontSize: '0.88rem', color: 'var(--admin-text-muted)' }}>
+              {pasoCambioPin === 'actual' && 'Primero confirma tu PIN actual.'}
+              {pasoCambioPin === 'nuevo' && 'Ahora elige tu nuevo PIN (4 a 12 dígitos).'}
+              {pasoCambioPin === 'confirmar' && 'Escríbelo una vez más para confirmarlo.'}
+            </p>
+
+            <form onSubmit={(e) => { e.preventDefault(); avanzarPasoCambioPin(); }} style={{ width: '100%' }}>
+              <PinPad
+                value={pinDelPasoActual}
+                length={pasoCambioPin === 'actual' ? Math.max(pinLongitud, 4) : 6}
+                error={errorCambioPin}
+                disabled={guardandoCambioPin}
+                onDigit={agregarDigitoCambioPin}
+                onDelete={borrarDigitoCambioPin}
+                asSubmit
+                submitDisabled={
+                  guardandoCambioPin ||
+                  (pasoCambioPin === 'actual' ? !pinActualCambioCompleto : pinDelPasoActual.length < 4)
+                }
+                autoSubmitLength={longitudAutoEnvioCambioPin}
+              />
+              {guardandoCambioPin && <p style={{ textAlign: 'center', fontSize: '0.82rem', color: 'var(--admin-text-muted)', marginTop: '8px' }}>Guardando…</p>}
+            </form>
+
+            {pasoCambioPin !== 'actual' && !guardandoCambioPin && (
+              <button
+                type="button"
+                onClick={() => { setErrorCambioPin(''); setPasoCambioPin(pasoCambioPin === 'confirmar' ? 'nuevo' : 'actual'); }}
+                style={{ background: 'transparent', border: 'none', color: 'var(--admin-text-muted)', fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Atrás
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

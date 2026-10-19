@@ -13,10 +13,11 @@ import { getDatabase } from '../db/index.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { assertSixDigitPin, verifyPin, verifySupervisorAuthorization } from '../services/authService.js';
-import { registrarIntentoFallido, registrarIntentoExitoso } from '../services/plataformaService.js';
+import { registrarFallo, registrarExito } from '../services/seguridadService.js';
 import { cuentaAbiertaParaMesa, cobrarCuenta, type ICuentaAbiertaFila } from '../services/cuentasService.js';
 import { notificarMesas, notificarKDS } from '../lib/sse.js';
 import { ROLES_ADMIN, ROLES_CAJA, ROLES_OPERACION } from '../lib/roles.js';
+import { crearCuentaParaLlevar, parsearCliente, parsearLineas } from '../services/ventaRapidaService.js';
 import { createLogger } from '../lib/logger.js';
 
 const router = Router();
@@ -30,7 +31,34 @@ interface IMesaListaFila {
   estado: string;
   camarero_id: number | null;
   camarero: string | null;
+  cuenta_id: number | null;
+  minutos_abierta: number | null;
+  total_cuenta: string | null;
+  platos_pendientes: string | null;
 }
+
+/**
+ * Consulta base del listado de mesas: mesa + camarero + resumen de la cuenta abierta
+ * (minutos abierta, subtotal consumido y platos aún pendientes en cocina).
+ */
+const MESAS_LISTA_SQL = `
+  SELECT m.*, u.nombre AS camarero,
+         c.id AS cuenta_id,
+         (EXTRACT(EPOCH FROM (NOW() - c.fecha_apertura)) / 60)::int AS minutos_abierta,
+         t.total_cuenta,
+         t.platos_pendientes
+  FROM mesas m
+  LEFT JOIN usuarios u ON u.id = m.camarero_id
+  LEFT JOIN LATERAL (
+    SELECT id, fecha_apertura FROM cuentas
+    WHERE mesa_id = m.id AND estado = 'Abierta' ORDER BY id DESC LIMIT 1
+  ) c ON TRUE
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(cantidad * precio_unitario), 0) AS total_cuenta,
+           COUNT(*) FILTER (WHERE COALESCE(estado_cocina, 'Pendiente') = 'Pendiente') AS platos_pendientes
+    FROM cuenta_detalles WHERE cuenta_id = c.id AND anulado_en IS NULL
+  ) t ON c.id IS NOT NULL
+`;
 
 /** Fila de cuenta recién creada por comanda (RETURNING sin tipo_servicio). */
 interface ICuentaNuevaFila {
@@ -59,6 +87,7 @@ interface IDetalleCuentaFila {
   guarnicion: string | null;
   termino: string | null;
   nombre: string;
+  tasa_itbis: string;
 }
 
 /** Fila de producto activo consultado al tomar una comanda. */
@@ -79,8 +108,7 @@ router.get('/api/mesas', requireAuth, route(async (req: Request, res: Response) 
   const db = getDatabase();
   if (req.auth!.userRole === 'Camarero') {
     const result = await db.query<IMesaListaFila>(
-      `SELECT m.*, u.nombre AS camarero FROM mesas m
-       LEFT JOIN usuarios u ON u.id = m.camarero_id
+      `${MESAS_LISTA_SQL}
        WHERE m.estado = 'Disponible' OR m.camarero_id = $1
        ORDER BY m.id`,
       [req.auth!.userId]
@@ -89,8 +117,7 @@ router.get('/api/mesas', requireAuth, route(async (req: Request, res: Response) 
     return;
   }
   const result = await db.query<IMesaListaFila>(
-    `SELECT m.*, u.nombre AS camarero FROM mesas m
-     LEFT JOIN usuarios u ON u.id = m.camarero_id
+    `${MESAS_LISTA_SQL}
      ORDER BY m.id`
   );
   res.json(result.rows);
@@ -137,6 +164,10 @@ router.put('/api/mesas/:id', requireAuth, requireRoles(...ROLES_ADMIN), route(as
 router.delete('/api/mesas/:id', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const id = positiveInteger(req.params.id, 'Mesa');
+  const historical = await db.query<{ id: number }>('SELECT id FROM cuentas WHERE mesa_id = $1 LIMIT 1', [id]);
+  if (historical.rowCount) {
+    throw httpError(409, 'La mesa tiene historial de cuentas y no puede eliminarse. Puedes renombrarla o dejarla disponible.');
+  }
   const result = await db.query("DELETE FROM mesas WHERE id = $1 AND estado <> 'Ocupada'", [id]);
   if (!result.rowCount) {throw httpError(409, 'La mesa no existe o está ocupada.');}
   await registrarAuditoria(db, { usuarioId: req.auth!.userId, accion: 'ELIMINAR_MESA', entidad: 'mesas', entidadId: id, ip: clientIp(req) });
@@ -222,7 +253,8 @@ router.get('/api/mesas/:id/cuenta', requireAuth, route(async (req: Request, res:
     throw httpError(403, 'Solo el camarero que abrió la mesa puede ver esta cuenta.');
   }
   const details = await db.query<IDetalleCuentaFila>(
-    `SELECT cd.id, cd.cantidad, cd.precio_unitario AS precio, cd.notas, cd.guarnicion, cd.termino, p.nombre
+    `SELECT cd.id, cd.cantidad, cd.precio_unitario AS precio, cd.notas, cd.guarnicion, cd.termino, p.nombre,
+            COALESCE(p.tasa_itbis, 0) AS tasa_itbis
      FROM cuenta_detalles cd
      JOIN productos p ON p.id = cd.producto_id
      WHERE cd.cuenta_id = $1 AND cd.anulado_en IS NULL
@@ -246,16 +278,18 @@ router.post('/api/mesas/:id/acceder', requireAuth, requireRoles('Camarero'), rou
   const propietario = await db.query<{ nombre: string }>('SELECT nombre FROM usuarios WHERE id = $1', [account.camarero_id]);
   const nombrePropietario = propietario.rowCount ? propietario.rows[0].nombre : 'otro camarero';
   if (account.camarero_id !== req.auth!.userId) {throw httpError(403, `Esta mesa pertenece a: ${nombrePropietario}.`);}
+  const ip = clientIp(req);
+  const claves = ['ip:' + (ip || 'unknown')];
   const user = await db.query<{ id: number; pin_hash: string | null }>(
     "SELECT id, pin_hash FROM usuarios WHERE id = $1 AND estado = 'Activo'",
     [req.auth!.userId]
   );
   if (!user.rowCount || !verifyPin(req.body.pin, user.rows[0].pin_hash)) {
-    registrarIntentoFallido(clientIp(req));
+    await registrarFallo(claves);
     res.status(403).json({ error: 'PIN incorrecto.' });
     return;
   }
-  registrarIntentoExitoso(clientIp(req));
+  await registrarExito(claves);
   await registrarAuditoria(db, {
     usuarioId: req.auth!.userId,
     accion: 'ACCEDER_MESA',
@@ -345,7 +379,14 @@ router.post(['/api/mesas/:id/cobrar', '/api/mesas/:id/cerrar', '/api/cuentas/:id
     req,
   });
   logger.info({ action: 'CUENTA_COBRADA', userId: req.auth!.userId, cuentaId: result.rows[0].id, ncf: receipt.comprobante });
-  res.json({ mensaje: 'Pago procesado e inventario actualizado.', ncf: receipt.comprobante, comprobante: receipt.comprobante, totales: receipt });
+  res.json({
+    mensaje: 'Pago procesado e inventario actualizado.',
+    ncf: receipt.comprobante,
+    comprobante: receipt.comprobante,
+    cuenta_id: receipt.cuenta_id,
+    dividida: receipt.dividida,
+    totales: receipt,
+  });
 }));
 
 // DELETE /api/cuenta_detalles/:id (operación): anula un producto de una cuenta
@@ -383,49 +424,24 @@ router.delete('/api/cuenta_detalles/:id', requireAuth, requireRoles(...ROLES_OPE
   res.json({ mensaje: 'Producto anulado correctamente.' });
 }));
 
-// POST /api/pedidos/llevar (operación): pedido para llevar SIN mesa: registra
-// o actualiza el cliente frecuente, crea la cuenta (tipo 'Para Llevar') con
-// sus detalles y notifica a Cocina/Bar.
+// POST /api/pedidos/llevar (operación): pedido para llevar SIN mesa que queda abierto para cobrarse después:
+// crea la cuenta (tipo 'Para Llevar') con sus detalles (notas, guarnición y término incluidos) y notifica a
+// Cocina/Bar. El cliente es opcional; con nombre y teléfono se registra o actualiza como cliente frecuente.
+// Para vender y cobrar en el mismo paso: POST /api/ventas/rapida.
 router.post('/api/pedidos/llevar', requireAuth, requireRoles(...ROLES_OPERACION), route(async (req: Request, res: Response) => {
   const db = getDatabase();
-  const name = String(req.body.cliente_nombre || '').trim();
-  const phone = String(req.body.cliente_telefono || '').trim();
-  const order: IItemComanda[] = Array.isArray(req.body.comanda) ? req.body.comanda : [];
-  if (!name || !phone || !order.length) {throw httpError(400, 'Completa cliente y comanda.');}
+  const lineas = parsearLineas(req.body.comanda);
+  const cliente = parsearCliente(req.body.cliente_nombre, req.body.cliente_telefono);
   const accountId = await db.transaction(async (client) => {
-    const customer = await client.query<{ id: number }>(
-      `INSERT INTO clientes_frecuentes (nombre, telefono, direccion) VALUES ($1, $2, 'Para Llevar')
-       ON CONFLICT (telefono) DO UPDATE SET nombre = EXCLUDED.nombre
-       RETURNING id`,
-      [name, phone]
-    );
-    const account = await client.query<{ id: number }>(
-      `INSERT INTO cuentas (mesa_id, camarero_id, estado, tipo_servicio, cliente_id)
-       VALUES (NULL, $1, 'Abierta', 'Para Llevar', $2)
-       RETURNING id`,
-      [req.auth!.userId, customer.rows[0].id]
-    );
-    for (const item of order) {
-      const productId = positiveInteger(item.id, 'Producto');
-      const quantity = positiveInteger(item.cantidad, 'Cantidad');
-      const product = await client.query<{ precio: string }>(
-        "SELECT precio FROM productos WHERE id = $1 AND estado = 'Activo'",
-        [productId]
-      );
-      if (!product.rowCount) {throw httpError(400, 'Producto no disponible.');}
-      await client.query(
-        'INSERT INTO cuenta_detalles (cuenta_id, producto_id, cantidad, precio_unitario) VALUES ($1, $2, $3, $4)',
-        [account.rows[0].id, productId, quantity, product.rows[0].precio]
-      );
-    }
+    const id = await crearCuentaParaLlevar(client, { camareroId: req.auth!.userId, cliente, lineas, enviarACocina: true });
     await registrarAuditoria(client, {
       usuarioId: req.auth!.userId,
       accion: 'CREAR_PEDIDO_LLEVAR',
       entidad: 'cuentas',
-      entidadId: account.rows[0].id,
+      entidadId: id,
       ip: clientIp(req),
     });
-    return account.rows[0].id;
+    return id;
   });
   logger.info({ action: 'PEDIDO_LLEVAR', userId: req.auth!.userId, cuentaId: accountId });
   notificarKDS('nuevo_pedido');

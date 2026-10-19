@@ -5,9 +5,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import express, { Express } from 'express';
+import express, { Express, Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { directivasCsp } from './lib/csp.js';
 import { createLogger } from './lib/logger.js';
 import { config } from './lib/config.js';
 import { getDatabase } from './db/index.js';
@@ -18,6 +19,7 @@ import {
   healthCheck,
 } from './middleware/requestLogger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { loginLimiter, publicLimiter, registroDispositivoLimiter } from './middleware/rateLimiter.js';
 import pingRouter from './routers/ping.js';
 import inventarioRouter from './routers/inventario.js';
 import authRouter from './routers/auth.js';
@@ -31,12 +33,17 @@ import menuConfiguracionRouter from './routers/menuConfiguracion.js';
 import dispositivosRouter from './routers/dispositivos.js';
 import duenoRouter from './routers/dueno.js';
 import cajaRouter from './routers/caja.js';
+import asistenciaRouter from './routers/asistencia.js';
 import reportesRouter from './routers/reportes.js';
 import dgiiRouter from './routers/dgii.js';
 import dgiiEcfRouter from './routers/dgiiEcf.js';
 import dgiiReportesRouter from './routers/dgiiReportes.js';
 import kdsRouter from './routers/kds.js';
 import webhookRouter from './routers/webhook.js';
+import respaldosRouter from './routers/respaldos.js';
+import ventasRouter from './routers/ventas.js';
+import { opcionesCors } from './lib/corsEscritorio.js';
+import duenoLicenciasRouter from './routers/duenoLicencias.js';
 
 const logger = createLogger('app');
 
@@ -63,16 +70,17 @@ function resolverFrontendDist(): string | null {
 export const createApp = (): Express => {
   const app = express();
 
-  // Security middleware
-  app.use(helmet());
+  // Security middleware (la política de contenido vive en lib/csp.ts).
+  app.use(helmet({ contentSecurityPolicy: { directives: directivasCsp() } }));
 
-  // CORS (misma lista de orígenes que el legacy)
+  // Detrás de Passenger/cPanel el cliente real viene en el header X-Forwarded-For
+  app.set('trust proxy', 1);
+
+  // CORS: la lista de orígenes configurada (CORS_ORIGINS) para toda la API, más una excepción acotada para que la app
+  // de escritorio consulte planes, métodos de pago y la solicitud de licencia en el central (ver lib/corsEscritorio.ts).
   app.use(
-    cors({
-      origin: config.corsOrigins,
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      maxAge: 3600,
+    cors<Request>((req, callback) => {
+      callback(null, opcionesCors(req.headers.origin, req.path, config.corsOrigins));
     })
   );
 
@@ -94,6 +102,9 @@ export const createApp = (): Express => {
       await db.query('SELECT 1');
       const migRes = await db.query('SELECT id FROM app_migrations ORDER BY ejecutada_en DESC LIMIT 1');
       const ultimaMig = migRes.rowCount ? migRes.rows[0].id : 'ninguna';
+      // Las fechas del negocio (cierres, reportes, turnos) dependen de la zona horaria de la base de datos.
+      const tzRes = await db.query("SELECT current_setting('TimeZone') AS zona");
+      const zonaHorariaBd = tzRes.rows[0]?.zona ? String(tzRes.rows[0].zona) : 'desconocida';
       let uploadsOk = true;
       try {
         const probe = path.join(config.uploadsDir, `.health-${process.pid}.tmp`);
@@ -105,9 +116,10 @@ export const createApp = (): Express => {
       const mem = process.memoryUsage();
       res.json({
         estado: 'ok',
-        version: '2.1.0',
+        version: '2.6.0',
         baseDeDatos: 'conectada',
         migracion: ultimaMig,
+        zonaHorariaBd,
         telegram: telegramActivo() ? 'activo' : 'inactivo',
         uploads: uploadsOk ? 'escribible' : 'no_escribible',
         uptimeSegundos: Math.round(process.uptime()),
@@ -121,7 +133,7 @@ export const createApp = (): Express => {
       });
       res.status(503).json({
         estado: 'error',
-        version: '2.1.0',
+        version: '2.6.0',
         baseDeDatos: 'degradada',
         telegram: telegramActivo() ? 'activo' : 'inactivo',
       });
@@ -138,6 +150,18 @@ export const createApp = (): Express => {
     })
   );
 
+  // ── Rate limiting de endpoints públicos (brute-force / abuso) ──
+  app.use('/api/login', loginLimiter);
+  app.use('/api/autorizar', loginLimiter);
+  app.use('/api/kds/autenticar', loginLimiter);
+  app.use('/api/dueno/login', loginLimiter);
+  app.use('/api/dueno/establecer-pin', loginLimiter);
+  app.use('/api/dispositivo/registrar', registroDispositivoLimiter);
+  app.use('/api/dispositivo/activar', publicLimiter);
+  app.use('/api/solicitud-licencia', publicLimiter);
+  app.use('/setup', loginLimiter);
+  app.use('/api/setup', publicLimiter);
+
   // ── Routers de negocio (cada uno protege sus propias rutas) ──
   app.use('/ping', pingRouter);
   app.use('/api/inventario', inventarioRouter);
@@ -152,12 +176,16 @@ export const createApp = (): Express => {
   app.use(dispositivosRouter);
   app.use(duenoRouter);
   app.use(cajaRouter);
+  app.use(asistenciaRouter);
   app.use(reportesRouter);
   app.use(dgiiRouter);
   app.use(dgiiEcfRouter);
   app.use(dgiiReportesRouter);
   app.use(kdsRouter);
   app.use(webhookRouter);
+  app.use(respaldosRouter);
+  app.use(ventasRouter);
+  app.use(duenoLicenciasRouter);
 
   // ── Frontend compilado (SPA) en producción/dev ──
   const frontendDist = resolverFrontendDist();
