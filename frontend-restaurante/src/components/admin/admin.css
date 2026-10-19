@@ -657,7 +657,8 @@
 /* ─── TABLA ─────────────────────────────────────────────────────────── */
 
 .tabla-contenedor {
-  max-height: 400px;
+  /* ocupa el alto disponible de la pantalla (antes tope fijo de 400px: en 1080p solo se veían 3 filas) */
+  max-height: max(400px, calc(100vh - 320px));
   overflow-y: auto;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);

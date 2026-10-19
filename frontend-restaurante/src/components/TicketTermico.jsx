@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { qrComoImagen } from '../utils/qr.js';
 
 function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
   const ticketRef = useRef(null);
@@ -253,7 +254,7 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
                 const qrUrl = (tipoComprobante === 'e-CF' || (ncfGenerado && ncfGenerado.startsWith('E')))
                   ? `https://ecf.dgii.gov.do/fe/consultatimbrefiscal?RncEmisor=${encodeURIComponent(rncNegocio.replace(/[^0-9]/g, ''))}&RncComprador=${encodeURIComponent((rncCliente || '').replace(/[^0-9]/g, ''))}&eNCF=${encodeURIComponent(ncfGenerado || '')}&MontoTotal=${total}`
                   : `https://chloerestaurant.lat/verificar-factura?ncf=${encodeURIComponent(ncfGenerado || '')}&total=${total}`;
-                const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=100x100&margin=2&data=${encodeURIComponent(qrUrl)}`;
+                const qrImgSrc = qrComoImagen(qrUrl);
                 return (
                   <div>
                     <img

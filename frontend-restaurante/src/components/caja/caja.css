@@ -195,6 +195,7 @@
 .cobro-mixto { padding: 14px 16px; border: 1px dashed var(--px-line-2); border-radius: var(--px-r-md); }
 .cobro-mixto__toggle { display: flex; align-items: center; gap: 10px; font: 650 .86rem var(--px-font-ui); cursor: pointer; }
 .cobro-mixto__toggle input { width: 18px; height: 18px; accent-color: var(--px-gold); cursor: pointer; }
+.cobro-mixto__toggle > span { display: inline-flex; align-items: center; white-space: nowrap; }
 .cobro-mixto__body { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
 .cobro-mixto__total { display: flex; justify-content: space-between; margin-top: 10px; font-size: .82rem; color: var(--px-ink-3); }
 .cobro-mixto__total strong { color: var(--px-ink); font-variant-numeric: lining-nums tabular-nums; }

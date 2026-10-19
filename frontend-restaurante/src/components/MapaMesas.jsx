@@ -293,7 +293,7 @@ function MapaMesas({ usuario, alCerrarSesion, apiUrl, configSistema }) {
           {logoComercio ? (
             <img src={logoComercio} alt={nombreComercio} className="mp-brand__logo" />
           ) : (
-            <div className="mp-brand__icon">{nombreComercio.charAt(0).toUpperCase()}</div>
+            <img src="/icons.svg" alt={nombreComercio} className="mp-brand__logo" style={{ objectFit: 'contain' }} />
           )}
           <div className="mp-brand__text">
             <h1>{nombreComercio}</h1>

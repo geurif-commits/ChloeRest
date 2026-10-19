@@ -65,3 +65,5 @@ frontend-restaurante/dist/
 
 # esbuils
 .esbuild/
+# Video comercial: fotogramas, borradores y montaje (se regeneran con marketing/video)
+marketing/video/salida/

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   LayoutDashboard, TableProperties, Package, ChefHat, Warehouse,
   BarChart3, FileText, CreditCard, Users, Building2, Receipt,
-  Palette, Image, Monitor, ChevronRight, Store,
+  Palette, Image, Monitor, ChevronRight,
   ArrowLeft, Menu, X, Clock, CalendarClock, ChevronDown
 } from 'lucide-react';
 import './admin/admin.css';
@@ -164,8 +164,9 @@ export default function PanelAdmin({ usuario, alVolver, apiUrl, alVerificarLicen
       {/* ── Navegación lateral ── */}
       <aside className={`adm-side ${menuMovilAbierto ? 'is-open' : ''}`} aria-label="Navegación del panel">
         <div className="adm-brand">
-          <span className={`adm-brand__mark ${logoComercio ? 'has-logo' : ''}`}>
-            {logoComercio ? <img src={logoComercio} alt="Logo" /> : <Store size={20} />}
+          <span className="adm-brand__mark has-logo">
+            {/* Sin logo propio, el sello de marca de ChloeRestaurant */}
+            <img src={logoComercio || '/icons.svg'} alt={logoComercio ? 'Logo' : 'ChloeRestaurant'} />
           </span>
           <div className="adm-brand__text">
             <strong>{nombreComercio}</strong>

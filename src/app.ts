@@ -8,6 +8,7 @@ import path from 'node:path';
 import express, { Express, Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { directivasCsp } from './lib/csp.js';
 import { createLogger } from './lib/logger.js';
 import { config } from './lib/config.js';
 import { getDatabase } from './db/index.js';
@@ -69,16 +70,8 @@ function resolverFrontendDist(): string | null {
 export const createApp = (): Express => {
   const app = express();
 
-  // Security middleware. Las instalaciones locales (Electron/LAN) consultan planes y métodos de pago
-  // al servidor central, así que connect-src permite además ese origen.
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        'connect-src': ["'self'", 'https://chloerestaurant.lat'],
-      },
-    },
-  }));
+  // Security middleware (la política de contenido vive en lib/csp.ts).
+  app.use(helmet({ contentSecurityPolicy: { directives: directivasCsp() } }));
 
   // Detrás de Passenger/cPanel el cliente real viene en el header X-Forwarded-For
   app.set('trust proxy', 1);
