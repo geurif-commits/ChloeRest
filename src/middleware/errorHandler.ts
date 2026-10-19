@@ -94,9 +94,14 @@ export const errorHandler = (err: Error, req: Request, res: Response, _next: Nex
   } else if (err instanceof Error && (err as Error & { name?: string }).name === 'MulterError') {
     // Errores de subida de archivos (multer): tamaño u otros límites
     statusCode = 400;
+    const motivos: Record<string, string> = {
+      LIMIT_FILE_SIZE: 'El archivo supera el tamaño máximo permitido (5 MB).',
+      LIMIT_FILE_COUNT: 'Se enviaron más archivos de los permitidos.',
+      LIMIT_UNEXPECTED_FILE: 'Campo de archivo no esperado.',
+    };
     response = {
       success: false,
-      error: 'El archivo no cumple con los requisitos.',
+      error: motivos[String((err as Error & { code?: string }).code)] ?? 'El archivo no cumple con los requisitos.',
       code: 'UPLOAD_INVALID',
       timestamp,
     };
