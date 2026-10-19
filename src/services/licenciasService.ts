@@ -336,7 +336,8 @@ CANALES DE SOPORTE Y CONTACTO:
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0c101d; color: #f8fafc; border-radius: 16px; overflow: hidden; border: 1px solid #1e293b;">
       <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 30px 24px; text-align: center; border-bottom: 2px solid #f5b83d;">
-        <h1 style="color: #f5b83d; margin: 0; font-size: 24px;">🍽️ ChloeRestaurant POS</h1>
+        <img src="https://chloerestaurant.lat/logo.png" width="104" height="104" alt="ChloeRestaurant" style="display: block; margin: 0 auto 10px;" />
+        <h1 style="color: #f5b83d; margin: 0; font-size: 24px; font-family: Georgia, 'Times New Roman', serif; letter-spacing: .5px;">ChloeRestaurant POS</h1>
         <p style="color: #94a3b8; margin: 6px 0 0; font-size: 14px;">Activación de Licencia Comercial</p>
       </div>
 

@@ -128,7 +128,7 @@ export function bannerCompleto({ w, h, u = h / 630, margenX = 72 * u, tema = 'do
   const dy = (h - (yD + 6 * u - y0)) / 2 - y0;      // centra verticalmente el bloque de texto
   return svg(w, h,
     `${defs(id, tema)}${fondo({ id, w, h, tema, foco: [xMark + M / 2, h / 2], radio: M * 1.25 })}
-     ${colocar(isotipo({ p: id, tema }), xMark, yMark, M / 512)}
+     ${colocar(isotipo({ p: id, tema, halo: true }), xMark, yMark, M / 512)}
      <g transform="translate(0 ${dy.toFixed(2)})">${colocar(bt.svg, xT, baseWord)}${l1.svg}${l2.svg}${subt}${cp.svg}${dom.svg}</g>`);
 }
 
@@ -156,7 +156,7 @@ export function bannerCorto({ w, h, margenX = h * 0.7, tema = 'dorado', id = 'bk
   const dom = T(FUENTES.uiFuerte, MENSAJE.dominio, { x: xT, y: yS + sizeS * 2.1, size: h * 0.06, tracking: 0.04, relleno: t.acento });
   return svg(w, h,
     `${defs(id, tema)}${fondo({ id, w, h, tema, foco: [x0 + M / 2, h / 2], radio: h * 1.1 })}
-     ${colocar(isotipo({ p: id, tema }), x0, yMark, M / 512)}
+     ${colocar(isotipo({ p: id, tema, halo: true }), x0, yMark, M / 512)}
      ${colocar(bt.svg, xT, baseWord)}${a.svg}${b.svg}${subt.svg}${dom.svg}`);
 }
 
@@ -181,7 +181,7 @@ export function bannerCentrado({ w, h, tema = 'dorado', id = 'bq', vertical = fa
   const dom = T(FUENTES.uiFuerte, MENSAJE.dominio, { x: w / 2, y: h - (vertical ? 330 : 56) * u, size: (vertical ? 36 : 28) * u, tracking: 0.05, relleno: t.acento, ancla: 'centro' });
   return svg(w, h,
     `${defs(id, tema)}${fondo({ id, w, h, tema, foco: [w / 2, yMark + M / 2], radio: w * 0.62 })}
-     ${colocar(isotipo({ p: id, tema }), (w - M) / 2, yMark, M / 512)}
+     ${colocar(isotipo({ p: id, tema, halo: true }), (w - M) / 2, yMark, M / 512)}
      ${colocar(bt.svg, (w - bt.ancho) / 2, baseWord)}
      ${colocar(l1.svg + l2.svg, (w - total) / 2, yH)}${subt.svg}
      ${cp.svg}${dom.svg}`);
@@ -192,7 +192,7 @@ export function perfil({ w = 720, tema = 'dorado', id = 'pf' }) {
   const M = w * 0.8;
   return svg(w, w,
     `${defs(id, tema)}${fondo({ id, w, h: w, tema, foco: [w / 2, w / 2], radio: w * 0.7, anillos: false })}
-     ${colocar(isotipo({ p: id, tema }), (w - M) / 2, w * 0.5 - (277 / 512) * M, M / 512)}`);
+     ${colocar(isotipo({ p: id, tema, halo: true }), (w - M) / 2, w * 0.5 - (277 / 512) * M, M / 512)}`);
 }
 
 // ------------------------------------------------------------------ fondo de inicio de sesión (sin texto)
@@ -212,7 +212,7 @@ export function encabezadoPanel({ w = 1600, h = 240, tema = 'dorado', id = 'ep' 
   const yBase = (h - (bt.arriba + bt.abajo)) / 2 + bt.arriba;
   return svg(w, h,
     `${defs(id, tema)}${fondo({ id, w, h, tema, foco: [w * 0.9, h * 0.5], radio: h * 1.6 })}
-     ${colocar(isotipo({ p: id, tema }), h * 0.14, (h - M) / 2, M / 512)}
+     ${colocar(isotipo({ p: id, tema, halo: true }), h * 0.14, (h - M) / 2, M / 512)}
      ${colocar(bt.svg, h * 0.14 + M + h * 0.14, yBase)}`);
 }
 

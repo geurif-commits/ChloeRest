@@ -6,9 +6,11 @@ resumen de un vistazo.
 
 ## Identidad
 
-- **Concepto:** una **C** dorada (de *Chloe*) que abraza un **tenedor con un brote de hojas** (cocina fresca), coronada por el
-  **gorro de chef**, dentro de un sello marino con aro dorado. Conserva la idea del logo anterior, ahora vectorial: escala sin
-  perder nitidez y funciona sobre fondo claro y oscuro.
+- **Concepto:** un **sello de lujo**: una **C** de oro pulido (de *Chloe*) que abraza un **tenedor con un brote de hojas**
+  (cocina fresca), coronada por el **gorro de chef** con banda y gema de oro, dentro de un disco de obsidiana con destellos
+  radiales, **bisel de oro con borde de perlas** y **corona de laurel**. Conserva la idea del logo anterior, ahora vectorial y
+  con acabado de joyería (iluminación real en el metal): escala sin perder nitidez y funciona sobre fondo claro y oscuro. A
+  tamaños pequeños se simplifica (sin laurel ni perlas) para que siga leyéndose.
 - **Nombre:** `ChloeRest` + descriptor `RESTAURANT SYSTEM` + lema `GESTIONA • VENDE • CRECE`.
 - **Mensaje de los banners:** «Gestiona. Vende. Crece.» · «Sistema POS para restaurantes en República Dominicana» · mesas,
   cocina y bar, caja, facturación DGII. Dominio `chloerestaurant.lat`. (Es el mismo mensaje de la web, `index.html`.)
@@ -19,12 +21,12 @@ resumen de un vistazo.
 |---|---|---|
 | Marino | `#0A1426` | fondos, texto «Chloe» sobre claro |
 | Marino profundo | `#050A14` | fondos oscuros, tema del navegador |
-| Dorado claro / dorado / dorado oscuro | `#FFD25A` · `#F2A91E` · `#B36A00` | degradado metálico de la C, del aro y de «Rest» |
+| Dorado claro / dorado / dorado oscuro | `#F7C645` · `#E19A14` · `#8E5300` | degradado metálico de la C, del bisel, del laurel y de «Rest» |
 | Crema | `#F8F4EC` | fondos claros (igual que el tema Dorado de la app) |
 | Zafiro | `#5E94FF` | variante para el tema Zafiro |
 | Esmeralda | `#46C283` | variante para el tema Esmeralda |
 
-El degradado metálico completo: `#FFF1B8 → #FFD25A → #F2A91E → #FFD768 → #B36A00`. Cada tema tiene el suyo
+El degradado metálico completo: `#FFE9A6 → #F7C645 → #E19A14 → #F8CE5C → #8E5300`. Cada tema tiene el suyo
 (`generar/marca.mjs`, constante `TEMAS`).
 
 ### Tipografía

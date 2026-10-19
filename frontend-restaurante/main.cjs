@@ -78,13 +78,24 @@ function escaparHtml(texto) {
 
 // ── Pantalla de arranque ─────────────────────────────────────────────
 // Visible desde el primer segundo: la primera vez puede tardar minutos (instala la base de datos).
+/** Logo de marca para la pantalla de arranque (el mismo SVG que usa la interfaz); sin él, solo el nombre. */
+function logoSplash() {
+  try {
+    return `data:image/svg+xml;base64,${fs.readFileSync(path.join(__dirname, 'dist', 'icons.svg')).toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
 function htmlSplash(mensaje) {
+  const logo = logoSplash();
   return `<!doctype html><meta charset="utf-8"><title>ChloeRestaurant</title>
 <body style="margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#0a1024;color:#f3f6ff;font-family:'Segoe UI',Arial,sans-serif;-webkit-app-region:drag;user-select:none">
+${logo ? `<img src="${logo}" width="132" height="132" style="animation:p 2.6s ease-in-out infinite;filter:drop-shadow(0 0 22px rgba(245,184,61,.35))">` : ''}
 <div style="font-size:26px;font-weight:800;letter-spacing:-.5px">ChloeRestaurant</div>
 <div id="m" style="font-size:14px;color:#b9c4e6;text-align:center;max-width:340px;line-height:1.5">${escaparHtml(mensaje)}</div>
 <div style="width:200px;height:4px;background:#1c2750;border-radius:2px;overflow:hidden"><div style="width:40%;height:100%;background:#ecbc4a;border-radius:2px;animation:m 1.3s ease-in-out infinite"></div></div>
-<style>@keyframes m{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}</style></body>`;
+<style>@keyframes m{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}@keyframes p{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}</style></body>`;
 }
 
 function mostrarSplash(mensaje) {

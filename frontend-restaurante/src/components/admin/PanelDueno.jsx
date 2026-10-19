@@ -3,7 +3,7 @@ import { toastAviso } from '../Toast.jsx';
 import GestionDispositivos from './GestionDispositivos.jsx';
 import FacturaActivacion from './FacturaActivacion.jsx';
 import LicenciaCupoModal from './LicenciaCupoModal.jsx';
-import { Crown, LockKeyhole, Trash2, Copy, KeyRound } from 'lucide-react';
+import { LockKeyhole, Trash2, Copy, KeyRound } from 'lucide-react';
 import PinPad from '../PinPad.jsx';
 import './admin.css';
 
@@ -960,7 +960,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     return (
       <div className="gate">
         <div className="gate__loading">
-          <span className="gate__badge"><Crown size={26} /></span>
+          <span className="gate__badge" style={{ width: 84, height: 84, background: 'transparent', boxShadow: 'none' }}><img src="/icons.svg" alt="ChloeRestaurant" width="84" height="84" style={{ display: 'block' }} /></span>
           <p>Cargando panel del propietario…</p>
         </div>
       </div>
@@ -975,7 +975,7 @@ function PanelDueno({ apiUrl, config, alVolver }) {
     <div style={{ width: '100%', minWidth: 0, height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--admin-bg)', color: 'var(--admin-text)', fontFamily: 'sans-serif', overflow: 'hidden' }}>
       <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, var(--bg-primary), var(--bg-elevated))', borderBottom: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'color-mix(in srgb, var(--gold) 16%, transparent)', border: '1px solid color-mix(in srgb, var(--gold) 50%, transparent)', display: 'grid', placeItems: 'center', color: 'var(--gold)' }}><Crown size={22} /></div>
+          <img src="/icons.svg" alt="ChloeRestaurant" width="52" height="52" style={{ display: 'block', flexShrink: 0 }} />
           <div>
             <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--kpi-gold)', fontWeight: 700 }}>Panel del Propietario</div>
             <div style={{ fontWeight: 800, fontSize: '1.05rem' }}>{nombreNegocio}</div>

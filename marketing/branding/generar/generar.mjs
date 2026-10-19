@@ -177,7 +177,7 @@ async function hoja() {
   ];
   const sw = swatches.map(([n, c], i) => {
     const x = 90 + i * 276;
-    const claro = ['#F8F4EC', '#FFD25A', '#46C283'].includes(c);
+    const claro = (parseInt(c.slice(1, 3), 16) * 0.299 + parseInt(c.slice(3, 5), 16) * 0.587 + parseInt(c.slice(5, 7), 16) * 0.114) > 150;
     return `<rect x="${x}" y="1240" width="250" height="150" rx="16" fill="${c}" ${c === COLORES.crema ? 'stroke="#D8D1BF" stroke-width="2"' : ''}/>
       ${a(FUENTES.ui, n, { x: x + 18, y: 1332, size: 24, relleno: claro ? '#1B1710' : '#FFFFFF' })}
       ${a(FUENTES.uiNormal, c.toUpperCase(), { x: x + 18, y: 1370, size: 22, relleno: claro ? '#4A4234' : '#D3DCEC', tracking: 0.04 })}`;
