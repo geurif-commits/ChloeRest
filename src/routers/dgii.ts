@@ -13,6 +13,16 @@ import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { ROLES_ADMIN } from '../lib/roles.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
 import { normalizarRNC, validarRNC } from '../lib/rnc.js';
+import {
+  FECHA_CORTE_ECF_POR_DEFECTO,
+  TIPOS_COMPROBANTE,
+  esFechaIso,
+  esTipoElectronico,
+  estadoCorteEcf,
+  fechaLegible,
+  maximoSecuencial,
+} from '../lib/comprobantes.js';
+import { estadoFiscal, leerConfigEcf } from '../services/ecfEmisionService.js';
 
 const router = Router();
 
@@ -31,6 +41,11 @@ interface IDgiiConfigFila {
   proveedor_ecf: string | null;
   algoback_url: string | null;
   algoback_ambiente: string | null;
+  ecf_obligatorio_desde: string | null;
+  direccion_emisor: string | null;
+  telefono_emisor: string | null;
+  email_emisor: string | null;
+  regimen_fiscal: string | null;
   client_secret_configurado: boolean;
   certificado_configurado: boolean;
   algoback_api_key_configurada: boolean;
@@ -81,6 +96,8 @@ router.get('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route(
   const result = await db.query<IDgiiConfigFila>(
     `SELECT id, rnc_emisor, razon_social_emisor, ambiente, url_servicio_dgii,
             client_id, estado_ecf, proveedor_ecf, algoback_url, algoback_ambiente,
+            to_char(ecf_obligatorio_desde, 'YYYY-MM-DD') AS ecf_obligatorio_desde,
+            direccion_emisor, telefono_emisor, email_emisor, regimen_fiscal,
             (client_secret IS NOT NULL AND client_secret <> '') AS client_secret_configurado,
             (clave_certificado IS NOT NULL AND clave_certificado <> '') AS certificado_configurado,
             (algoback_api_key IS NOT NULL AND algoback_api_key <> '') AS algoback_api_key_configurada,
@@ -109,6 +126,11 @@ router.get('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route(
       algoback_api_key: '',
       algoback_url: URL_ALGOBACK,
       algoback_ambiente: 'TEST',
+      ecf_obligatorio_desde: FECHA_CORTE_ECF_POR_DEFECTO,
+      direccion_emisor: '',
+      telefono_emisor: '',
+      email_emisor: '',
+      regimen_fiscal: 'Ordinario',
     });
     return;
   }
@@ -154,6 +176,12 @@ router.post('/api/dgii/config', requireAuth, requireRoles(...ROLES_ADMIN), route
         email_mseller || '', password_mseller || '', api_key_mseller || '']
     );
   }
+  if (req.body.ecf_obligatorio_desde !== undefined && req.body.ecf_obligatorio_desde !== '') {
+    if (!esFechaIso(req.body.ecf_obligatorio_desde)) {
+      throw httpError(400, 'La fecha desde la que el e-CF es obligatorio no es válida (AAAA-MM-DD).');
+    }
+    await db.query('UPDATE dgii_config SET ecf_obligatorio_desde = $1 WHERE id = (SELECT id FROM dgii_config ORDER BY id LIMIT 1)', [req.body.ecf_obligatorio_desde]);
+  }
   await registrarAuditoria(db, {
     usuarioId: req.auth!.userId,
     accion: 'ACTUALIZAR_DGII_ECF',
@@ -170,17 +198,42 @@ router.get('/api/dgii/secuencias', requireAuth, requireRoles(...ROLES_ADMIN), ro
   res.json(result.rows);
 }));
 
-// POST /api/dgii/secuencias (Administrador): crea o actualiza una secuencia NCF.
+// POST /api/dgii/secuencias (Administrador): crea o actualiza una secuencia de comprobantes (e-NCF o NCF tradicional).
 router.post('/api/dgii/secuencias', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
   const db = getDatabase();
-  const tipo = String(req.body.tipo_comprobante || '').trim();
-  const prefijo = String(req.body.prefijo || '').trim();
+  const tipo = String(req.body.tipo_comprobante || '').trim().toUpperCase();
+  if (!TIPOS_COMPROBANTE[tipo]) {
+    throw httpError(400, 'Tipo de comprobante no válido. Usa E32, E31, E45, E44 o E34 (electrónicos).');
+  }
+  const electronico = esTipoElectronico(tipo);
+  // En un e-CF el prefijo es el tipo (E32…); el NCF tradicional puede traer el suyo.
+  const prefijo = electronico ? tipo : String(req.body.prefijo || tipo).trim().toUpperCase();
   const inicial = Number(req.body.secuencia_inicial || 1);
   const actual = Number(req.body.secuencia_actual || inicial);
-  const secuenciaFinal = Number(req.body.secuencia_final || 99999999);
+  const secuenciaFinal = Number(req.body.secuencia_final || (electronico ? 0 : 99999999));
   const vencimiento = String(req.body.fecha_vencimiento || '').trim();
-  if (!tipo || !prefijo || !vencimiento) {
+  if (!prefijo || !vencimiento) {
     throw httpError(400, 'Tipo, prefijo y fecha de vencimiento son obligatorios.');
+  }
+  if (!esFechaIso(vencimiento)) {
+    throw httpError(400, 'La fecha de vencimiento no es válida (AAAA-MM-DD).');
+  }
+  if (![inicial, actual, secuenciaFinal].every((n) => Number.isInteger(n) && n >= 1)) {
+    throw httpError(400, electronico
+      ? 'Indica el rango de e-NCF autorizado por la DGII (secuencia inicial y final, números enteros desde 1).'
+      : 'Las secuencias deben ser números enteros desde 1.');
+  }
+  if (secuenciaFinal < inicial || actual < inicial || actual > secuenciaFinal + 1) {
+    throw httpError(400, 'El rango no es coherente: la secuencia actual debe estar entre la inicial y la final.');
+  }
+  if (secuenciaFinal > maximoSecuencial(tipo)) {
+    throw httpError(400, `La secuencia final no puede superar ${maximoSecuencial(tipo).toLocaleString('es-DO')} en ${electronico ? 'un e-NCF (10 dígitos)' : 'un NCF (8 dígitos)'}.`);
+  }
+  if (!req.body.id) {
+    const corte = estadoCorteEcf((await leerConfigEcf(db))?.ecf_corte);
+    if (!electronico && corte.obligatorio) {
+      throw httpError(400, `Desde el ${fechaLegible(corte.fechaCorte)} el NCF tradicional (${tipo}) ya no es válido: registra la secuencia electrónica equivalente.`, 'NCF_NO_VALIDO');
+    }
   }
 
   if (req.body.id) {
@@ -198,15 +251,20 @@ router.post('/api/dgii/secuencias', requireAuth, requireRoles(...ROLES_ADMIN), r
     usuarioId: req.auth!.userId,
     accion: 'GUARDAR_SECUENCIA_NCF',
     entidad: 'dgii_secuencias',
+    detalle: { tipo, prefijo, inicial, actual, final: secuenciaFinal, vencimiento },
     ip: clientIp(req),
   });
-  res.json({ mensaje: 'Secuencia NCF guardada correctamente.' });
+  res.json({ mensaje: 'Secuencia guardada correctamente.' });
 }));
 
 // DELETE /api/dgii/secuencias/:id (Administrador): elimina una secuencia NCF.
 router.delete('/api/dgii/secuencias/:id', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
   const db = getDatabase();
   const id = positiveInteger(req.params.id, 'Secuencia');
+  const usada = await db.query<{ usada: boolean }>('SELECT (secuencia_actual > secuencia_inicial) AS usada FROM dgii_secuencias WHERE id = $1', [id]);
+  if (usada.rows[0]?.usada) {
+    throw httpError(409, 'Esta secuencia ya emitió comprobantes y no se puede eliminar (quedaría sin rastro fiscal). Desactívala si ya no la usas.', 'SECUENCIA_USADA');
+  }
   await db.query('DELETE FROM dgii_secuencias WHERE id = $1', [id]);
   await registrarAuditoria(db, {
     usuarioId: req.auth!.userId,
@@ -231,7 +289,7 @@ router.get('/api/dgii/secuencias/alertas', requireAuth, requireRoles(...ROLES_AD
   const result = await db.query<ISecuenciaAlertaFila>(`
     SELECT id, tipo_comprobante, prefijo, secuencia_actual, secuencia_final,
            fecha_vencimiento,
-           (secuencia_final - secuencia_actual) AS restantes,
+           (secuencia_final - secuencia_actual + 1) AS restantes,
            (fecha_vencimiento - CURRENT_DATE) AS dias_restantes
     FROM dgii_secuencias
     WHERE activa = TRUE
@@ -243,6 +301,12 @@ router.get('/api/dgii/secuencias/alertas', requireAuth, requireRoles(...ROLES_AD
     alerta_vencimiento: r.dias_restantes < 30,
   }));
   res.json(alertas);
+}));
+
+// GET /api/dgii/estado-fiscal (Administrador): ¿está el sistema listo para facturar solo con e-CF? Lista lo que falta.
+router.get('/api/dgii/estado-fiscal', requireAuth, requireRoles(...ROLES_ADMIN), route(async (_req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(await estadoFiscal(getDatabase()));
 }));
 
 // GET /api/dgii/emisor (Administrador): datos del emisor para e-CF.

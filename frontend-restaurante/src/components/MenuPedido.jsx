@@ -7,6 +7,9 @@ import { sanitizarDecimal } from '../utils/input.js';
 import { calcularTotales, porcentajePropina, formatearRD as formatearDinero } from '../utils/dinero.js';
 import { imprimirComanda } from '../utils/imprimirComanda.js';
 import { toastAviso } from './Toast.jsx';
+import SelectorComprobante from './caja/SelectorComprobante.jsx';
+import { useEstadoComprobantes } from '../hooks/useEstadoComprobantes.js';
+import { datosTicketFiscal, errorComprador } from '../utils/comprobantes.js';
 import { ArrowLeft, Search, Plus, Check, X, Banknote, CreditCard, Landmark, Receipt } from 'lucide-react';
 import './pedido/pedido.css';
 
@@ -77,11 +80,20 @@ const [mobileTab, setMobileTab] = useState('menu');
   }, []);
   
   // Estados para el cobro y NCF / e-CF
+  const esCajeroInicial = usuario.rol === 'Cajero' || usuario.rol === 'Administrador';
   const [mostrandoCobro, setMostrandoCobro] = useState(false);
   const [metodoPago, setMetodoPago] = useState('Efectivo');
   const [montoRecibido, setMontoRecibido] = useState('');
-  const [tipoComprobante, setTipoComprobante] = useState('B02');
+  // Comprobante fiscal: el que elige el cajero o, si no elige, el que recomienda el servidor (E32; B02 hasta el corte si hay secuencia).
+  const { estado: estadoComprobantes, recargar: recargarComprobantes } = useEstadoComprobantes(urlBase, false);
+  const [tipoElegido, setTipoElegido] = useState('');
+  const tipoComprobante = tipoElegido || estadoComprobantes?.porDefecto || 'B02';
   const [rncCliente, setRncCliente] = useState('');
+  const [razonSocialCliente, setRazonSocialCliente] = useState('');
+  const [ticketFactura, setTicketFactura] = useState(null);
+  useEffect(() => {
+    if (mostrandoCobro && esCajeroInicial) recargarComprobantes();
+  }, [mostrandoCobro, esCajeroInicial, recargarComprobantes]);
   const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   const [tarjetaMarca, setTarjetaMarca] = useState('Visa');
 
@@ -421,6 +433,8 @@ const [mobileTab, setMobileTab] = useState('menu');
 
   const procesarFacturaDirecta = async () => {
     if (procesandoFactura) return;
+    const errorFiscal = errorComprador({ tipo: tipoComprobante, total: totalAPagar, rnc: rncCliente, nombre: razonSocialCliente });
+    if (errorFiscal) return toastAviso(`⚠️ ${errorFiscal}`);
     setProcesandoFactura(true);
     if (metodoPago === 'Efectivo') {
       if (!montoRecibido || parseFloat(montoRecibido) < totalAPagar) {
@@ -442,6 +456,7 @@ const [mobileTab, setMobileTab] = useState('menu');
           metodo_pago: metodoPago,
           tipo_comprobante: tipoComprobante,
           rnc_cedula_cliente: rncCliente,
+          razon_social_cliente: razonSocialCliente,
           monto_entregado: parseFloat(montoRecibido || 0),
           cambio: cambio > 0 ? cambio : 0,
           tarjeta_ultimos_4: tarjetaUltimos4,
@@ -452,7 +467,40 @@ const [mobileTab, setMobileTab] = useState('menu');
       const data = await res.json();
       if (res.ok) {
         toastAviso(`✅ Factura ${data.ncf || data.comprobante} procesada con éxito.\nTotal: RD$ ${formatearRD(totalAPagar)}`);
-        alVolver();
+        // El ticket sale con los datos fiscales que devuelve el servidor (e-NCF, timbre de la DGII, comprador); al cerrarlo se vuelve a las mesas.
+        setMostrandoCobro(false);
+        setTicketFactura({
+          nombreNegocio: configNegocio.nombre,
+          rncNegocio: configNegocio.rnc,
+          direccionNegocio: configNegocio.direccion,
+          telefonoNegocio: configNegocio.telefono,
+          logoUrl: configNegocio.logo_url,
+          mesa: mesa.nombre_numero,
+          cajero: usuario.nombre,
+          camarero: mesa.camarero || usuario.nombre,
+          items: cuentaActual,
+          subtotal: subtotalFactura,
+          subtotalBruto: subtotalFactura,
+          descuento: 0,
+          itbis,
+          propina: propinaLey,
+          total: totalAPagar,
+          metodoPago,
+          ...datosTicketFiscal(data.representacion, {
+            tipoComprobante: data.tipo_comprobante || tipoComprobante,
+            ncfGenerado: data.ncf || data.comprobante,
+            rncCliente,
+            razonSocialCliente
+          }),
+          fecha: new Date().toLocaleString(),
+          ticketConfig: {
+            font_family: configNegocio.ticket_font_family,
+            font_size: configNegocio.ticket_font_size,
+            logo_position: configNegocio.ticket_logo_position,
+            show_qr: configNegocio.ticket_show_qr,
+            margin: configNegocio.ticket_margin
+          }
+        });
       } else {
         toastAviso(`❌ ${data.error}`);
       }
@@ -548,6 +596,15 @@ const [mobileTab, setMobileTab] = useState('menu');
         comandaModo={configNegocio.comanda_modo}
       />
 
+      {/* FACTURA YA COBRADA (e-CF o NCF) */}
+      {ticketFactura && (
+        <TicketTermico
+          datosFactura={ticketFactura}
+          esPrecheque={false}
+          alCerrar={() => { setTicketFactura(null); alVolver(); }}
+        />
+      )}
+
       {/* PRE-CHEQUE */}
       {prechequeData && (
         <TicketTermico
@@ -635,15 +692,17 @@ const [mobileTab, setMobileTab] = useState('menu');
             </div>
 
             <div className="po-field">
-              <label htmlFor="po-comprobante">Comprobante fiscal DGII</label>
-              <select id="po-comprobante" className="po-input" value={tipoComprobante} onChange={(e) => setTipoComprobante(e.target.value)}>
-                <option value="B02">B02 · Consumidor final</option>
-                <option value="B01">B01 · Crédito fiscal</option>
-                <option value="e-CF">e-CF · Factura electrónica</option>
-              </select>
-              {tipoComprobante !== 'B02' && (
-                <input className="po-input" type="text" placeholder="RNC o cédula del cliente" value={rncCliente} onChange={(e) => setRncCliente(e.target.value)} aria-label="RNC o cédula del cliente" />
-              )}
+              <span id="po-comprobante">Comprobante fiscal DGII</span>
+              <SelectorComprobante
+                estado={estadoComprobantes}
+                tipo={tipoComprobante}
+                onTipo={setTipoElegido}
+                rnc={rncCliente}
+                onRnc={setRncCliente}
+                nombre={razonSocialCliente}
+                onNombre={setRazonSocialCliente}
+                total={totalAPagar}
+              />
             </div>
 
             <div className="po-field">

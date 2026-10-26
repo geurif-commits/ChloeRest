@@ -383,6 +383,8 @@ router.post(['/api/mesas/:id/cobrar', '/api/mesas/:id/cerrar', '/api/cuentas/:id
     mensaje: 'Pago procesado e inventario actualizado.',
     ncf: receipt.comprobante,
     comprobante: receipt.comprobante,
+    tipo_comprobante: receipt.tipo_comprobante,
+    representacion: receipt.representacion ?? null,
     cuenta_id: receipt.cuenta_id,
     dividida: receipt.dividida,
     totales: receipt,

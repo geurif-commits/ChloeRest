@@ -3,6 +3,8 @@ import { sanitizarDecimal, redondearMoneda } from '../utils/input.js';
 import { porcentajePropina } from '../utils/dinero.js';
 import { toastAviso } from './Toast.jsx';
 import { Banknote, CreditCard, Landmark, UtensilsCrossed, ArrowLeft, ArrowRight, FileText, Check, Layers, Percent, Split, Minus, Plus } from 'lucide-react';
+import SelectorComprobante from './caja/SelectorComprobante.jsx';
+import { errorComprador } from '../utils/comprobantes.js';
 import './caja/caja.css';
 
 const METODOS = [
@@ -28,7 +30,11 @@ export default function CobroModal({ config, onClose }) {
     onCobroExitoso,
     onImprimirPreCheque,
     formatearRD,
-    cuentasBancarias = []
+    cuentasBancarias = [],
+    estadoComprobantes = null,
+    tipoComprobante = 'B02', setTipoComprobante = () => {},
+    rncCliente = '', setRncCliente = () => {},
+    razonSocialCliente = '', setRazonSocialCliente = () => {}
   } = config;
 
   const [paso, setPaso] = useState('detalles');
@@ -83,6 +89,12 @@ export default function CobroModal({ config, onClose }) {
   const cambioDevolver = pagoMixto ? 0 : (montoEntregado !== '' ? redondearMoneda(montoEntregadoDOP - total) : 0);
 
   const handleCobro = async () => {
+    const errorFiscal = errorComprador({ tipo: tipoComprobante, total, rnc: rncCliente, nombre: razonSocialCliente });
+    if (errorFiscal) return toastAviso(errorFiscal);
+    const tipoInfo = estadoComprobantes?.tipos?.find((t) => t.codigo === tipoComprobante);
+    if (estadoComprobantes && tipoInfo && !tipoInfo.disponible) {
+      return toastAviso(`No hay una secuencia ${tipoComprobante} activa. Regístrala en DGII > Secuencias o elige otro comprobante.`);
+    }
     if (!pagoMixto) {
       if (metodoPago === 'Efectivo' && montoEntregadoDOP < total) {
         return toastAviso("El monto entregado es menor al total a pagar.");
@@ -219,6 +231,18 @@ export default function CobroModal({ config, onClose }) {
             </div>
 
             <div className="cobro-pago cobro-pago--scroll">
+              {/* Comprobante fiscal (e-CF) y datos del cliente */}
+              <SelectorComprobante
+                estado={estadoComprobantes}
+                tipo={tipoComprobante}
+                onTipo={setTipoComprobante}
+                rnc={rncCliente}
+                onRnc={setRncCliente}
+                nombre={razonSocialCliente}
+                onNombre={setRazonSocialCliente}
+                total={total}
+              />
+
               {/* Fila: Método + Moneda */}
               <div className="cobro-row">
                 <div className="cobro-row__metodos">

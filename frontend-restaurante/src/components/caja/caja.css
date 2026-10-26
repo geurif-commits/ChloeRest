@@ -154,9 +154,9 @@
 .cobro-totales__row--total span { font: 650 .8rem var(--px-font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--px-ink-3); }
 .cobro-totales__row--total strong { font: 600 1.9rem/1 var(--px-font-display); letter-spacing: -.02em; color: var(--px-gold-ink); }
 
-.cobro-acciones { flex: none; display: flex; gap: 10px; padding: 16px 26px 24px; border-top: 1px solid var(--px-line); }
+.cobro-acciones { flex: none; display: flex; flex-wrap: wrap; gap: 10px; padding: 16px 26px 24px; border-top: 1px solid var(--px-line); }
 .cobro-acciones--tight { padding: 14px 22px 20px; }
-.cobro-btn { flex: 1; min-height: 52px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--px-r-md); border: 1px solid var(--px-line-2); font: 650 .92rem var(--px-font-ui); cursor: pointer; transition: all var(--px-t-fast); }
+.cobro-btn { flex: 1; min-width: 0; white-space: nowrap; min-height: 52px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--px-r-md); border: 1px solid var(--px-line-2); font: 650 .92rem var(--px-font-ui); cursor: pointer; transition: all var(--px-t-fast); }
 .cobro-btn--cancelar { background: var(--px-raised); color: var(--px-ink); box-shadow: var(--px-shadow-1), var(--px-inset); }
 .cobro-btn--cancelar:hover { border-color: var(--px-gold); transform: translateY(-1px); }
 .cobro-btn--pagar { flex: 1.6; border-color: transparent; background: var(--px-gold-grad); color: var(--px-on-gold); box-shadow: 0 8px 22px color-mix(in srgb, var(--px-gold) 34%, transparent), inset 0 1px 0 rgba(255,255,255,.45); }
@@ -302,3 +302,15 @@
 .cobro-stepper button { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--px-line-2); border-radius: 8px; background: var(--px-raised); color: var(--px-ink); cursor: pointer; }
 .cobro-stepper button:disabled { opacity: .4; cursor: default; }
 .cobro-stepper strong { min-width: 42px; text-align: center; font-variant-numeric: lining-nums tabular-nums; font-size: .82rem; }
+
+/* Pantallas angostas: «Proceder al pago» ocupa su propia fila y el resto se reparte debajo; nada se corta. */
+@media (max-width: 480px) {
+  .cobro-acciones, .cobro-acciones--tight { padding: 14px 16px 18px; }
+  .cobro-btn--pagar { flex: 1 1 100%; order: -1; }
+  .cobro-btn--cancelar { flex: 1 1 calc(50% - 5px); }
+}
+@media (max-width: 480px) {
+  .cobro-row { flex-wrap: wrap; }
+  .cobro-row__metodos { flex: 1 1 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cobro-row .cobro-select--tiny { flex: 1 1 100%; min-height: 44px; }
+}

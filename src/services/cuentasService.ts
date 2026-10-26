@@ -15,6 +15,23 @@ import { registrarAuditoria, type IQueryable } from './auditoriaService.js';
 import { notificarMesas } from '../lib/sse.js';
 import { createLogger } from '../lib/logger.js';
 import { propinaPorcentajeOAlDefecto } from '../lib/propina.js';
+import {
+  esTipoElectronico,
+  estadoCorteEcf,
+  formatearComprobante,
+  resolverTipoComprobante,
+  validarComprador,
+} from '../lib/comprobantes.js';
+import { repartirDescuento } from '../lib/ecfCuenta.js';
+import { validarRNC } from '../lib/rnc.js';
+import {
+  datosRepresentacion,
+  emisorDe,
+  emitirEcfDeCuenta,
+  leerConfigEcf,
+  registrarEcfPendiente,
+  type IRepresentacionEcf,
+} from './ecfEmisionService.js';
 
 const logger = createLogger('cuentasService');
 
@@ -52,7 +69,18 @@ export interface ITotalesCuenta {
 }
 
 /** Recibo devuelto por cobrarCuenta (comprobante + cajero + totales). */
-export type IReciboCobro = { comprobante: string; cajero_nombre: string; cuenta_id: number; dividida: boolean } & ITotalesCuenta;
+export type IReciboCobro = {
+  comprobante: string;
+  tipo_comprobante: string;
+  cajero_nombre: string;
+  cuenta_id: number;
+  dividida: boolean;
+  /** Datos para imprimir el comprobante (NCF o e-CF con su timbre). null si no se pudieron leer. */
+  representacion?: IRepresentacionEcf | null;
+} & ITotalesCuenta;
+
+/** Cuánto espera el cobro a que la DGII devuelva el timbre del e-CF antes de imprimir «pendiente de validación». */
+const ESPERA_TIMBRE_MS = 9000;
 
 /** Cuerpo de cobro aceptado (puerto del body del legacy, campos opcionales). */
 export interface ICobrarCuentaBody {
@@ -62,6 +90,7 @@ export interface ICobrarCuentaBody {
   banco_pago_2?: string | null;
   tipo_comprobante?: string;
   rnc_cedula_cliente?: string | null;
+  razon_social_cliente?: string | null;
   tarjeta_ultimos_4?: string;
   tarjeta_marca?: string | null;
   notas?: string | null;
@@ -106,22 +135,25 @@ interface ISecuenciaFila {
   prefijo: string | null;
   secuencia_actual: number;
   secuencia_final: number;
+  vencimiento?: string | null;
+}
+
+export interface IComprobanteTomado {
+  ncf: string;
+  /** Vencimiento autorizado de la secuencia (YYYY-MM-DD). */
+  vencimiento: string | null;
 }
 
 /**
- * Toma y avanza la secuencia NCF activa del tipo de comprobante, devolviendo
- * el NCF formateado. El parámetro _cuentaId se conserva por paridad con el
- * legacy (su firma lo recibe aunque no lo use). Puerto de siguienteComprobante.
+ * Toma y avanza la secuencia activa del tipo de comprobante. El rango autorizado por la DGII es INCLUSIVO (del inicial al
+ * final se pueden emitir todos los números). Un e-NCF lleva E + tipo + 10 dígitos (13 caracteres) y el prefijo es siempre
+ * el tipo; el NCF tradicional, 8 dígitos. Se salta una secuencia agotada si hay otra activa y vigente.
  */
-export async function siguienteComprobante(
-  client: IQueryable,
-  tipoComprobante: string,
-  _cuentaId: number
-): Promise<string> {
+export async function tomarSiguienteComprobante(client: IQueryable, tipoComprobante: string): Promise<IComprobanteTomado> {
   const sequence = await client.query<ISecuenciaFila>(
-    `SELECT id, prefijo, secuencia_actual, secuencia_final
+    `SELECT id, prefijo, secuencia_actual, secuencia_final, to_char(fecha_vencimiento, 'YYYY-MM-DD') AS vencimiento
      FROM dgii_secuencias
-     WHERE tipo_comprobante = $1 AND activa = TRUE AND fecha_vencimiento >= CURRENT_DATE
+     WHERE tipo_comprobante = $1 AND activa = TRUE AND fecha_vencimiento >= CURRENT_DATE AND secuencia_actual <= secuencia_final
      ORDER BY id
      LIMIT 1
      FOR UPDATE`,
@@ -129,30 +161,51 @@ export async function siguienteComprobante(
   );
 
   if (!sequence.rowCount) {
-    throw httpError(400, `No hay secuencia activa para ${tipoComprobante}. Configura una secuencia en DGII > Secuencias NCF.`);
+    const agotada = await client.query(
+      `SELECT 1 FROM dgii_secuencias WHERE tipo_comprobante = $1 AND activa = TRUE AND fecha_vencimiento >= CURRENT_DATE LIMIT 1`,
+      [tipoComprobante]
+    );
+    if (agotada.rowCount) {
+      throw httpError(400, `Secuencia de ${tipoComprobante} agotada. Registra un nuevo rango autorizado por la DGII en DGII > Secuencias.`, 'SECUENCIA_AGOTADA');
+    }
+    throw httpError(400, `No hay secuencia activa para ${tipoComprobante}. Configura una secuencia en DGII > Secuencias.`, 'SIN_SECUENCIA');
   }
 
   const row = sequence.rows[0];
   // pg devuelve BIGINT como string; comparar numérico, no lexicográfico.
   const actual = Number(row.secuencia_actual);
   const final = Number(row.secuencia_final);
-  if (actual >= final) {
+  if (actual > final) {
     throw httpError(
       400,
-      `Secuencia de ${tipoComprobante} agotada (${actual}/${final}). Crea una nueva secuencia o amplía el rango.`
+      `Secuencia de ${tipoComprobante} agotada (${actual - 1}/${final}). Crea una nueva secuencia o amplía el rango.`,
+      'SECUENCIA_AGOTADA'
     );
   }
 
   await client.query('UPDATE dgii_secuencias SET secuencia_actual = secuencia_actual + 1 WHERE id = $1', [row.id]);
-  const ncf = `${row.prefijo || tipoComprobante}${String(actual).padStart(8, '0')}`;
+  const prefijo = esTipoElectronico(tipoComprobante) ? tipoComprobante : row.prefijo || tipoComprobante;
+  const ncf = formatearComprobante(prefijo, actual);
 
-  // Alerta silenciosa si quedan menos de 1000 comprobantes (legacy: console.warn)
-  const restantes = final - actual;
+  // Alerta silenciosa si quedan menos de 1000 comprobantes
+  const restantes = final - actual + 1;
   if (restantes < 1000) {
     logger.warn({ action: 'SECUENCIA_NCF_AGOTANDOSE', tipoComprobante, restantes, ncf });
   }
 
-  return ncf;
+  return { ncf, vencimiento: row.vencimiento ?? null };
+}
+
+/**
+ * Igual que `tomarSiguienteComprobante` pero devuelve solo el número de comprobante. El parámetro _cuentaId se conserva
+ * por paridad con el legacy (su firma lo recibe aunque no lo use). Puerto de siguienteComprobante.
+ */
+export async function siguienteComprobante(
+  client: IQueryable,
+  tipoComprobante: string,
+  _cuentaId: number
+): Promise<string> {
+  return (await tomarSiguienteComprobante(client, tipoComprobante)).ncf;
 }
 
 interface INegocioConfigFila {
@@ -224,18 +277,10 @@ export async function calcularTotales(
       : aCentavos(descuento.valor);
     if (descuentoC > subtotalBrutoC) {throw httpError(400, 'El descuento no puede superar el subtotal de la cuenta.');}
   }
-  // Reparto proporcional; los centavos que sobran van a las últimas líneas con saldo.
-  let repartido = 0;
-  for (const linea of lineas) {
-    linea.descuento = subtotalBrutoC > 0 ? Math.floor((descuentoC * linea.centavos) / subtotalBrutoC) : 0;
-    repartido += linea.descuento;
-  }
-  let resto = descuentoC - repartido;
-  for (let i = lineas.length - 1; i >= 0 && resto > 0; i -= 1) {
-    const extra = Math.min(lineas[i].centavos - lineas[i].descuento, resto);
-    lineas[i].descuento += extra;
-    resto -= extra;
-  }
+  // Reparto proporcional; los centavos que sobran van a las últimas líneas con saldo (regla compartida con el e-CF).
+  repartirDescuento(lineas.map((linea) => linea.centavos), descuentoC).forEach((parte, i) => {
+    lineas[i].descuento = parte;
+  });
 
   let itbisC = 0;
   let exentoC = 0;
@@ -431,10 +476,6 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
   const metodoPago2 = metodoPago2Raw === null ? null : String(metodoPago2Raw);
   const montoPago2 = Number(body.monto_pago_2 || 0);
   const bancoPago2 = body.banco_pago_2 || null;
-  const tipoComprobanteRaw = body.tipo_comprobante || '';
-  const tipoComprobante = ['B01', 'B02', 'E31', 'E32', 'e-CF'].includes(tipoComprobanteRaw)
-    ? tipoComprobanteRaw
-    : 'B02';
 
   if (!allowedMethods.includes(metodoPago)) {throw httpError(400, 'Método de pago no válido.');}
   if (metodoPago === 'Tarjeta' && !/^\d{4}$/.test(String(body.tarjeta_ultimos_4 || ''))) {
@@ -445,7 +486,12 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
   if (metodoPago2 === metodoPago) {throw httpError(400, 'No puedes repetir el mismo método de pago en pago mixto.');}
 
   const db = getDatabase();
-  return db.transaction(async (client) => {
+  const recibo = await db.transaction(async (client) => {
+    // Desde la fecha de corte solo valen los comprobantes electrónicos: el NCF tradicional (B01/B02/B14/B15) se rechaza.
+    const configEcf = await leerConfigEcf(client);
+    const corte = estadoCorteEcf(configEcf?.ecf_corte);
+    const tipoComprobante = resolverTipoComprobante(body.tipo_comprobante, corte.obligatorio, corte.fechaCorte);
+
     const account = await client.query<ICuentaCobroFila>(
       'SELECT id, mesa_id FROM cuentas WHERE id = $1 AND estado = $2 FOR UPDATE',
       [cuentaId, 'Abierta']
@@ -469,8 +515,23 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
     const descuento = validarDescuento(body.descuento_tipo, body.descuento_valor, body.descuento_motivo);
     const totals = await calcularTotales(client, cuentaACobrar, descuento);
     validarPagoMixto(metodoPago2, montoPago2, totals.total);
+    const comprador = validarComprador(tipoComprobante, totals.total, body.rnc_cedula_cliente, body.razon_social_cliente);
+    if (esTipoElectronico(tipoComprobante)) {
+      const negocioEmisor = await client.query<{ nombre_comercial: string | null; razon_social: string | null; rnc: string | null; direccion: string | null; telefono: string | null; cobrar_itbis: boolean | null }>(
+        'SELECT nombre_comercial, razon_social, rnc, direccion, telefono, cobrar_itbis FROM negocio_config ORDER BY id LIMIT 1'
+      );
+      const emisor = emisorDe(configEcf, negocioEmisor.rows[0] ?? { nombre_comercial: null, razon_social: null, rnc: null, direccion: null, telefono: null, cobrar_itbis: null });
+      if (!validarRNC(emisor.rnc) || !emisor.razonSocial || !emisor.direccion) {
+        throw httpError(
+          409,
+          'Antes de emitir comprobantes electrónicos registra el RNC, la razón social y la dirección del negocio en DGII > e-CF > Datos del emisor.',
+          'EMISOR_INCOMPLETO'
+        );
+      }
+    }
     await descontarInventario(client, totals.detalles);
-    const comprobante = await siguienteComprobante(client, tipoComprobante, cuentaACobrar);
+    const tomado = await tomarSiguienteComprobante(client, tipoComprobante);
+    const comprobante = tomado.ncf;
 
     await client.query(
       `UPDATE cuentas
@@ -478,7 +539,8 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
            fecha_cierre = CURRENT_TIMESTAMP, tipo_comprobante = $6, rnc_cedula_cliente = $7,
            ncf_ecf_generado = $8, tarjeta_ultimos_4 = $9, tarjeta_marca = $10, cajero_id = $12,
            metodo_pago_2 = $13, monto_pago_2 = $14, banco_pago_2 = $15,
-           descuento = $16, descuento_tipo = $17, descuento_valor = $18, descuento_motivo = $19
+           descuento = $16, descuento_tipo = $17, descuento_valor = $18, descuento_motivo = $19,
+           razon_social_cliente = $20
        WHERE id = $11`,
       [
         metodoPago,
@@ -487,7 +549,7 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
         totals.propina,
         totals.total,
         tipoComprobante,
-        body.rnc_cedula_cliente?.trim() || null,
+        comprador.rnc || null,
         comprobante,
         metodoPago === 'Tarjeta' ? body.tarjeta_ultimos_4 || null : null,
         metodoPago === 'Tarjeta' ? String(body.tarjeta_marca || '').trim() || null : null,
@@ -500,8 +562,15 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
         descuento?.tipo ?? null,
         descuento?.valor ?? null,
         descuento ? String(body.descuento_motivo).trim() : null,
+        comprador.razonSocial || null,
       ]
     );
+    if (esTipoElectronico(tipoComprobante)) {
+      await registrarEcfPendiente(client, {
+        cuentaId: cuentaACobrar, tipo: tipoComprobante, ncf: comprobante, total: totals.total, propina: totals.propina,
+        rncReceptor: comprador.rnc || null, vencimientoSecuencia: tomado.vencimiento,
+      });
+    }
 
     // Si solo se cobró una parte, la mesa sigue ocupada con lo que quedó abierto.
     if (!dividida && account.rows[0].mesa_id) {
@@ -522,6 +591,16 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
       ip: clientIp(req),
     });
     notificarMesas('mesa_actualizada');
-    return { comprobante, cajero_nombre: actor.nombre, cuenta_id: cuentaACobrar, dividida, ...totals };
+    return { comprobante, tipo_comprobante: tipoComprobante, cajero_nombre: actor.nombre, cuenta_id: cuentaACobrar, dividida, ...totals } as IReciboCobro;
   });
+
+  // Ya con el cobro confirmado: el e-CF se envía a la DGII sin comprometer la venta. Si el proveedor no responde a tiempo,
+  // el comprobante queda «Pendiente» y un proceso en segundo plano lo reintenta; el ticket lo dice.
+  if (esTipoElectronico(recibo.tipo_comprobante)) {
+    await emitirEcfDeCuenta(recibo.cuenta_id, { esperaMs: ESPERA_TIMBRE_MS }).catch((error: unknown) => {
+      logger.warn({ action: 'ECF_EMISION_INMEDIATA_FALLIDA', details: { cuentaId: recibo.cuenta_id }, error: { message: error instanceof Error ? error.message : String(error) } });
+    });
+  }
+  recibo.representacion = await datosRepresentacion(recibo.cuenta_id).catch(() => null);
+  return recibo;
 }

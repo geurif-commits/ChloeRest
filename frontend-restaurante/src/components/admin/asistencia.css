@@ -9,7 +9,8 @@
 .as-kpi { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid var(--px-line); border-radius: var(--px-r-lg); background: var(--px-surface); box-shadow: var(--px-shadow-1), var(--px-inset); }
 .as-kpi__ico { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 14px; color: var(--px-gold); background: var(--px-gold-soft); border: 1px solid var(--border-gold); }
 .as-kpi__ico--warn { color: var(--px-warn); background: color-mix(in srgb, var(--px-warn) 12%, transparent); border-color: color-mix(in srgb, var(--px-warn) 35%, transparent); }
-.as-kpi div { display: flex; flex-direction: column; gap: 6px; }
+.as-kpi { min-width: 0; }
+.as-kpi div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .as-kpi small { font: 700 .66rem/1 var(--px-font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--px-ink-3); }
 .as-kpi strong { font: 600 1.8rem/1 var(--px-font-display); letter-spacing: -.02em; font-variant-numeric: lining-nums tabular-nums; }
 .as-kpi--live .as-kpi__ico { color: var(--px-ok); background: color-mix(in srgb, var(--px-ok) 12%, transparent); border-color: color-mix(in srgb, var(--px-ok) 32%, transparent); }
@@ -90,3 +91,5 @@
 .as-horarios .po-input { width: 100%; min-width: 0; padding-inline: 10px; font-size: .88rem; }
 .as-horarios input[type="time"] { min-width: 118px; }
 .as-horarios fieldset { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+
+@media (max-width: 420px) { .as-kpis { grid-template-columns: minmax(0, 1fr); } }

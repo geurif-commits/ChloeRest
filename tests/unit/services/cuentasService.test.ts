@@ -5,6 +5,7 @@ import {
   cuentaAbiertaParaMesa,
   descontarInventario,
   siguienteComprobante,
+  tomarSiguienteComprobante,
   planificarDivision,
   validarDescuento,
   validarPagoMixto,
@@ -66,12 +67,53 @@ describe('siguienteComprobante', () => {
 
   it('lanza 400 si la secuencia está agotada', async () => {
     const { cliente } = crearCliente([
-      { match: SECUENCIA_SQL, rows: [{ id: 3, prefijo: 'B02', secuencia_actual: 100, secuencia_final: 100 }] },
+      { match: SECUENCIA_SQL, rows: [{ id: 3, prefijo: 'B02', secuencia_actual: 101, secuencia_final: 100 }] },
     ]);
     await expect(siguienteComprobante(cliente, 'factura', 1)).rejects.toMatchObject({
       statusCode: 400,
       message: expect.stringContaining('agotada'),
     });
+  });
+});
+
+describe('tomarSiguienteComprobante · e-NCF', () => {
+  it('el e-NCF lleva E + tipo + 10 dígitos (13 caracteres) y devuelve el vencimiento de la secuencia', async () => {
+    const { cliente } = crearCliente([
+      { match: SECUENCIA_SQL, rows: [{ id: 9, prefijo: 'E32', secuencia_actual: 1, secuencia_final: 5000, vencimiento: '2027-12-31' }] },
+    ]);
+    const tomado = await tomarSiguienteComprobante(cliente, 'E32');
+    expect(tomado).toEqual({ ncf: 'E320000000001', vencimiento: '2027-12-31' });
+    expect(tomado.ncf).toHaveLength(13);
+  });
+
+  it('en un e-CF el prefijo es siempre el tipo, aunque la secuencia se haya guardado con otro', async () => {
+    const { cliente } = crearCliente([
+      { match: SECUENCIA_SQL, rows: [{ id: 9, prefijo: 'B02', secuencia_actual: 25, secuencia_final: 5000, vencimiento: null }] },
+    ]);
+    expect((await tomarSiguienteComprobante(cliente, 'E31')).ncf).toBe('E310000000025');
+  });
+
+  it('el último número del rango autorizado sí se puede emitir (rango inclusivo)', async () => {
+    const { cliente } = crearCliente([
+      { match: SECUENCIA_SQL, rows: [{ id: 3, prefijo: 'E32', secuencia_actual: 100, secuencia_final: 100, vencimiento: null }] },
+    ]);
+    expect((await tomarSiguienteComprobante(cliente, 'E32')).ncf).toBe('E320000000100');
+  });
+
+  it('distingue «sin secuencia» de «secuencia agotada»', async () => {
+    const sinNinguna = crearCliente([{ match: SECUENCIA_SQL, rows: [] }]);
+    await expect(tomarSiguienteComprobante(sinNinguna.cliente, 'E32')).rejects.toMatchObject({ code: 'SIN_SECUENCIA' });
+
+    // La primera consulta (con números libres) no encuentra nada, pero la de existencia sí: está agotada.
+    let llamada = 0;
+    const agotada: IQueryable = {
+      async query<T extends QueryResultRow = QueryResultRow>(): Promise<QueryResult<T>> {
+        llamada += 1;
+        const rows = (llamada === 1 ? [] : [{ '?column?': 1 }]) as T[];
+        return { rows, rowCount: rows.length } as QueryResult<T>;
+      },
+    };
+    await expect(tomarSiguienteComprobante(agotada, 'E32')).rejects.toMatchObject({ code: 'SECUENCIA_AGOTADA' });
   });
 });
 

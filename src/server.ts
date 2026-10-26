@@ -14,6 +14,7 @@ import { createDatabase, getDatabase } from './db/index.js';
 import { runMigrations, fixDatabaseConsistency } from './db/migrations.js';
 import { iniciarTelegramBot } from './services/telegramBotService.js';
 import { iniciarRespaldosAutomaticos } from './services/backupService.js';
+import { iniciarColaEcf } from './services/ecfEmisionService.js';
 import { longitudPinPropietarioIncrustado } from './lib/propietario.js';
 import { obtenerOpcionesTelegramBot } from './services/telegramBotOptions.js';
 import { execSync } from 'node:child_process';
@@ -169,6 +170,8 @@ function arrancarServidor(app: Express, intento = 1): void {
     }
 
     iniciarRespaldosAutomaticos();
+    // Reintenta cada minuto los e-CF que quedaron pendientes de enviar o de validar por la DGII.
+    iniciarColaEcf();
 
     const longitudPinFijo = longitudPinPropietarioIncrustado();
     if (longitudPinFijo !== null) {

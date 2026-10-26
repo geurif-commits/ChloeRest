@@ -158,6 +158,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
       c.ncf_ecf_generado,
       c.rnc_cedula_cliente,
       c.fecha_cierre,
+      e.estado AS estado_ecf,
       (
         SELECT COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
           'id', cd.id,
@@ -173,6 +174,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
     LEFT JOIN mesas m ON m.id = c.mesa_id
     LEFT JOIN usuarios u ON u.id = c.camarero_id
     LEFT JOIN usuarios j ON j.id = c.cajero_id
+    LEFT JOIN e_cf_comprobantes e ON e.cuenta_id = c.id AND e.ncf = c.ncf_ecf_generado
     WHERE c.estado = 'Cerrada'
     ORDER BY c.fecha_cierre DESC
     LIMIT 100

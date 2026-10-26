@@ -118,7 +118,7 @@ export function construirECF(params: IConstruirECFParams): any {
     },
   };
 
-  if (tipoECF === 31) {
+  if (tipoECF === 31 || tipoECF === 44 || tipoECF === 45) {
     encabezado.Comprador = {
       RNCComprador: normalizarRNC(rncReceptor),
       RazonSocialComprador: razonSocialReceptor || 'Cliente',

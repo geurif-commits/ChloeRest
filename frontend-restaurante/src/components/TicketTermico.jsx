@@ -1,6 +1,12 @@
 import React, { useRef } from 'react';
 import { qrComoImagen } from '../utils/qr.js';
+import { fechaHoraRd, fechaLegible, formatearDocumento, tituloComprobante, esTipoElectronico } from '../utils/comprobantes.js';
 
+/**
+ * Ticket térmico (80 mm). Con un e-CF imprime la representación impresa de la DGII: emisor (razón social, RNC, dirección),
+ * tipo de comprobante, e-NCF, fecha de emisión y de vencimiento de la secuencia, comprador (RNC/cédula y razón social),
+ * detalle con ITBIS, totales, forma de pago, código de seguridad, fecha de firma digital y el QR del timbre fiscal.
+ */
 function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
   const ticketRef = useRef(null);
   if (!datosFactura) return null;
@@ -12,13 +18,12 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     : cfgTicket.margin === 'wide' ? '22px'
     : '15px';
   const posicionLogo = cfgTicket.logo_position || 'top';
-  const mostrarQR = cfgTicket.show_qr ?? true;
 
   const {
     nombreNegocio = 'RESTAURANTE / BAR',
-    rncNegocio = '131-XXXXX-1',
-    direccionNegocio = 'Av. Principal, La Romana, R.D.',
-    telefonoNegocio = '(809) 555-0000',
+    rncNegocio = '',
+    direccionNegocio = '',
+    telefonoNegocio = '',
     logoUrl,
     mesa,
     cajero,
@@ -33,9 +38,24 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     metodoPago,
     tipoComprobante = 'B02',
     rncCliente,
+    razonSocialCliente,
     ncfGenerado,
-    fecha
+    fecha,
+    fechaEmision,
+    fechaVencimientoSecuencia,
+    codigoSeguridad,
+    fechaFirma,
+    qrUrl,
+    pendienteEcf = false
   } = datosFactura;
+
+  const electronico = esTipoElectronico(tipoComprobante) || /^E\d{2}\d{10}$/.test(String(ncfGenerado || ''));
+  const titulo = datosFactura.tituloComprobante || tituloComprobante(tipoComprobante);
+  // En un e-CF el QR del timbre es obligatorio: el ajuste «mostrar QR» solo aplica al NCF tradicional.
+  const mostrarQR = electronico ? true : (cfgTicket.show_qr ?? true);
+  const compradorIdentificado = Boolean(rncCliente);
+  // El e-NCF de crédito fiscal, gubernamental y regímenes especiales declara el vencimiento de su secuencia.
+  const muestraVencimiento = electronico && fechaVencimientoSecuencia && tipoComprobante !== 'E32';
 
   const formatearRD = (val) => {
     return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -66,15 +86,7 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
 
   const obtenerTituloFiscal = () => {
     if (esPrecheque) return '*** ESTADO DE CUENTA (PRE-CHEQUE) ***';
-    switch (tipoComprobante) {
-      case 'B01':
-        return 'FACTURA DE CRÉDITO FISCAL (B01)';
-      case 'e-CF':
-        return 'FACTURA ELECTRÓNICA (e-CF)';
-      case 'B02':
-      default:
-        return 'FACTURA DE CONSUMO (B02)';
-    }
+    return titulo;
   };
 
   const imprimir = async () => {
@@ -121,16 +133,26 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
     }
   };
 
+  const fila = (etiqueta, valor, negrita = false) => (
+    <p style={{ margin: '2px 0', overflowWrap: 'anywhere' }}><strong>{etiqueta}</strong> {negrita ? <strong>{valor}</strong> : valor}</p>
+  );
+
+  // Timbre fiscal: el enlace que devuelve el servidor (o el proveedor); los NCF tradicionales conservan su verificación propia.
+  const urlQr = esPrecheque ? null
+    : electronico ? qrUrl
+      : `https://chloerestaurant.lat/verificar-factura?ncf=${encodeURIComponent(ncfGenerado || '')}&total=${total}`;
+  const qrImgSrc = mostrarQR && urlQr ? qrComoImagen(urlQr) : null;
+
   return (
     <div className="modal-overlay print-overlay" onClick={(e) => { if (e.target === e.currentTarget) alCerrar(); }}>
       <div className="ticket-termico-container" ref={ticketRef}>
-        
+
         {/* Contenedor desplazable para tickets largos garantizando centrado vertical */}
         <div className="ticket-papel-scroll">
           {/* Contenido físico del recibo (Área que se imprime en formato 80mm/58mm) */}
           <div className="ticket-papel" id="area-impresion" style={{width: '280px', margin: '0 auto', background: '#fff', color: '#000', padding: margenTicket, fontFamily: fuenteTicket, fontSize: `${tamanoTicket}px`, lineHeight: '1.4'}}>
-           
-          {/* Encabezado del Establecimiento */}
+
+          {/* Encabezado del Establecimiento (emisor) */}
           <div style={{textAlign: 'center', marginBottom: '8px'}}>
             {logoUrl && posicionLogo !== 'none' && (
               <img
@@ -143,10 +165,10 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
                 }
               />
             )}
-            <h3 style={{margin: '0 0 2px 0', fontSize: `${tamanoTicket + 3}px`, fontWeight: 'bold'}}>{nombreNegocio}</h3>
-            <p style={{margin: '0', fontSize: `${tamanoTicket - 1}px`}}>RNC: {rncNegocio}</p>
-            <p style={{margin: '0', fontSize: `${tamanoTicket - 2}px`}}>{direccionNegocio}</p>
-            <p style={{margin: '0', fontSize: `${tamanoTicket - 2}px`}}>Tel: {telefonoNegocio}</p>
+            <h3 style={{margin: '0 0 2px 0', fontSize: `${tamanoTicket + 3}px`, fontWeight: 'bold', overflowWrap: 'anywhere'}}>{nombreNegocio}</h3>
+            {rncNegocio && <p style={{margin: '0', fontSize: `${tamanoTicket - 1}px`}}>RNC: {formatearDocumento(rncNegocio)}</p>}
+            {direccionNegocio && <p style={{margin: '0', fontSize: `${tamanoTicket - 2}px`, overflowWrap: 'anywhere'}}>{direccionNegocio}</p>}
+            {telefonoNegocio && <p style={{margin: '0', fontSize: `${tamanoTicket - 2}px`}}>Tel: {telefonoNegocio}</p>}
 
             <div style={{marginTop: '8px', padding: '4px 0', borderTop: '1px dashed #000', borderBottom: '1px dashed #000', fontWeight: 'bold', fontSize: '11px', textTransform: 'uppercase'}}>
               {obtenerTituloFiscal()}
@@ -156,22 +178,29 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
             )}
           </div>
 
-          {/* Información de Mesa y Emisión */}
+          {/* Datos del comprobante, fecha, mesa y comprador */}
           <div style={{marginBottom: '8px', fontSize: '11px'}}>
-            <p style={{margin: '2px 0'}}><strong>Fecha:</strong> {fecha || new Date().toLocaleString()}</p>
-            <p style={{margin: '2px 0'}}><strong>Mesa:</strong> {mesa || 'N/A'}</p>
-            {cajero && <p style={{margin: '2px 0'}}><strong>Cajero:</strong> {cajero}</p>}
-            {camarero && <p style={{margin: '2px 0'}}><strong>Camarero:</strong> {camarero}</p>}            
-            {!camarero && !cajero && <p style={{margin: '2px 0'}}><strong>Atendido por:</strong> —</p>}
-            
+            {!esPrecheque && ncfGenerado && (
+              <p style={{margin: '2px 0'}}><strong>{electronico ? 'e-NCF:' : 'NCF:'}</strong> <span style={{fontWeight: 'bold', fontSize: '12px'}}>{ncfGenerado}</span></p>
+            )}
+            {!esPrecheque && muestraVencimiento && fila('Vence secuencia:', fechaLegible(fechaVencimientoSecuencia))}
+            {fila(electronico && !esPrecheque ? 'Fecha emisión:' : 'Fecha:', electronico && fechaEmision ? fechaHoraRd(fechaEmision) : (fecha || new Date().toLocaleString()))}
+            {fila('Mesa:', mesa || 'N/A')}
+            {cajero && fila('Cajero:', cajero)}
+            {camarero && fila('Camarero:', camarero)}
+            {!camarero && !cajero && fila('Atendido por:', '—')}
+
             {!esPrecheque && (
-              <>
-                <p style={{margin: '2px 0'}}><strong>Comprobante:</strong> {tipoComprobante}</p>
-                {ncfGenerado && <p style={{margin: '2px 0'}}><strong>NCF:</strong> <span style={{fontWeight: 'bold', fontSize: '12px'}}>{ncfGenerado}</span></p>}
-                {tipoComprobante !== 'B02' && rncCliente && (
-                  <p style={{margin: '2px 0'}}><strong>RNC Cliente:</strong> {rncCliente}</p>
-                )}
-              </>
+              <div style={{marginTop: '4px', paddingTop: '4px', borderTop: '1px dotted #888'}}>
+                {compradorIdentificado
+                  ? (
+                    <>
+                      {fila('RNC/Cédula:', formatearDocumento(rncCliente))}
+                      {razonSocialCliente && fila('Cliente:', razonSocialCliente)}
+                    </>
+                  )
+                  : fila('Cliente:', 'Consumidor final')}
+              </div>
             )}
           </div>
 
@@ -183,7 +212,7 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
               <tr style={{borderBottom: '1px solid #000'}}>
                 <th style={{textAlign: 'center', width: '35px', paddingBottom: '3px'}}>Cant.</th>
                 <th style={{textAlign: 'left', paddingBottom: '3px'}}>Descripción</th>
-                <th style={{textAlign: 'right', width: '70px', paddingBottom: '3px'}}>Total</th>
+                <th style={{textAlign: 'right', width: '70px', paddingBottom: '3px'}}>Valor</th>
               </tr>
             </thead>
             <tbody>
@@ -192,12 +221,12 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
                 return (
                   <tr key={idx} style={{borderBottom: '1px dotted #ccc'}}>
                     <td style={{textAlign: 'center', verticalAlign: 'top', paddingTop: '4px', fontWeight: 'bold'}}>{item.cantidad}</td>
-                    <td style={{textAlign: 'left', verticalAlign: 'top', paddingTop: '4px'}}>
+                    <td style={{textAlign: 'left', verticalAlign: 'top', paddingTop: '4px', overflowWrap: 'anywhere'}}>
                       <div style={{fontWeight: 'bold'}}>{item.nombre}</div>
                       <div style={{fontSize: '9.5px', color: '#555'}}>@ RD$ {formatearRD(item.precio)} c/u</div>
                     </td>
-                    <td style={{textAlign: 'right', verticalAlign: 'top', paddingTop: '4px', fontWeight: 'bold'}}>
-                      RD$ {formatearRD(subtotalItem)}
+                    <td style={{textAlign: 'right', verticalAlign: 'top', paddingTop: '4px', fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                      {formatearRD(subtotalItem)}
                     </td>
                   </tr>
                 );
@@ -225,11 +254,11 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
             </div>
             {propina > 0 && (
               <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                <span>Propina ({porcentajePropinaTicket}%):</span>
+                <span>Propina legal ({porcentajePropinaTicket}%):</span>
                 <strong>RD$ {formatearRD(propina)}</strong>
               </div>
             )}
-            
+
             <div style={{borderTop: '2px solid #000', marginTop: '4px', paddingTop: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold'}}>
               <span>TOTAL A PAGAR:</span>
               <span>RD$ {formatearRD(total)}</span>
@@ -238,39 +267,50 @@ function TicketTermico({ datosFactura, alCerrar, esPrecheque = false }) {
 
           {!esPrecheque && metodoPago && (
             <div style={{marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '6px', fontSize: '11px'}}>
-              <p style={{margin: '2px 0'}}><strong>Método de Pago:</strong> {metodoPago}</p>
+              <p style={{margin: '2px 0'}}><strong>Forma de pago:</strong> {metodoPago}</p>
+            </div>
+          )}
+
+          {/* Timbre fiscal del e-CF: código de seguridad, firma digital y QR de consulta */}
+          {!esPrecheque && electronico && (
+            <div style={{marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '6px', fontSize: '11px'}}>
+              {codigoSeguridad && !pendienteEcf ? (
+                <>
+                  {fila('Código de seguridad:', codigoSeguridad, true)}
+                  {fechaFirma && fila('Fecha de firma digital:', fechaHoraRd(fechaFirma))}
+                </>
+              ) : (
+                <p style={{margin: '2px 0', fontWeight: 'bold', textAlign: 'center', border: '1px solid #000', padding: '4px'}}>
+                  PENDIENTE DE VALIDACIÓN POR LA DGII
+                  <span style={{display: 'block', fontWeight: 'normal', fontSize: '9px'}}>El código de seguridad y el QR se imprimen al reimprimir este comprobante desde el historial de facturas.</span>
+                </p>
+              )}
             </div>
           )}
 
           {/* Pie del Recibo */}
           <div style={{marginTop: '12px', textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '8px', fontSize: '10px'}}>
             <p style={{margin: '2px 0', fontWeight: 'bold'}}>¡Gracias por su visita!</p>
-            <p style={{margin: '2px 0', fontSize: '9px'}}>{esPrecheque ? 'Solicite su comprobante fiscal en caja' : 'Servicio e impuestos incluidos'}</p>
+            <p style={{margin: '2px 0', fontSize: '9px'}}>
+              {esPrecheque
+                ? 'Solicite su comprobante fiscal electrónico en caja'
+                : electronico
+                  ? 'Comprobante fiscal electrónico. Consulte su validez en dgii.gov.do'
+                  : 'Comprobante fiscal (NCF)'}
+            </p>
           </div>
 
-          {mostrarQR && (
+          {qrImgSrc && !(electronico && (pendienteEcf || !codigoSeguridad)) && (
             <div style={{marginTop: '10px', textAlign: 'center'}}>
-              {(() => {
-                const qrUrl = (tipoComprobante === 'e-CF' || (ncfGenerado && ncfGenerado.startsWith('E')))
-                  ? `https://ecf.dgii.gov.do/fe/consultatimbrefiscal?RncEmisor=${encodeURIComponent(rncNegocio.replace(/[^0-9]/g, ''))}&RncComprador=${encodeURIComponent((rncCliente || '').replace(/[^0-9]/g, ''))}&eNCF=${encodeURIComponent(ncfGenerado || '')}&MontoTotal=${total}`
-                  : `https://chloerestaurant.lat/verificar-factura?ncf=${encodeURIComponent(ncfGenerado || '')}&total=${total}`;
-                const qrImgSrc = qrComoImagen(qrUrl);
-                return (
-                  <div>
-                    <img
-                      src={qrImgSrc}
-                      alt="Código QR DGII"
-                      style={{ width: '80px', height: '80px', display: 'inline-block' }}
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
-                    <p style={{ margin: '4px 0 0 0', fontSize: '8px', color: '#333' }}>
-                      {tipoComprobante === 'e-CF' || (ncfGenerado && ncfGenerado.startsWith('E'))
-                        ? 'Consulta e-CF DGII Oficial'
-                        : 'Valida tu comprobante fiscal'}
-                    </p>
-                  </div>
-                );
-              })()}
+              <img
+                src={qrImgSrc}
+                alt="Código QR del timbre fiscal"
+                style={{ width: '90px', height: '90px', display: 'inline-block' }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+              <p style={{ margin: '4px 0 0 0', fontSize: '8px', color: '#333' }}>
+                {electronico ? 'Escanee para validar el e-CF en la DGII' : 'Valida tu comprobante fiscal'}
+              </p>
             </div>
           )}
           </div>

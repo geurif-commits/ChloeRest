@@ -960,6 +960,26 @@ const migrations: IMigracion[] = [{
       CREATE UNIQUE INDEX IF NOT EXISTS uq_configuracion_sistema_empresa ON configuracion_sistema(empresa_id);
     `,
   },
+  {
+    id: '055_ecf_obligatorio_y_representacion_impresa',
+    sql: `
+      -- Facturación electrónica obligatoria: desde esta fecha el NCF tradicional (B01/B02/B14/B15) deja de ser válido.
+      ALTER TABLE dgii_config ADD COLUMN IF NOT EXISTS ecf_obligatorio_desde DATE NOT NULL DEFAULT DATE '2026-11-15';
+      -- El e-CF de crédito fiscal imprime la razón social del comprador.
+      ALTER TABLE cuentas ADD COLUMN IF NOT EXISTS razon_social_cliente VARCHAR(150);
+      -- Datos del timbre (fecha de firma) y control de reintentos del envío a la DGII.
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS fecha_firma TIMESTAMP;
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS intentos INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS ultimo_error TEXT;
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS proximo_intento TIMESTAMP;
+      ALTER TABLE e_cf_comprobantes ADD COLUMN IF NOT EXISTS fecha_vencimiento_secuencia DATE;
+      CREATE INDEX IF NOT EXISTS idx_e_cf_comprobantes_pendientes ON e_cf_comprobantes(estado, proximo_intento);
+      -- Un solo registro de e-CF por cuenta y e-NCF: reenviar actualiza, no duplica.
+      DELETE FROM e_cf_comprobantes a USING e_cf_comprobantes b
+        WHERE a.cuenta_id = b.cuenta_id AND a.ncf = b.ncf AND a.id < b.id;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_e_cf_comprobantes_cuenta_ncf ON e_cf_comprobantes(cuenta_id, ncf);
+    `,
+  },
 ];
 export async function runMigrations(pool: Database): Promise<void> {
   const client = await (pool.connectUnscoped ? pool.connectUnscoped() : pool.connect());

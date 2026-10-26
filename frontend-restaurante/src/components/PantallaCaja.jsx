@@ -8,6 +8,8 @@ import ConfirmModal from './ConfirmModal';
 import { redondearMoneda } from '../utils/input.js';
 import { calcularTotales, porcentajePropina } from '../utils/dinero.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
+import { useEstadoComprobantes } from '../hooks/useEstadoComprobantes.js';
+import { datosTicketFiscal } from '../utils/comprobantes.js';
 import { Landmark, LayoutGrid, Receipt, Lock, Wallet, LogOut, TrendingUp, Percent, Sparkles, Banknote, ShoppingCart } from 'lucide-react';
 import './caja/caja.css';
 
@@ -62,8 +64,12 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
   const [tasaUsd, setTasaUsd] = useState(60.00);
   const [tasaEur, setTasaEur] = useState(65.00);
 
-  const [tipoComprobante] = useState('B02');
+  // Comprobante fiscal: lo que el cajero elige y, si no elige, el que el servidor recomienda (E32; B02 hasta el corte si hay secuencia).
+  const { estado: estadoComprobantes, recargar: recargarComprobantes } = useEstadoComprobantes(urlBase);
+  const [tipoElegido, setTipoElegido] = useState('');
+  const tipoComprobante = tipoElegido || estadoComprobantes?.porDefecto || 'B02';
   const [rncCliente, setRncCliente] = useState('');
+  const [razonSocialCliente, setRazonSocialCliente] = useState('');
   const [tarjetaUltimos4, setTarjetaUltimos4] = useState('');
   const [tarjetaMarca, setTarjetaMarca] = useState('Visa');
 
@@ -322,11 +328,11 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
         rnc:
           data.rnc ||
-          '130000001',
+          '',
 
         direccion:
           data.direccion ||
-          'Republica Dominicana',
+          '',
 
         telefono:
           data.telefono ||
@@ -403,6 +409,18 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
       );
     }
   };
+
+  // Al abrir el cobro se refrescan las secuencias disponibles; al cerrarlo se olvida el comprobante y el cliente de esa venta.
+  const hayCobroAbierto = Boolean(mesaSeleccionada);
+  useEffect(() => {
+    if (hayCobroAbierto) {
+      recargarComprobantes();
+    } else {
+      setTipoElegido('');
+      setRncCliente('');
+      setRazonSocialCliente('');
+    }
+  }, [hayCobroAbierto, recargarComprobantes]);
 
   useEffect(() => {
     cargarMesas();
@@ -737,6 +755,9 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
             rnc_cedula_cliente:
               rncCliente,
 
+            razon_social_cliente:
+              razonSocialCliente,
+
             monto_entregado:
               montoEntregadoDOP,
 
@@ -795,11 +816,12 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           logoUrl:
             configNegocio.logo_url,
 
-          ncfGenerado:
-            data.ncf ||
-            data.comprobante,
-
-          tipoComprobante,
+          ...datosTicketFiscal(data.representacion, {
+            tipoComprobante: data.tipo_comprobante || tipoComprobante,
+            ncfGenerado: data.ncf || data.comprobante,
+            rncCliente,
+            razonSocialCliente
+          }),
 
           mesa:
             mesaSeleccionada.nombreTicket ||
@@ -823,7 +845,6 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
           total,
 
           metodoPago,
-          rncCliente,
 
           fecha:
             new Date().toLocaleString(),
@@ -840,11 +861,16 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
         toastExito(
           `Factura emitida correctamente. NCF/Comprobante: ${data.ncf}. Total: RD$ ${formatearRD(total)}`
         );
+        if (data.representacion?.pendiente) {
+          toastAviso('La DGII aún no devolvió el código de seguridad de este e-CF. El ticket sale como pendiente de validación y el sistema lo reintenta solo; podrás reimprimirlo completo desde el historial.');
+        }
 
         setMesaSeleccionada(null);
         setCuentaMesa([]);
         setMontoEntregado('');
         setRncCliente('');
+        setRazonSocialCliente('');
+        setTipoElegido('');
         setTarjetaUltimos4('');
         setMonedaPago('DOP');
         setDescuentoCobro({ tipo: 'porcentaje', valor: '', motivo: '' });
@@ -1729,6 +1755,14 @@ function PantallaCaja({ usuario, alCerrarSesion, apiUrl }) {
 
                 onCobroExitoso:
                   confirmarCobroFinal,
+
+                estadoComprobantes,
+                tipoComprobante,
+                setTipoComprobante: setTipoElegido,
+                rncCliente,
+                setRncCliente,
+                razonSocialCliente,
+                setRazonSocialCliente,
 
                 onImprimirPreCheque:
                   mesaSeleccionada.esVentaRapida

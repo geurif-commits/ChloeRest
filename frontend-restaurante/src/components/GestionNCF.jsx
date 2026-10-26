@@ -2,10 +2,28 @@ import { useState, useEffect, useCallback } from 'react';
 import { sanitizarEntero } from '../utils/input.js';
 import { toastExito, toastError, toastAviso } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
+import { fechaLegible } from '../utils/comprobantes.js';
 import {
   FileText, Send, History, Settings, Save, ArrowLeft, Pencil, Trash2,
-  Plus, AlertCircle, CheckCircle, Clock, RefreshCw, Download, BarChart3
+  Plus, AlertCircle, CheckCircle, Clock, RefreshCw, Download, BarChart3, TriangleAlert
 } from 'lucide-react';
+
+const TIPOS_ELECTRONICOS = [
+  { codigo: 'E32', nombre: 'E32 · Factura de consumo electrónica' },
+  { codigo: 'E31', nombre: 'E31 · Factura de crédito fiscal electrónica' },
+  { codigo: 'E45', nombre: 'E45 · Comprobante gubernamental electrónico' },
+  { codigo: 'E44', nombre: 'E44 · Regímenes especiales electrónico' },
+  { codigo: 'E34', nombre: 'E34 · Nota de crédito electrónica' },
+];
+const TIPOS_NCF = [
+  { codigo: 'B02', nombre: 'B02 · Consumidor final (NCF)' },
+  { codigo: 'B01', nombre: 'B01 · Crédito fiscal (NCF)' },
+  { codigo: 'B14', nombre: 'B14 · Regímenes especiales (NCF)' },
+  { codigo: 'B15', nombre: 'B15 · Gubernamental (NCF)' },
+];
+const esElectronico = (tipo) => /^E\d{2}$/.test(String(tipo));
+/** e-NCF: E + tipo + 10 dígitos (13 caracteres). NCF tradicional: prefijo + 8 dígitos. */
+const formatearComprobante = (prefijo, numero) => `${prefijo}${String(numero ?? 0).padStart(esElectronico(prefijo) ? 10 : 8, '0')}`;
 
 function GestionNCF({ alVolver, apiUrl }) {
   const urlBase = apiUrl;
@@ -15,13 +33,14 @@ function GestionNCF({ alVolver, apiUrl }) {
   const [confirmData, setConfirmData] = useState(null);
 
   const [editId, setEditId] = useState(null);
-  const [tipoComprobante, setTipoComprobante] = useState('B02');
-  const [prefijo, setPrefijo] = useState('B02');
+  const [tipoComprobante, setTipoComprobante] = useState('E32');
+  const [prefijo, setPrefijo] = useState('E32');
   const [secuenciaInicial, setSecuenciaInicial] = useState('1');
   const [secuenciaActual, setSecuenciaActual] = useState('1');
-  const [secuenciaFinal, setSecuenciaFinal] = useState('1000');
+  const [secuenciaFinal, setSecuenciaFinal] = useState('');
   const [fechaVencimiento, setFechaVencimiento] = useState('');
   const [activa, setActiva] = useState(true);
+  const [estadoFiscal, setEstadoFiscal] = useState(null);
 
   const [configEcf, setConfigEcf] = useState({
     rnc_emisor: '',
@@ -36,6 +55,11 @@ function GestionNCF({ alVolver, apiUrl }) {
     algoback_api_key: '',
     algoback_url: 'https://api-dgii.algoback.com/ecf/procesar-factura',
     algoback_ambiente: 'TEST',
+    direccion_emisor: '',
+    telefono_emisor: '',
+    email_emisor: '',
+    regimen_fiscal: 'Ordinario',
+    ecf_obligatorio_desde: '2026-11-15',
     email_mseller: '',
     password_mseller: '',
     api_key_mseller: ''
@@ -101,27 +125,28 @@ function GestionNCF({ alVolver, apiUrl }) {
         const data = await res.json();
         setHistorialEcf(Array.isArray(data) ? data : []);
       }
-    } catch {
-      console.error("Error al cargar historial e-CF:", error);
+    } catch (err) {
+      console.error('Error al cargar historial e-CF:', err);
     } finally {
       setCargandoHistorial(false);
     }
   }, [urlBase]);
 
-  const enviarEcf = async () => {
-    if (!cuentaIdEcf) return toastAviso("Ingresa el ID de la cuenta.");
+  const enviarEcf = async (cuentaId = cuentaIdEcf) => {
+    if (!cuentaId) return toastAviso("Ingresa el ID de la cuenta.");
     setEnviandoEcf(true);
     try {
       const res = await fetch(urlBase + '/api/dgii/ecf/enviar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cuenta_id: parseInt(cuentaIdEcf, 10) })
+        body: JSON.stringify({ cuenta_id: parseInt(cuentaId, 10) })
       });
       const data = await res.json();
       if (res.ok) {
         toastAviso(data.mensaje);
         setCuentaIdEcf('');
         cargarHistorialEcf();
+        cargarEstadoFiscal();
       } else {
         toastAviso(data.error || 'Error al enviar e-CF.');
       }
@@ -139,8 +164,8 @@ function GestionNCF({ alVolver, apiUrl }) {
         const data = await res.json();
         setSecuencias(Array.isArray(data) ? data : []);
       }
-    } catch {
-      console.error("Error al cargar secuencias NCF:", error);
+    } catch (err) {
+      console.error('Error al cargar secuencias:', err);
     } finally {
       setCargando(false);
     }
@@ -151,10 +176,21 @@ function GestionNCF({ alVolver, apiUrl }) {
       const res = await fetch(urlBase + '/api/dgii/config');
       if (res.ok) {
         const data = await res.json();
-        setConfigEcf((prev) => ({ ...prev, ...data }));
+        const sinNulos = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v ?? '']));
+        setConfigEcf((prev) => ({ ...prev, ...sinNulos }));
       }
-    } catch {
-      console.error("Error al cargar config e-CF DGII:", error);
+    } catch (err) {
+      console.error('Error al cargar config e-CF DGII:', err);
+    }
+  }, [urlBase]);
+
+  // ¿Está el sistema listo para facturar solo con e-CF? Fecha de corte y lista de lo que falta.
+  const cargarEstadoFiscal = useCallback(async () => {
+    try {
+      const res = await fetch(urlBase + '/api/dgii/estado-fiscal', { cache: 'no-store' });
+      if (res.ok) setEstadoFiscal(await res.json());
+    } catch (err) {
+      console.error('Error al cargar el estado fiscal:', err);
     }
   }, [urlBase]);
 
@@ -162,13 +198,21 @@ function GestionNCF({ alVolver, apiUrl }) {
     cargarSecuencias();
     cargarConfigEcf();
     cargarHistorialEcf();
-  }, [cargarSecuencias, cargarConfigEcf, cargarHistorialEcf]);
+    cargarEstadoFiscal();
+  }, [cargarSecuencias, cargarConfigEcf, cargarHistorialEcf, cargarEstadoFiscal]);
 
   const guardarSecuencia = async (e) => {
     e.preventDefault();
     if (!tipoComprobante || !prefijo || !fechaVencimiento) {
       return toastAviso("Completa los campos obligatorios.");
     }
+    const inicial = parseInt(secuenciaInicial || '1', 10);
+    const actual = parseInt(secuenciaActual || secuenciaInicial || '1', 10);
+    const final = parseInt(secuenciaFinal || '0', 10);
+    if (esElectronico(tipoComprobante) && !final) {
+      return toastAviso('Indica el rango de e-NCF que te autorizó la DGII (hasta qué número).');
+    }
+    if (final && final < inicial) return toastAviso('El número final no puede ser menor que el inicial.');
     try {
       const res = await fetch(urlBase + '/api/dgii/secuencias', {
         method: 'POST',
@@ -177,9 +221,9 @@ function GestionNCF({ alVolver, apiUrl }) {
           id: editId,
           tipo_comprobante: tipoComprobante,
           prefijo,
-          secuencia_inicial: parseInt(secuenciaInicial || '1', 10),
-          secuencia_actual: parseInt(secuenciaActual || '1', 10),
-          secuencia_final: parseInt(secuenciaFinal || '99999999', 10),
+          secuencia_inicial: inicial,
+          secuencia_actual: actual,
+          secuencia_final: final || undefined,
           fecha_vencimiento: fechaVencimiento,
           activa
         })
@@ -189,6 +233,7 @@ function GestionNCF({ alVolver, apiUrl }) {
         toastAviso(data.mensaje);
         limpiarFormulario();
         cargarSecuencias();
+        cargarEstadoFiscal();
       } else {
         toastAviso(data.error);
       }
@@ -208,8 +253,22 @@ function GestionNCF({ alVolver, apiUrl }) {
       });
       const data = await res.json();
       if (res.ok) {
+        // Dirección, teléfono y correo del emisor: la DGII exige la dirección en el e-CF.
+        await fetch(urlBase + '/api/dgii/emisor', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rnc_emisor: configEcf.rnc_emisor,
+            razon_social_emisor: configEcf.razon_social_emisor,
+            direccion_emisor: configEcf.direccion_emisor,
+            telefono_emisor: configEcf.telefono_emisor,
+            email_emisor: configEcf.email_emisor,
+            regimen_fiscal: configEcf.regimen_fiscal
+          })
+        });
         toastAviso(data.mensaje);
         cargarConfigEcf();
+        cargarEstadoFiscal();
       } else {
         toastAviso(data.error || 'Error al guardar configuración e-CF.');
       }
@@ -224,29 +283,30 @@ function GestionNCF({ alVolver, apiUrl }) {
     setEditId(item.id);
     setTipoComprobante(item.tipo_comprobante);
     setPrefijo(item.prefijo);
-    setSecuenciaInicial(item.secuencia_inicial);
-    setSecuenciaActual(item.secuencia_actual);
-    setSecuenciaFinal(item.secuencia_final);
+    setSecuenciaInicial(String(item.secuencia_inicial));
+    setSecuenciaActual(String(item.secuencia_actual));
+    setSecuenciaFinal(String(item.secuencia_final));
     setFechaVencimiento(item.fecha_vencimiento ? item.fecha_vencimiento.split('T')[0] : '');
     setActiva(item.activa);
   };
 
   const eliminar = async (id) => {
-    setConfirmData({ mensaje: '¿Eliminar esta secuencia fiscal NCF?', onConfirm: async () => {
+    setConfirmData({ mensaje: '¿Eliminar esta secuencia de comprobantes? Solo se puede si todavía no emitió ninguno.', onConfirm: async () => {
       try {
         const res = await fetch(urlBase + '/api/dgii/secuencias/' + id, { method: 'DELETE' });
-        if (res.ok) { cargarSecuencias(); }
+        if (res.ok) { cargarSecuencias(); cargarEstadoFiscal(); }
+        else { const d = await res.json().catch(() => ({})); toastAviso(d.error || 'No se pudo eliminar la secuencia.'); }
       } catch { toastAviso("Error al eliminar secuencia."); }
     }});
   };
 
   const limpiarFormulario = () => {
     setEditId(null);
-    setTipoComprobante('B02');
-    setPrefijo('B02');
+    setTipoComprobante('E32');
+    setPrefijo('E32');
     setSecuenciaInicial('1');
     setSecuenciaActual('1');
-    setSecuenciaFinal('1000');
+    setSecuenciaFinal('');
     setFechaVencimiento('');
     setActiva(true);
   };
@@ -261,7 +321,7 @@ function GestionNCF({ alVolver, apiUrl }) {
   }
 
   const getEstadoBadgeClass = (estado) => {
-    if (estado === 'Aceptado') return 'admin-badge admin-badge-success';
+    if (estado === 'Aceptado' || estado === 'Aceptado Condicional') return 'admin-badge admin-badge-success';
     if (estado === 'Rechazado') return 'admin-badge admin-badge-danger';
     return 'admin-badge admin-badge-warning';
   };
@@ -279,8 +339,48 @@ function GestionNCF({ alVolver, apiUrl }) {
 
   const nombreProveedor = configEcf.proveedor_ecf === 'mseller' ? 'MSeller ECF' : 'AlgoBack';
 
+  const corteFiscal = estadoFiscal?.corte;
+  const problemasFiscales = estadoFiscal?.problemas || [];
+  const erroresFiscales = problemasFiscales.filter((x) => x.nivel === 'error');
+  const avisosFiscales = problemasFiscales.filter((x) => x.nivel === 'aviso');
+  const tiposVisibles = corteFiscal?.obligatorio ? TIPOS_ELECTRONICOS : [...TIPOS_ELECTRONICOS, ...TIPOS_NCF];
+  const electronicoForm = esElectronico(tipoComprobante);
+  const previoInicial = formatearComprobante(prefijo || tipoComprobante, secuenciaInicial || 1);
+  const previoFinal = secuenciaFinal ? formatearComprobante(prefijo || tipoComprobante, secuenciaFinal) : '—';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+      {estadoFiscal && (
+        <div
+          role="status"
+          style={{
+            padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--border-subtle)', background: 'var(--bg-base)',
+            display: 'flex', flexDirection: 'column', gap: '8px',
+            borderLeft: `4px solid ${erroresFiscales.length ? 'var(--red, #ff5252)' : avisosFiscales.length ? 'var(--kpi-gold, #f59e0b)' : 'var(--green, #00e676)'}`
+          }}
+        >
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '0.88rem', fontWeight: 700, flexWrap: 'wrap' }}>
+            {erroresFiscales.length ? <TriangleAlert size={17} /> : <CheckCircle size={17} />}
+            <span style={{ flex: '1 1 220px', minWidth: 0, overflowWrap: 'anywhere' }}>
+              {corteFiscal.obligatorio
+                ? `Facturación electrónica obligatoria desde el ${fechaLegible(corteFiscal.fechaCorte)}: el NCF tradicional ya no es válido.`
+                : `El NCF tradicional deja de ser válido el ${fechaLegible(corteFiscal.fechaCorte)} (${corteFiscal.diasRestantes === 1 ? 'falta 1 día' : `faltan ${corteFiscal.diasRestantes} días`}). Desde esa fecha solo se factura con e-CF.`}
+            </span>
+            <span className={erroresFiscales.length ? 'admin-badge admin-badge-danger' : 'admin-badge admin-badge-success'}>
+              {erroresFiscales.length ? `${erroresFiscales.length} por resolver` : 'Listo para e-CF'}
+            </span>
+          </div>
+          {problemasFiscales.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.8rem', color: 'var(--text-muted)', minWidth: 0, overflowWrap: 'anywhere' }}>
+              {problemasFiscales.map((x) => (
+                <li key={x.codigo} style={{ color: x.nivel === 'error' ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                  <b style={{ color: x.nivel === 'error' ? 'var(--red, #ff5252)' : 'var(--kpi-gold, #f59e0b)' }}>{x.nivel === 'error' ? 'Falta: ' : 'Aviso: '}</b>{x.mensaje}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       {alVolver && (
         <button onClick={alVolver} className="admin-btn admin-btn-secondary" style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
           <ArrowLeft size={16} /> Volver
@@ -292,7 +392,7 @@ function GestionNCF({ alVolver, apiUrl }) {
           className={'admin-tab' + (pestañaActiva === 'secuencias' ? ' activo' : '')}
           onClick={() => setPestañaActiva('secuencias')}
         >
-          <FileText size={16} /> Secuencias NCF Tradicionales
+          <FileText size={16} /> Secuencias de comprobantes
         </button>
         <button
           className={'admin-tab' + (pestañaActiva === 'ecf' ? ' activo' : '')}
@@ -309,67 +409,94 @@ function GestionNCF({ alVolver, apiUrl }) {
       </div>
 
       {pestañaActiva === 'secuencias' ? (
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-          <div className="admin-section" style={{ width: '380px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div className="admin-section" style={{ flex: '1 1 320px', maxWidth: '420px', minWidth: 0 }}>
             <h3 className="admin-section-title">
-              {editId ? <><Pencil size={18} /> Editar Secuencia NCF</> : <><Plus size={18} /> Nueva Secuencia NCF</>}
+              {editId ? <><Pencil size={18} /> Editar secuencia</> : <><Plus size={18} /> Nueva secuencia</>}
             </h3>
             <form onSubmit={guardarSecuencia} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="admin-form-group">
-                <label className="admin-label">Tipo Comprobante</label>
+                <label className="admin-label">Tipo de comprobante</label>
                 <select
                   className="admin-input"
                   value={tipoComprobante}
                   onChange={(e) => { setTipoComprobante(e.target.value); setPrefijo(e.target.value); }}
                 >
-                  <option value="B02">B02 - Consumidor Final</option>
-                  <option value="B01">B01 - Crédito Fiscal (RNC)</option>
-                  <option value="B14">B14 - Regímenes Especiales</option>
-                  <option value="B15">B15 - Gubernamental</option>
-                  <option value="E31">E31 - e-CF Crédito Fiscal</option>
-                  <option value="E32">E32 - e-CF Consumo</option>
+                  <optgroup label="Comprobantes electrónicos (e-CF)">
+                    {tiposVisibles.filter((t) => esElectronico(t.codigo)).map((t) => <option key={t.codigo} value={t.codigo}>{t.nombre}</option>)}
+                  </optgroup>
+                  {!corteFiscal?.obligatorio && (
+                    <optgroup label={`NCF tradicional (válido hasta el ${fechaLegible(corteFiscal?.fechaCorte || '2026-11-15')})`}>
+                      {tiposVisibles.filter((t) => !esElectronico(t.codigo)).map((t) => <option key={t.codigo} value={t.codigo}>{t.nombre}</option>)}
+                    </optgroup>
+                  )}
                 </select>
               </div>
 
               <div className="admin-form-group">
-                <label className="admin-label">Prefijo NCF</label>
+                <label className="admin-label">{electronicoForm ? 'Prefijo del e-NCF' : 'Prefijo NCF'}</label>
                 <input
                   type="text"
                   className="admin-input"
-                  placeholder="Ej: B02 o E31"
+                  placeholder="Ej: E32 o B02"
                   value={prefijo}
                   onChange={(e) => setPrefijo(e.target.value.toUpperCase())}
+                  disabled={electronicoForm}
                   required
                 />
+                {electronicoForm && (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '5px 0 0 0' }}>
+                    El e-NCF es la letra E, el tipo y 10 dígitos (13 caracteres).
+                  </p>
+                )}
               </div>
 
               <div className="admin-form-row">
-                <div className="admin-form-group" style={{ flex: 1 }}>
-                  <label className="admin-label">Secuencia Actual</label>
+                <div className="admin-form-group" style={{ flex: 1, minWidth: 0 }}>
+                  <label className="admin-label">Desde (inicial)</label>
                   <input
                     type="text"
                     className="admin-input"
                     inputMode="numeric"
-                    value={secuenciaActual}
-                    onChange={(e) => setSecuenciaActual(sanitizarEntero(e.target.value))}
+                    value={secuenciaInicial}
+                    onChange={(e) => {
+                      const valor = sanitizarEntero(e.target.value);
+                      if (!editId && (secuenciaActual === secuenciaInicial || !secuenciaActual)) setSecuenciaActual(valor);
+                      setSecuenciaInicial(valor);
+                    }}
                     required
                   />
                 </div>
-                <div className="admin-form-group" style={{ flex: 1 }}>
-                  <label className="admin-label">Secuencia Final</label>
+                <div className="admin-form-group" style={{ flex: 1, minWidth: 0 }}>
+                  <label className="admin-label">Hasta (final)</label>
                   <input
                     type="text"
                     className="admin-input"
                     inputMode="numeric"
+                    placeholder={electronicoForm ? 'Rango autorizado' : '99999999'}
                     value={secuenciaFinal}
                     onChange={(e) => setSecuenciaFinal(sanitizarEntero(e.target.value))}
-                    required
+                    required={electronicoForm}
                   />
                 </div>
               </div>
+              <div className="admin-form-group">
+                <label className="admin-label">Próximo número a emitir</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  inputMode="numeric"
+                  value={secuenciaActual}
+                  onChange={(e) => setSecuenciaActual(sanitizarEntero(e.target.value))}
+                  required
+                />
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '5px 0 0 0', fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
+                  Primero: {previoInicial} · Último: {previoFinal}
+                </p>
+              </div>
 
               <div className="admin-form-group">
-                <label className="admin-label">Fecha Vencimiento Autorizada</label>
+                <label className="admin-label">{electronicoForm ? 'Vence el rango (según la DGII)' : 'Fecha vencimiento autorizada'}</label>
                 <input
                   type="date"
                   className="admin-input"
@@ -402,19 +529,19 @@ function GestionNCF({ alVolver, apiUrl }) {
             </form>
           </div>
 
-          <div className="admin-section" style={{ flex: 1 }}>
+          <div className="admin-section" style={{ flex: '2 1 340px', minWidth: 0 }}>
             <h3 className="admin-section-title" style={{ color: 'var(--kpi-gold)' }}>
-              <FileText size={18} /> Secuencias NCF Registradas ({secuencias.length})
+              <FileText size={18} /> Secuencias registradas ({secuencias.length})
             </h3>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                 <thead>
                   <tr style={{ color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border-subtle)' }}>
                     <th style={{ paddingBottom: '10px' }}>Tipo</th>
-                    <th style={{ paddingBottom: '10px' }}>Prefijo</th>
-                    <th style={{ paddingBottom: '10px' }}>Sec. Actual</th>
-                    <th style={{ paddingBottom: '10px' }}>Sec. Final</th>
-                    <th style={{ paddingBottom: '10px' }}>Vencimiento</th>
+                    <th style={{ paddingBottom: '10px' }}>Próximo número</th>
+                    <th style={{ paddingBottom: '10px' }}>Restan</th>
+                    <th style={{ paddingBottom: '10px' }}>Hasta</th>
+                    <th style={{ paddingBottom: '10px' }}>Vence</th>
                     <th style={{ paddingBottom: '10px' }}>Estado</th>
                     <th style={{ textAlign: 'right', paddingBottom: '10px' }}>Acciones</th>
                   </tr>
@@ -423,24 +550,31 @@ function GestionNCF({ alVolver, apiUrl }) {
                   {secuencias.length === 0 ? (
                     <tr>
                       <td colSpan="7" className="admin-empty" style={{ padding: '40px', fontStyle: 'italic' }}>
-                        No hay secuencias NCF configuradas en el sistema.
+                        No hay secuencias configuradas. Registra el rango de e-NCF que te autorizó la DGII.
                       </td>
                     </tr>
                   ) : (
                     secuencias.map((item) => {
-                      var NCFEjemplo = item.prefijo + String(item.secuencia_actual).padStart(8, '0');
-                      var fechaFmt = item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString() : 'N/A';
+                      const ncfEjemplo = formatearComprobante(item.prefijo, item.secuencia_actual);
+                      const restantes = Number(item.secuencia_final) - Number(item.secuencia_actual) + 1;
+                      const iso = item.fecha_vencimiento ? String(item.fecha_vencimiento).slice(0, 10) : '';
+                      const diasParaVencer = iso ? Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${corteFiscal?.hoy || iso}T00:00:00Z`)) / 86400000) : null;
+                      const tradicional = !esElectronico(item.tipo_comprobante);
+                      const usada = Number(item.secuencia_actual) > Number(item.secuencia_inicial);
                       return (
                         <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                          <td style={{ padding: '12px 0', fontWeight: 'bold' }}>{item.tipo_comprobante}</td>
-                          <td style={{ padding: '12px 0', color: 'var(--green)', fontWeight: 'bold' }}>{item.prefijo}</td>
-                          <td style={{ padding: '12px 0' }}>
-                            <span className="admin-badge" style={{ fontFamily: 'monospace' }}>
-                              {NCFEjemplo}
+                          <td style={{ padding: '12px 8px 12px 0', fontWeight: 'bold' }}>
+                            {item.tipo_comprobante}
+                            {tradicional && <div style={{ fontSize: '0.68rem', fontWeight: 600, color: corteFiscal?.obligatorio ? 'var(--red, #ff5252)' : 'var(--kpi-gold, #f59e0b)' }}>{corteFiscal?.obligatorio ? 'Ya no válido' : `NCF · hasta ${fechaLegible(corteFiscal?.fechaCorte || '2026-11-15')}`}</div>}
+                          </td>
+                          <td style={{ padding: '12px 8px 12px 0' }}>
+                            <span className="admin-badge" style={{ fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
+                              {restantes > 0 ? ncfEjemplo : 'Agotada'}
                             </span>
                           </td>
-                          <td style={{ padding: '12px 0', color: 'var(--text-muted)' }}>{item.secuencia_final}</td>
-                          <td style={{ padding: '12px 0', color: 'var(--text-muted)' }}>{fechaFmt}</td>
+                          <td style={{ padding: '12px 8px 12px 0', color: restantes < 1000 ? 'var(--kpi-gold, #f59e0b)' : 'var(--text-muted)', fontWeight: restantes < 1000 ? 700 : 400 }}>{Math.max(0, restantes).toLocaleString('es-DO')}</td>
+                          <td style={{ padding: '12px 8px 12px 0', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>{item.secuencia_final}</td>
+                          <td style={{ padding: '12px 8px 12px 0', color: diasParaVencer !== null && diasParaVencer < 30 ? 'var(--kpi-gold, #f59e0b)' : 'var(--text-muted)', fontWeight: diasParaVencer !== null && diasParaVencer < 30 ? 700 : 400 }}>{iso ? fechaLegible(iso) : 'N/A'}</td>
                           <td style={{ padding: '12px 0' }}>
                             <span className={'admin-badge ' + (item.activa ? 'admin-badge-success' : 'admin-badge-danger')}>
                               {item.activa ? <><CheckCircle size={12} /> Activa</> : <><AlertCircle size={12} /> Inactiva</>}
@@ -450,7 +584,7 @@ function GestionNCF({ alVolver, apiUrl }) {
                             <button onClick={() => editar(item)} className="admin-btn admin-btn-secondary" style={{ padding: '5px 10px', fontSize: '0.8rem', marginRight: '6px' }}>
                               <Pencil size={14} /> Editar
                             </button>
-                            <button onClick={() => eliminar(item.id)} aria-label="Eliminar secuencia" className="admin-btn admin-btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem' }}>
+                            <button onClick={() => eliminar(item.id)} aria-label="Eliminar secuencia" disabled={usada} title={usada ? 'Ya emitió comprobantes: no se puede eliminar; desactívala si no la usas.' : 'Eliminar secuencia'} className="admin-btn admin-btn-danger" style={{ padding: '5px 10px', fontSize: '0.8rem', opacity: usada ? 0.4 : 1 }}>
                               <Trash2 size={14} />
                             </button>
                           </td>
@@ -521,6 +655,52 @@ function GestionNCF({ alVolver, apiUrl }) {
                     onChange={(e) => setConfigEcf({ ...configEcf, razon_social_emisor: e.target.value })}
                     required
                   />
+                </div>
+              </div>
+
+              <div className="admin-form-row">
+                <div className="admin-form-group" style={{ flex: 2, minWidth: 0 }}>
+                  <label className="admin-label">Dirección del emisor (obligatoria en el e-CF)</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    maxLength={100}
+                    placeholder="Calle, número, sector, ciudad"
+                    value={configEcf.direccion_emisor}
+                    onChange={(e) => setConfigEcf({ ...configEcf, direccion_emisor: e.target.value })}
+                  />
+                </div>
+                <div className="admin-form-group" style={{ flex: 1, minWidth: 0 }}>
+                  <label className="admin-label">Teléfono</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={configEcf.telefono_emisor}
+                    onChange={(e) => setConfigEcf({ ...configEcf, telefono_emisor: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="admin-form-row">
+                <div className="admin-form-group" style={{ flex: 1, minWidth: 0 }}>
+                  <label className="admin-label">Correo del emisor</label>
+                  <input
+                    type="email"
+                    className="admin-input"
+                    value={configEcf.email_emisor}
+                    onChange={(e) => setConfigEcf({ ...configEcf, email_emisor: e.target.value })}
+                  />
+                </div>
+                <div className="admin-form-group" style={{ flex: 1, minWidth: 0 }}>
+                  <label className="admin-label">El e-CF es obligatorio desde</label>
+                  <input
+                    type="date"
+                    className="admin-input"
+                    value={configEcf.ecf_obligatorio_desde || ''}
+                    onChange={(e) => setConfigEcf({ ...configEcf, ecf_obligatorio_desde: e.target.value })}
+                  />
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: '5px 0 0 0' }}>
+                    Desde esta fecha el NCF tradicional (B01, B02, B14, B15) deja de ser válido y el sistema solo emite e-CF.
+                  </p>
                 </div>
               </div>
 
@@ -607,6 +787,18 @@ function GestionNCF({ alVolver, apiUrl }) {
                     </div>
                   </div>
                   <div className="admin-form-group" style={{ marginTop: '10px' }}>
+                    <label className="admin-label">Ambiente DGII</label>
+                    <select
+                      className="admin-input"
+                      value={configEcf.ambiente || 'Pruebas'}
+                      onChange={(e) => setConfigEcf({ ...configEcf, ambiente: e.target.value })}
+                    >
+                      <option value="Pruebas">Pruebas (TesteCF)</option>
+                      <option value="Certificacion">Certificación (CerteCF)</option>
+                      <option value="Producción">Producción (eCF)</option>
+                    </select>
+                  </div>
+                  <div className="admin-form-group" style={{ marginTop: '10px' }}>
                     <label className="admin-label">API Key de MSeller</label>
                     <input
                       type="password"
@@ -652,7 +844,7 @@ function GestionNCF({ alVolver, apiUrl }) {
                   <Send size={18} /> Enviar Comprobante e-CF ({nombreProveedor})
                 </h4>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 15px 0' }}>
-                  Ingresa el ID de una cuenta cerrada con tipo de comprobante <b style={{ color: 'var(--blue)' }}>e-CF</b> para enviarla como comprobante electrónico.
+                  Los e-CF se envían solos al cobrar y el sistema reintenta los pendientes cada minuto. Aquí puedes reenviar a mano el de una cuenta cerrada (indica su ID).
                 </p>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'end' }}>
                   <div className="admin-form-group" style={{ flex: 1 }}>
@@ -667,7 +859,7 @@ function GestionNCF({ alVolver, apiUrl }) {
                     />
                   </div>
                   <button
-                    onClick={enviarEcf}
+                    onClick={() => enviarEcf()}
                     disabled={enviandoEcf || !cuentaIdEcf}
                     className="admin-btn admin-btn-primary"
                     style={{ padding: '11px 24px', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: enviandoEcf ? 'not-allowed' : 'pointer', opacity: enviandoEcf ? 0.6 : 1 }}
@@ -680,7 +872,7 @@ function GestionNCF({ alVolver, apiUrl }) {
               <div style={{ background: 'var(--bg-base)', padding: '15px', borderRadius: '10px', border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                 <AlertCircle size={16} style={{ color: 'var(--kpi-gold)', marginTop: '2px', flexShrink: 0 }} />
                 <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.8rem', lineHeight: '1.5' }}>
-                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cierra la cuenta seleccionando tipo <b>e-CF</b> &#8594; 2) Se genera NCF E31/E32 &#8594; 3) Desde aquí se envía a {nombreProveedor} &#8594; 4) {nombreProveedor} firma el XML y lo envía a la DGII &#8594; 5) Se recibe trackId y estado.
+                  <b style={{ color: 'var(--kpi-gold)' }}>Flujo:</b> 1) El cajero cobra eligiendo el tipo de e-CF (E32, E31, E45 o E44) &#8594; 2) El sistema toma el siguiente e-NCF de la secuencia &#8594; 3) Se envía a {nombreProveedor}, que firma el XML y lo manda a la DGII &#8594; 4) Se guardan el código de seguridad, la fecha de firma y el estado, y el ticket imprime el QR del timbre. Si el proveedor no responde, el ticket sale «pendiente de validación» y se reintenta solo.
                 </p>
               </div>
             </div>
@@ -710,14 +902,16 @@ function GestionNCF({ alVolver, apiUrl }) {
                       <th style={{ paddingBottom: '10px' }}>NCF</th>
                       <th style={{ paddingBottom: '10px' }}>Monto</th>
                       <th style={{ paddingBottom: '10px' }}>Estado</th>
-                      <th style={{ paddingBottom: '10px' }}>Track ID</th>
+                      <th style={{ paddingBottom: '10px' }}>Cód. seguridad</th>
+                      <th style={{ paddingBottom: '10px' }}>Detalle</th>
                       <th style={{ paddingBottom: '10px' }}>Fecha</th>
+                      <th style={{ paddingBottom: '10px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {historialEcf.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="admin-empty" style={{ padding: '40px', fontStyle: 'italic' }}>
+                        <td colSpan="9" className="admin-empty" style={{ padding: '40px', fontStyle: 'italic' }}>
                           No hay comprobantes e-CF registrados aún.
                         </td>
                       </tr>
@@ -739,10 +933,20 @@ function GestionNCF({ alVolver, apiUrl }) {
                             </span>
                           </td>
                           <td style={{ padding: '10px 0', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                            {item.track_id || '—'}
+                            {item.codigo_seguridad || '—'}
+                          </td>
+                          <td style={{ padding: '10px 8px 10px 0', color: item.estado === 'Rechazado' ? 'var(--red, #ff5252)' : 'var(--text-muted)', fontSize: '0.78rem', maxWidth: '260px', overflowWrap: 'anywhere' }}>
+                            {item.ultimo_error ? `${item.ultimo_error}${Number(item.intentos) > 1 ? ` (${item.intentos} intentos)` : ''}` : '—'}
                           </td>
                           <td style={{ padding: '10px 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                             {item.fecha_emision ? new Date(item.fecha_emision).toLocaleString() : '—'}
+                          </td>
+                          <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                            {['Pendiente', 'Procesando', 'Enviado'].includes(item.estado) && (
+                              <button onClick={() => enviarEcf(item.cuenta_id)} disabled={enviandoEcf} className="admin-btn admin-btn-secondary" style={{ padding: '4px 10px', fontSize: '0.75rem' }}>
+                                <RefreshCw size={12} /> Reenviar
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))

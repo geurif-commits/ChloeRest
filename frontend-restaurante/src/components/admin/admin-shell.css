@@ -64,7 +64,7 @@
 .adm-top__icon { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 14px; color: var(--px-gold); background: var(--px-gold-soft); border: 1px solid var(--border-gold); }
 .adm-top__title { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .adm-top__title h1 { margin: 0; font: 600 1.4rem/1.05 var(--px-font-display); letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.adm-top__title span { font: 700 .62rem/1 var(--px-font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--px-ink-3); }
+.adm-top__title span { font: 700 .62rem/1 var(--px-font-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--px-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .adm-top__right { display: flex; align-items: center; gap: 10px; flex: none; }
 .adm-pill { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: var(--px-r-pill); border: 1px solid transparent; font: 650 .74rem var(--px-font-ui); white-space: nowrap; }
 .adm-pill i { font-style: normal; opacity: .4; }
@@ -91,4 +91,12 @@
   .adm-top__back span { display: none; }
   .adm-top__back { padding: 0; width: 42px; }
   .adm-content { padding: 18px 14px 32px; }
+}
+
+/* Con el menú lateral a la vista (900–1240 px) la barra superior se queda sin sitio para el título: se quitan primero los adornos. */
+@media (max-width: 1240px) {
+  .adm-pill--gold { display: none; }
+}
+@media (max-width: 1040px) {
+  .adm-pill--ok { display: none; }
 }

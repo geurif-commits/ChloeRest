@@ -39,6 +39,8 @@ router.post('/api/ventas/rapida', requireAuth, requireRoles(...ROLES_CAJA), rout
     mensaje: 'Venta registrada e inventario actualizado.',
     ncf: recibo.comprobante,
     comprobante: recibo.comprobante,
+    tipo_comprobante: recibo.tipo_comprobante,
+    representacion: recibo.representacion ?? null,
     cuenta_id: cuentaId,
     totales: {
       subtotalBruto: recibo.subtotalBruto,

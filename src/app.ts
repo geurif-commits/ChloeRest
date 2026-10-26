@@ -38,6 +38,7 @@ import reportesRouter from './routers/reportes.js';
 import dgiiRouter from './routers/dgii.js';
 import dgiiEcfRouter from './routers/dgiiEcf.js';
 import dgiiReportesRouter from './routers/dgiiReportes.js';
+import comprobantesRouter from './routers/comprobantes.js';
 import kdsRouter from './routers/kds.js';
 import webhookRouter from './routers/webhook.js';
 import respaldosRouter from './routers/respaldos.js';
@@ -181,6 +182,7 @@ export const createApp = (): Express => {
   app.use(dgiiRouter);
   app.use(dgiiEcfRouter);
   app.use(dgiiReportesRouter);
+  app.use(comprobantesRouter);
   app.use(kdsRouter);
   app.use(webhookRouter);
   app.use(respaldosRouter);

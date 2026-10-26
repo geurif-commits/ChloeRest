@@ -501,6 +501,7 @@
 
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 2px;
   padding: 4px;
   background: var(--bg-panel);

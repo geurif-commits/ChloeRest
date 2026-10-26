@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import pg from 'pg';
 
@@ -57,7 +58,7 @@ const llamar = async (metodo, ruta, { token, body, sinDispositivo, cabeceras } =
 };
 
 let servidor;
-const est = { cajasAbiertas: [], cuentasMax: 0, aperturaMax: 0, cierreMax: 0, arqueoMax: null, mesas: [], productos: [], usuarios: [], secuencia: null, negocio: null, catalogo: [], duenoCfg: null, t0: new Date() };
+const est = { cajasAbiertas: [], cuentasMax: 0, aperturaMax: 0, cierreMax: 0, arqueoMax: null, mesas: [], productos: [], usuarios: [], secuencia: null, secMax: 0, dgii: null, dgiiMax: 0, negocio: null, catalogo: [], duenoCfg: null, t0: new Date() };
 
 async function iniciarServidor(extra = {}) {
   servidor = spawn(process.execPath, [process.env.E2E_BUNDLE || 'bundle-pruebas.cjs'], { cwd: ROOT, env: { ...process.env, PORT: String(PORT), LOGIN_RATE_MAX: '5000', PUBLIC_RATE_MAX: '100000', NODE_ENV: 'development', ...extra }, stdio: 'ignore', windowsHide: true });
@@ -85,6 +86,11 @@ async function principal() {
   est.duenoCfg = (await db.query('SELECT id, owner_pin_hash, owner_pin_longitud, owner_token_epoch FROM configuracion_sistema ORDER BY id LIMIT 1')).rows[0] || null;
   est.negocioMax = await maximo('negocio_config');
   est.catalogo = (await db.query('SELECT id, aplica_itbis, tasa_itbis, aplica_propina, tasa_propina FROM productos')).rows;
+  est.secMax = await maximo('dgii_secuencias'); est.dgiiMax = await maximo('dgii_config');
+  est.dgii = (await db.query("SELECT *, to_char(ecf_obligatorio_desde, 'YYYY-MM-DD') AS corte_txt FROM dgii_config WHERE empresa_id = 1 ORDER BY id LIMIT 1")).rows[0] || null;
+  // Las secciones con NCF tradicional (B02) no deben depender del calendario: el corte al e-CF se aleja y la sección C8 lo mueve.
+  if (est.dgii) await db.query("UPDATE dgii_config SET ecf_obligatorio_desde = DATE '2099-12-31' WHERE id = $1", [est.dgii.id]);
+  else await db.query("INSERT INTO dgii_config (ambiente, empresa_id, ecf_obligatorio_desde) VALUES ('Pruebas', 1, DATE '2099-12-31')");
   const sec = await db.query("SELECT id, secuencia_actual FROM dgii_secuencias WHERE tipo_comprobante='B02' AND activa AND fecha_vencimiento >= CURRENT_DATE ORDER BY id LIMIT 1");
   if (sec.rowCount) est.secuencia = { id: sec.rows[0].id, actual: sec.rows[0].secuencia_actual };
   else {
@@ -344,6 +350,141 @@ async function principal() {
   ok('/api/pedidos/llevar con solo el nombre del cliente → 400', soloNombreLlevar.status === 400);
   await guardarNegocio({ cobrar_itbis: false, cobrar_propina: false });
 
+  // ── C8. Facturación electrónica (e-CF) ──
+  console.log('\n== C8. Facturación electrónica (e-CF) ==');
+  // Proveedor simulado (AlgoBack v2): registra lo que recibe y responde según el modo.
+  const proveedor = { modo: 'aceptar', pedidos: [] };
+  const mock = http.createServer((req, res) => {
+    let cuerpo = '';
+    req.on('data', (c) => { cuerpo += c; });
+    req.on('end', () => {
+      proveedor.pedidos.push({ metodo: req.method, url: req.url, cabeceras: req.headers, cuerpo: cuerpo ? JSON.parse(cuerpo) : null });
+      const responder = (codigo, json) => { res.writeHead(codigo, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(json)); };
+      if (proveedor.modo === 'caido') return responder(503, { error: 'mantenimiento' });
+      if (proveedor.modo === 'rechazar') return responder(200, { dgii: { estado: 'Rechazado', codigo: '2', mensajes: [{ valor: 'Monto total no coincide' }] } });
+      return responder(200, { codigoSeguridad: 'AbC123', fechaFirma: '25-10-2026 21:30:05', dgii: { estado: 'Aceptado', trackId: 'TRK-E2E', codigo: '1' } });
+    });
+  });
+  await new Promise((resolver) => { mock.listen(0, '127.0.0.1', resolver); });
+  const urlMock = `http://127.0.0.1:${mock.address().port}`;
+  const ultimoEnvio = () => [...proveedor.pedidos].reverse().find((x) => x.metodo === 'POST')?.cuerpo;
+  const pedidosAntes = () => proveedor.pedidos.length;
+
+  const configEcf = (extra = {}) => llamar('POST', '/api/dgii/config', { token: T, body: { rnc_emisor: '131000004', razon_social_emisor: 'RESTAURANTE E2E SRL', ambiente: 'Pruebas', proveedor_ecf: 'algoback', algoback_url: urlMock, algoback_ambiente: 'PROD', algoback_api_key: 'key-e2e', ecf_obligatorio_desde: '2099-12-31', ...extra } });
+  const emisorEcf = () => llamar('PUT', '/api/dgii/emisor', { token: T, body: { rnc_emisor: '131000004', razon_social_emisor: 'RESTAURANTE E2E SRL', direccion_emisor: 'Calle Duarte 1, La Romana', telefono_emisor: '8095550100', email_emisor: 'e2e@example.com', regimen_fiscal: 'Ordinario' } });
+  // Un cobro rechazado deja la mesa abierta: cada escenario abre UNA mesa y la reutiliza hasta lograr el cobro.
+  const abrir = async () => {
+    const m = (await llamar('GET', '/api/mesas', { token: T })).body.find((x) => x.estado === 'Disponible');
+    if (!m) throw new Error('no quedan mesas disponibles para la sección e-CF');
+    await pedir(m, [{ id: plato.id, cantidad: 1 }, { id: cerveza.id, cantidad: 1 }]);
+    return m;
+  };
+  const ecfDe = async (cuentaId) => (await db.query('SELECT estado, codigo_seguridad, fecha_firma, intentos, ultimo_error, track_id FROM e_cf_comprobantes WHERE cuenta_id = $1', [cuentaId])).rows[0];
+
+  await guardarNegocio({ cobrar_itbis: true, cobrar_propina: false });
+  await db.query("UPDATE negocio_config SET rnc = '', direccion = '' WHERE id = (SELECT id FROM negocio_config ORDER BY id LIMIT 1)");
+
+  const estado0 = await llamar('GET', '/api/comprobantes/estado', { token: T });
+  ok('estado: sin corte cercano el NCF tradicional se ofrece junto a los e-CF, y B02 es el tipo por defecto',
+    estado0.status === 200 && estado0.body.corte.obligatorio === false && estado0.body.tipos.some((t) => t.codigo === 'B02') && estado0.body.tipos.some((t) => t.codigo === 'E32') && estado0.body.porDefecto === 'B02');
+  ok('el cajero también ve el estado; el camarero no', (await llamar('GET', '/api/comprobantes/estado', { token: TC })).status === 403);
+
+  await configEcf({ rnc_emisor: '', razon_social_emisor: '' });
+  const mesaA = await abrir();
+  const sinEmisor = await cobrar(mesaA, { tipo_comprobante: 'E32' });
+  ok('sin RNC, razón social y dirección del emisor no se emite un e-CF (409 EMISOR_INCOMPLETO)', sinEmisor.status === 409 && sinEmisor.body.code === 'EMISOR_INCOMPLETO', `${sinEmisor.status} ${sinEmisor.body.code}`);
+
+  await configEcf(); await emisorEcf();
+  const vencimiento = new Date(Date.now() + 400 * 86400000).toISOString().slice(0, 10);
+  const secInvalida = await llamar('POST', '/api/dgii/secuencias', { token: T, body: { tipo_comprobante: 'E32', secuencia_inicial: 1, secuencia_actual: 1, fecha_vencimiento: vencimiento } });
+  ok('una secuencia e-CF exige el rango autorizado por la DGII (400)', secInvalida.status === 400, secInvalida.body.error);
+  ok('el tipo de comprobante debe existir (400)', (await llamar('POST', '/api/dgii/secuencias', { token: T, body: { tipo_comprobante: 'X99', secuencia_final: 10, fecha_vencimiento: vencimiento } })).status === 400);
+  ok('el rango debe ser coherente (final menor que inicial → 400)', (await llamar('POST', '/api/dgii/secuencias', { token: T, body: { tipo_comprobante: 'E32', secuencia_inicial: 50, secuencia_actual: 50, secuencia_final: 10, fecha_vencimiento: vencimiento } })).status === 400);
+  ok('un e-NCF no puede pasar de 10 dígitos (400)', (await llamar('POST', '/api/dgii/secuencias', { token: T, body: { tipo_comprobante: 'E32', secuencia_final: 99999999999, fecha_vencimiento: vencimiento } })).status === 400);
+  for (const [tipo, fin] of [['E32', 1000], ['E31', 1000], ['E45', 1]]) {
+    const r = await llamar('POST', '/api/dgii/secuencias', { token: T, body: { tipo_comprobante: tipo, prefijo: 'ZZZ', secuencia_inicial: 1, secuencia_actual: 1, secuencia_final: fin, fecha_vencimiento: vencimiento } });
+    ok(`se registra la secuencia ${tipo} 1–${fin}`, r.status === 200, r.body.error || '');
+  }
+  const secs = (await llamar('GET', '/api/dgii/secuencias', { token: T })).body;
+  ok('el prefijo de un e-CF siempre es su tipo, aunque se mande otro', secs.filter((x) => x.tipo_comprobante.startsWith('E')).every((x) => x.prefijo === x.tipo_comprobante));
+
+  // E32: aceptado por la DGII
+  const total0 = pedidosAntes();
+  const e32 = await cobrar(mesaA, { tipo_comprobante: 'E32' });
+  const rep32 = e32.body.representacion || {};
+  ok('E32: se cobra y el e-NCF tiene 13 caracteres (E32 + 10 dígitos)', e32.status === 200 && /^E32\d{10}$/.test(e32.body.ncf) && e32.body.tipo_comprobante === 'E32', `${e32.status} ${e32.body.ncf || e32.body.error}`);
+  const env32 = ultimoEnvio();
+  ok('el proveedor recibe el e-NCF, el emisor y el monto exacto cobrado (ITBIS incluido)', pedidosAntes() > total0 && env32?.eNCF === e32.body.ncf && env32?.RNCEmisor === '131000004' && Number(env32?.MontoTotal) === money(e32.body.totales.total) && Number(env32?.TotalITBIS) === money(e32.body.totales.itbis) && env32?.RNCComprador === undefined,
+    JSON.stringify({ total: e32.body.totales?.total, itbis: e32.body.totales?.itbis, enviado: env32?.MontoTotal }));
+  const cab32 = proveedor.pedidos.find((x) => x.metodo === 'POST')?.cabeceras || {};
+  ok('se identifica con la API-KEY, el entorno y una clave de operación que evita la doble emisión', cab32['x-api-key'] === 'key-e2e' && cab32['x-entorno'] === 'PROD' && String(cab32['x-operacion-id']).startsWith('cuenta-'));
+  ok('la representación impresa trae título, código de seguridad, fecha de firma y el QR de consulta de la DGII', rep32.electronico === true && rep32.titulo === 'Factura de Consumo Electrónica' && rep32.codigoSeguridad === 'AbC123' && rep32.fechaFirma && rep32.pendiente === false && String(rep32.qrUrl).startsWith('https://fc.dgii.gov.do/ecf/ConsultaTimbreFC?') && String(rep32.qrUrl).includes('CodigoSeguridad=AbC123'), rep32.qrUrl);
+  const fila32 = await ecfDe(e32.body.cuenta_id);
+  ok('queda registrado como Aceptado con su código de seguridad', fila32?.estado === 'Aceptado' && fila32.codigo_seguridad === 'AbC123');
+  const repGet = await llamar('GET', `/api/cuentas/${e32.body.cuenta_id}/comprobante`, { token: T });
+  ok('la reimpresión lee los mismos datos del comprobante', repGet.status === 200 && repGet.body.ncf === e32.body.ncf && repGet.body.codigoSeguridad === 'AbC123');
+
+  // E31: crédito fiscal exige comprador
+  const mesaB = await abrir();
+  const sinRnc = await cobrar(mesaB, { tipo_comprobante: 'E31' });
+  ok('E31 sin RNC del cliente → 400 COMPRADOR_REQUERIDO', sinRnc.status === 400 && sinRnc.body.code === 'COMPRADOR_REQUERIDO', `${sinRnc.status} ${sinRnc.body.code}`);
+  const sinNombre = await cobrar(mesaB, { tipo_comprobante: 'E31', rnc_cedula_cliente: '101000019' });
+  ok('E31 sin razón social del cliente → 400', sinNombre.status === 400);
+  const rncMalo = await cobrar(mesaB, { tipo_comprobante: 'E31', rnc_cedula_cliente: '123456789', razon_social_cliente: 'ACME SRL' });
+  ok('E31 con RNC inválido → 400 RNC_INVALIDO', rncMalo.status === 400 && rncMalo.body.code === 'RNC_INVALIDO', `${rncMalo.status} ${rncMalo.body.code}`);
+  const e31 = await cobrar(mesaB, { tipo_comprobante: 'E31', rnc_cedula_cliente: '101-00001-9', razon_social_cliente: ' ACME SRL ' });
+  const env31 = ultimoEnvio();
+  ok('E31 con RNC válido: se cobra, el RNC se guarda solo con dígitos y viaja al proveedor con su razón social y el vencimiento de la secuencia', e31.status === 200 && /^E31\d{10}$/.test(e31.body.ncf) && env31?.RNCComprador === '101000019' && env31?.RazonSocialComprador === 'ACME SRL' && /^\d{2}-\d{2}-\d{4}$/.test(env31?.FechaVencimientoSecuencia || ''), JSON.stringify({ s: e31.status, rnc: env31?.RNCComprador }));
+  const cta31 = (await db.query('SELECT rnc_cedula_cliente, razon_social_cliente FROM cuentas WHERE id = $1', [e31.body.cuenta_id])).rows[0];
+  ok('la cuenta guarda RNC normalizado y razón social; el ticket los muestra', cta31?.rnc_cedula_cliente === '101000019' && cta31.razon_social_cliente === 'ACME SRL' && e31.body.representacion?.comprador?.razonSocial === 'ACME SRL' && e31.body.representacion?.titulo === 'Factura de Crédito Fiscal Electrónica' && Boolean(e31.body.representacion?.fechaVencimientoSecuencia));
+
+  // Rango inclusivo: E45 1–1 emite el número 1 y luego se agota
+  const e45 = await cobrar(await abrir(), { tipo_comprobante: 'E45', rnc_cedula_cliente: '101000019', razon_social_cliente: 'MINISTERIO E2E' });
+  ok('el único número del rango E45 1–1 sí se puede emitir (rango inclusivo)', e45.status === 200 && e45.body.ncf === 'E450000000001', `${e45.status} ${e45.body.ncf || e45.body.error}`);
+  const mesaD = await abrir();
+  const e45b = await cobrar(mesaD, { tipo_comprobante: 'E45', rnc_cedula_cliente: '101000019', razon_social_cliente: 'MINISTERIO E2E' });
+  ok('y el siguiente falla por secuencia agotada (400 SECUENCIA_AGOTADA)', e45b.status === 400 && e45b.body.code === 'SECUENCIA_AGOTADA', `${e45b.status} ${e45b.body.code}`);
+  ok('una secuencia que ya emitió comprobantes no se puede eliminar (409)', (await llamar('DELETE', `/api/dgii/secuencias/${secs.find((x) => x.tipo_comprobante === 'E32').id}`, { token: T })).status === 409);
+
+  // Proveedor caído: el cobro no se pierde y el comprobante queda pendiente
+  proveedor.modo = 'caido';
+  const caido = await cobrar(mesaD, { tipo_comprobante: 'E32' });
+  ok('con el proveedor caído la venta se cobra igual y el ticket indica "pendiente de validación"', caido.status === 200 && caido.body.representacion?.pendiente === true && !caido.body.representacion?.codigoSeguridad, `${caido.status} pendiente=${caido.body.representacion?.pendiente}`);
+  const filaCaido = await ecfDe(caido.body.cuenta_id);
+  ok('queda Pendiente, con el motivo y programado para reintentarse', filaCaido?.estado === 'Pendiente' && Number(filaCaido.intentos) === 1 && /proveedor|503|disponible/i.test(filaCaido.ultimo_error || ''), JSON.stringify(filaCaido));
+  proveedor.modo = 'aceptar';
+  const reenvio = await llamar('POST', '/api/dgii/ecf/enviar', { token: T, body: { cuenta_id: caido.body.cuenta_id } });
+  ok('al volver el proveedor, el reenvío lo deja Aceptado con su timbre', reenvio.status === 200 && reenvio.body.estado === 'Aceptado' && (await ecfDe(caido.body.cuenta_id))?.codigo_seguridad === 'AbC123', `${reenvio.status} ${reenvio.body.estado || reenvio.body.error}`);
+  const repTrasReenvio = await llamar('GET', `/api/cuentas/${caido.body.cuenta_id}/comprobante`, { token: T });
+  ok('y la reimpresión ya trae código de seguridad y QR', repTrasReenvio.body.pendiente === false && Boolean(repTrasReenvio.body.codigoSeguridad) && Boolean(repTrasReenvio.body.qrUrl));
+
+  // Rechazo de la DGII
+  proveedor.modo = 'rechazar';
+  const rechazado = await cobrar(await abrir(), { tipo_comprobante: 'E32' });
+  const filaRech = await ecfDe(rechazado.body.cuenta_id);
+  ok('un rechazo de la DGII queda registrado con su motivo y no se reintenta solo', rechazado.status === 200 && filaRech?.estado === 'Rechazado' && /Monto total/.test(filaRech.ultimo_error || ''), JSON.stringify(filaRech));
+  proveedor.modo = 'aceptar';
+  const fiscal = await llamar('GET', '/api/dgii/estado-fiscal', { token: T });
+  ok('el estado fiscal avisa de los comprobantes rechazados y de lo que falta (secuencia E44, ambiente)', fiscal.status === 200 && fiscal.body.problemas.some((x) => x.codigo === 'RECHAZADOS' && x.nivel === 'error') && fiscal.body.problemas.some((x) => x.codigo === 'SECUENCIA_E44') && fiscal.body.listo === false, fiscal.body.problemas?.map((x) => x.codigo).join(','));
+  await db.query("UPDATE e_cf_comprobantes SET estado = 'Anulado' WHERE cuenta_id = $1", [rechazado.body.cuenta_id]);
+
+  // Corte: desde la fecha el NCF tradicional ya no vale
+  const ayer = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  await configEcf({ ecf_obligatorio_desde: ayer });
+  const estado1 = await llamar('GET', '/api/comprobantes/estado', { token: T });
+  ok('desde el corte: solo se ofrecen e-CF y E32 es el tipo por defecto', estado1.body.corte.obligatorio === true && estado1.body.tipos.every((t) => t.electronico) && estado1.body.porDefecto === 'E32');
+  const mesaE = await abrir();
+  const b02 = await cobrar(mesaE, { tipo_comprobante: 'B02' });
+  ok('desde el corte un cobro con NCF tradicional se rechaza (400 NCF_NO_VALIDO)', b02.status === 400 && b02.body.code === 'NCF_NO_VALIDO', `${b02.status} ${b02.body.code}`);
+  const sinTipo = await cobrar(mesaE, { tipo_comprobante: undefined });
+  ok('sin tipo de comprobante se emite E32 (consumo electrónico)', sinTipo.status === 200 && /^E32\d{10}$/.test(sinTipo.body.ncf), `${sinTipo.status} ${sinTipo.body.ncf || sinTipo.body.error}`);
+  ok('desde el corte tampoco se pueden registrar secuencias de NCF tradicional (400)', (await llamar('POST', '/api/dgii/secuencias', { token: T, body: { tipo_comprobante: 'B02', secuencia_final: 100, fecha_vencimiento: vencimiento } })).status === 400);
+  await configEcf();
+  ok('con el corte lejano el NCF tradicional vuelve a aceptarse', (await cobrar(await abrir(), { tipo_comprobante: 'B02' })).status === 200);
+  await guardarNegocio({ cobrar_itbis: false, cobrar_propina: false });
+  await new Promise((resolver) => { mock.close(resolver); });
+
+
   // ── D. Turnos ──
   console.log('\n== D. Turnos por PIN ==');
   const marca = (b) => llamar('POST', '/api/asistencia/marcar', { body: { pin: PIN_CAM, deviceId: DEV, ...b } });
@@ -446,6 +587,9 @@ async function limpiar() {
       await db.query('DELETE FROM auditoria_operaciones WHERE usuario_id = ANY($1::int[])', [est.usuarios]).catch(() => undefined);
       await db.query('DELETE FROM usuarios WHERE id = ANY($1::int[])', [est.usuarios]).catch(async () => { await db.query("UPDATE usuarios SET estado = 'Inactivo' WHERE id = ANY($1::int[])", [est.usuarios]); });
     }
+    await db.query('DELETE FROM dgii_secuencias WHERE id > $1', [est.secMax]);
+    if (est.dgii) await db.query('UPDATE dgii_config SET rnc_emisor=$2, razon_social_emisor=$3, direccion_emisor=$4, telefono_emisor=$5, email_emisor=$6, ambiente=$7, proveedor_ecf=$8, algoback_api_key=$9, algoback_url=$10, algoback_ambiente=$11, ecf_obligatorio_desde=$12::date WHERE id=$1', [est.dgii.id, est.dgii.rnc_emisor, est.dgii.razon_social_emisor, est.dgii.direccion_emisor, est.dgii.telefono_emisor, est.dgii.email_emisor, est.dgii.ambiente, est.dgii.proveedor_ecf, est.dgii.algoback_api_key, est.dgii.algoback_url, est.dgii.algoback_ambiente, est.dgii.corte_txt]);
+    else await db.query('DELETE FROM dgii_config WHERE id > $1', [est.dgiiMax]);
     if (est.secuencia?.creada) await db.query('DELETE FROM dgii_secuencias WHERE id = $1', [est.secuencia.id]);
     else if (est.secuencia) await db.query('UPDATE dgii_secuencias SET secuencia_actual = $2 WHERE id = $1', [est.secuencia.id, est.secuencia.actual]);
     await db.query('DELETE FROM historial_cierres WHERE id > $1', [est.cierreMax]);

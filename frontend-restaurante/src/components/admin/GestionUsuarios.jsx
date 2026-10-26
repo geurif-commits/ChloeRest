@@ -218,8 +218,8 @@ export default function GestionUsuarios({ apiUrl, usuarioIdActual }) {
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <div style={{ position: 'relative', minWidth: '180px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', minWidth: 0, flex: '1 1 240px', justifyContent: 'flex-end' }}>
+              <div style={{ position: 'relative', flex: '1 1 160px', minWidth: 0 }}>
                 <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--admin-text-muted)' }} />
                 <input
                   type="text"
