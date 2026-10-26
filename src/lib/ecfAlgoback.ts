@@ -106,7 +106,8 @@ export function construirCuerpoAlgoBack(f: IFacturaAlgoBack): Record<string, unk
   cuerpo.RNCEmisor = rncEmisor;
   cuerpo.RazonSocialEmisor = cortar(f.emisor.razonSocial.trim(), 150);
   cuerpo.DireccionEmisor = cortar(f.emisor.direccion.trim(), 100);
-  cuerpo.FechaEmision = fechaDdMmYyyy(f.fechaEmision);
+  // La cuenta ya trae la fecha como texto dd-MM-yyyy (formateada por la base, sin depender de la zona del servidor).
+  cuerpo.FechaEmision = typeof f.fechaEmision === 'string' && /^\d{2}-\d{2}-\d{4}$/.test(f.fechaEmision) ? f.fechaEmision : fechaDdMmYyyy(f.fechaEmision);
 
   const { itbis, total } = totalesAlgoBack(f.tipo, f.lineas);
   const rncComprador = normalizarRNC(f.comprador?.rnc);
@@ -146,6 +147,8 @@ export interface IResultadoAlgoBack {
   codigoSeguridad: string | null;
   /** Instante de la firma digital (el proveedor lo informa como dd-MM-yyyy HH:mm:ss, hora de Santo Domingo). */
   fechaFirma: Date | null;
+  /** La misma fecha como la informó el proveedor (dd-MM-yyyy HH:mm:ss): es lo que se guarda y se imprime. */
+  fechaFirmaTexto: string | null;
   qrUrl: string | null;
   mensaje: string;
   /** true si vale la pena reintentar (caída del proveedor, cuota, respuesta ilegible). */
@@ -188,7 +191,7 @@ function mapearEstado(estado: string, codigo: string | null): EstadoEcf {
 
 /** Interpreta la respuesta HTTP de AlgoBack (emisión o consulta). `cuerpo` es el JSON ya leído (o null si no lo era). */
 export function interpretarRespuestaAlgoBack(cuerpo: unknown, http: number): IResultadoAlgoBack {
-  const vacio = { trackId: null, codigoSeguridad: null, fechaFirma: null, qrUrl: null };
+  const vacio = { trackId: null, codigoSeguridad: null, fechaFirma: null, fechaFirmaTexto: null, qrUrl: null };
   const raiz = objeto(cuerpo);
   if (!raiz) {
     return { ...vacio, estado: http >= 200 && http < 300 ? 'Procesando' : 'Pendiente', mensaje: http >= 500 ? `AlgoBack no está disponible (${http}). Se reintentará.` : `Respuesta inesperada de AlgoBack (${http}).`, reintentable: true };
@@ -212,6 +215,7 @@ export function interpretarRespuestaAlgoBack(cuerpo: unknown, http: number): IRe
     trackId: texto(dgii, 'trackId') ?? texto(raiz, 'trackId'),
     codigoSeguridad: texto(raiz, 'codigoSeguridad') ?? texto(dgii, 'codigoSeguridad'),
     fechaFirma: parsearFechaFirma(texto(raiz, 'fechaFirma')),
+    fechaFirmaTexto: parsearFechaFirma(texto(raiz, 'fechaFirma')) ? texto(raiz, 'fechaFirma') : null,
     qrUrl: texto(raiz, 'url') ?? texto(dgii, 'url'),
     mensaje: lista || (estado === 'Aceptado' ? `Aceptado por la DGII (${texto(raiz, 'tipoEnviado') ?? 'ECF'}).` : estadoTexto),
     reintentable: estado === 'Procesando',

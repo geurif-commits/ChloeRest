@@ -103,6 +103,7 @@ describe('interpretarRespuestaAlgoBack', () => {
     const r = interpretarRespuestaAlgoBack({ codigoSeguridad: 'AbC123', fechaFirma: '25-10-2026 21:30:05', dgii: { estado: 'Aceptado', trackId: 'T-1', codigo: '1' } }, 200);
     expect(r).toMatchObject({ estado: 'Aceptado', trackId: 'T-1', codigoSeguridad: 'AbC123', reintentable: false });
     expect(r.fechaFirma?.toISOString()).toBe('2026-10-26T01:30:05.000Z');
+    expect(r.fechaFirmaTexto).toBe('25-10-2026 21:30:05');
   });
   it('rechazado por la DGII no se reintenta y conserva los mensajes', () => {
     const r = interpretarRespuestaAlgoBack({ dgii: { estado: 'Rechazado', codigo: '2', mensajes: [{ valor: 'RNC comprador inválido' }] } }, 200);

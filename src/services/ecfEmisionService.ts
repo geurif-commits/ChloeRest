@@ -19,7 +19,6 @@ import {
   esTipoElectronico,
   estadoCorteEcf,
   fechaDdMmYyyy,
-  fechaHoraDdMmYyyy,
   tituloComprobante,
   TIPOS_ECF_VENTA,
   type AmbienteEcf,
@@ -230,7 +229,8 @@ export interface IFilaEcf {
   track_id: string | null;
   estado: string;
   codigo_seguridad: string | null;
-  fecha_firma: Date | null;
+  /** dd-MM-yyyy HH:mm:ss en hora de Santo Domingo (la base guarda la hora de pared; no se pasa por la zona del servidor). */
+  fecha_firma: string | null;
   qr_url: string | null;
   ambiente: string | null;
   intentos: number;
@@ -239,7 +239,8 @@ export interface IFilaEcf {
   enviado_en: Date | null;
 }
 
-const COLUMNAS_ECF = `id, cuenta_id, empresa_id, tipo_cf, ncf, track_id, estado, codigo_seguridad, fecha_firma, qr_url, ambiente, intentos,
+const COLUMNAS_ECF = `id, cuenta_id, empresa_id, tipo_cf, ncf, track_id, estado, codigo_seguridad,
+  to_char(fecha_firma, 'DD-MM-YYYY HH24:MI:SS') AS fecha_firma, qr_url, ambiente, intentos,
   ultimo_error, to_char(fecha_vencimiento_secuencia, 'YYYY-MM-DD') AS fecha_vencimiento_secuencia, enviado_en`;
 
 /**
@@ -272,7 +273,8 @@ interface ICuentaEcfFila {
   total: string;
   propina: string;
   descuento: string | null;
-  fecha_cierre: Date | null;
+  /** dd-MM-yyyy en hora de Santo Domingo. */
+  fecha_emision_txt: string;
   metodo_pago: string | null;
 }
 
@@ -290,6 +292,7 @@ export interface IResultadoEmision {
   ncf: string | null;
   trackId: string | null;
   codigoSeguridad: string | null;
+  /** dd-MM-yyyy HH:mm:ss en hora de Santo Domingo. */
   fechaFirma: string | null;
   qrUrl: string | null;
   reintentable: boolean;
@@ -318,29 +321,30 @@ async function fetchConLimite(url: string, init: RequestInit, ms: number): Promi
 
 const esperar = (ms: number): Promise<void> => new Promise((resolver) => { setTimeout(resolver, ms); });
 
-function siguienteIntento(estado: string, intentos: number, reintentable: boolean): string | null {
+/** Segundos hasta el próximo intento (null: no se reintenta). El instante lo calcula la base con NOW(), nunca el servidor. */
+function segundosParaReintento(estado: string, intentos: number, reintentable: boolean): number | null {
   if (!reintentable) {return null;}
-  const segundos = estado === 'Procesando' ? Math.min(20 * (intentos + 1), 300) : Math.min(60 * 2 ** Math.min(intentos, 5), 1800);
-  return new Date(Date.now() + segundos * 1000).toISOString();
+  return estado === 'Procesando' ? Math.min(20 * (intentos + 1), 300) : Math.min(60 * 2 ** Math.min(intentos, 5), 1800);
 }
 
 async function guardarResultado(
   id: number,
   intentosPrevios: number,
-  r: { estado: string; mensaje: string; trackId?: string | null; codigoSeguridad?: string | null; fechaFirma?: Date | null; qrUrl?: string | null; respuesta?: unknown; xmlFirmado?: string | null; reintentable: boolean }
+  r: { estado: string; mensaje: string; trackId?: string | null; codigoSeguridad?: string | null; fechaFirmaTexto?: string | null; qrUrl?: string | null; respuesta?: unknown; xmlFirmado?: string | null; reintentable: boolean }
 ): Promise<void> {
   const exito = r.estado === 'Aceptado' || r.estado === 'Aceptado Condicional';
   await getDatabase().query(
     `UPDATE e_cf_comprobantes
         SET estado = $2, track_id = COALESCE($3, track_id), codigo_seguridad = COALESCE($4, codigo_seguridad),
-            fecha_firma = COALESCE($5, fecha_firma), qr_url = COALESCE($6, qr_url), xml_firmado = COALESCE($7, xml_firmado),
-            respuesta_json = COALESCE($8::jsonb, respuesta_json), enviado_en = COALESCE(enviado_en, NOW()),
-            intentos = $9, ultimo_error = $10, proximo_intento = $11::timestamp
+            fecha_firma = COALESCE(to_timestamp($5, 'DD-MM-YYYY HH24:MI:SS')::timestamp, fecha_firma), qr_url = COALESCE($6, qr_url),
+            xml_firmado = COALESCE($7, xml_firmado), respuesta_json = COALESCE($8::jsonb, respuesta_json),
+            enviado_en = COALESCE(enviado_en, NOW()), intentos = $9, ultimo_error = $10,
+            proximo_intento = CASE WHEN $11::int IS NULL THEN NULL ELSE NOW() + make_interval(secs => $11::int) END
       WHERE id = $1`,
     [
-      id, r.estado, r.trackId ?? null, r.codigoSeguridad ?? null, r.fechaFirma ?? null, r.qrUrl ?? null, r.xmlFirmado ?? null,
+      id, r.estado, r.trackId ?? null, r.codigoSeguridad ?? null, r.fechaFirmaTexto ?? null, r.qrUrl ?? null, r.xmlFirmado ?? null,
       r.respuesta === undefined ? null : JSON.stringify(r.respuesta), intentosPrevios + 1,
-      exito ? null : r.mensaje.slice(0, 500), siguienteIntento(r.estado, intentosPrevios, r.reintentable),
+      exito ? null : r.mensaje.slice(0, 500), segundosParaReintento(r.estado, intentosPrevios, r.reintentable),
     ]
   );
 }
@@ -350,7 +354,7 @@ const resultadoDe = (fila: IFilaEcf, extra: Partial<IResultadoEmision> & { estad
   ncf: fila.ncf,
   trackId: fila.track_id,
   codigoSeguridad: fila.codigo_seguridad,
-  fechaFirma: fila.fecha_firma ? new Date(fila.fecha_firma).toISOString() : null,
+  fechaFirma: fila.fecha_firma,
   qrUrl: fila.qr_url,
   reintentable: false,
   ...extra,
@@ -393,7 +397,7 @@ export async function emitirEcfDeCuenta(cuentaId: number, opciones: IOpcionesEmi
 
   const cuentaRes = await db.query<ICuentaEcfFila>(
     `SELECT id, ncf_ecf_generado AS ncf, tipo_comprobante, rnc_cedula_cliente, razon_social_cliente, total::text, propina::text,
-            descuento::text, fecha_cierre, metodo_pago
+            descuento::text, to_char(COALESCE(fecha_cierre, NOW()), 'DD-MM-YYYY') AS fecha_emision_txt, metodo_pago
        FROM cuentas WHERE id = $1 AND estado = 'Cerrada'`,
     [cuentaId]
   );
@@ -426,7 +430,7 @@ export async function emitirEcfDeCuenta(cuentaId: number, opciones: IOpcionesEmi
     await guardarResultado(fila.id, fila.intentos, resultado);
     logger.info({ action: 'ECF_EMISION', details: { cuentaId, ncf: cuenta.ncf, estado: resultado.estado } });
     return resultadoDe(
-      { ...fila, track_id: resultado.trackId ?? fila.track_id, codigo_seguridad: resultado.codigoSeguridad ?? fila.codigo_seguridad, fecha_firma: resultado.fechaFirma ?? fila.fecha_firma, qr_url: resultado.qrUrl ?? fila.qr_url },
+      { ...fila, track_id: resultado.trackId ?? fila.track_id, codigo_seguridad: resultado.codigoSeguridad ?? fila.codigo_seguridad, fecha_firma: resultado.fechaFirmaTexto ?? fila.fecha_firma, qr_url: resultado.qrUrl ?? fila.qr_url },
       { estado: resultado.estado, mensaje: resultado.mensaje, reintentable: resultado.reintentable }
     );
   } catch (error) {
@@ -478,7 +482,7 @@ async function enviarPorAlgoBack(
     const cuerpoEnvio = construirCuerpoAlgoBack({
       encf: cuenta.ncf as string,
       tipo: cuenta.tipo_comprobante as string,
-      fechaEmision: cuenta.fecha_cierre ?? new Date(),
+      fechaEmision: cuenta.fecha_emision_txt,
       vencimientoSecuencia: fila.fecha_vencimiento_secuencia,
       emisor: { rnc: emisor.rnc, razonSocial: emisor.razonSocial, direccion: emisor.direccion },
       comprador: cuenta.rnc_cedula_cliente ? { rnc: cuenta.rnc_cedula_cliente, razonSocial: cuenta.razon_social_cliente ?? '' } : null,
@@ -516,7 +520,7 @@ async function enviarPorMseller(
     const estado = (mapearEstadoMsellerAEstadoLocal(consulta.estado) || 'Procesando') as EstadoEcf;
     const final = estado === 'Aceptado' || estado === 'Aceptado Condicional' || estado === 'Rechazado';
     return {
-      estado, trackId: consulta.internalTrackId ?? null, codigoSeguridad: consulta.securityCode ?? null, fechaFirma: null,
+      estado, trackId: consulta.internalTrackId ?? null, codigoSeguridad: consulta.securityCode ?? null, fechaFirma: null, fechaFirmaTexto: null,
       qrUrl: consulta.qrUrl ?? null, mensaje: consulta.estado ?? 'Procesando', reintentable: !final, respuesta: consulta.raw, xmlFirmado: consulta.signedXml ?? null,
     };
   }
@@ -536,14 +540,14 @@ async function enviarPorMseller(
       tasa_itbis: l.tasa,
       producto_nombre: l.descripcion,
     })),
-    fechaEmision: fechaDdMmYyyy(cuenta.fecha_cierre ?? new Date()),
+    fechaEmision: cuenta.fecha_emision_txt,
     tipoPago: cuenta.metodo_pago === 'Efectivo' ? 1 : 2,
     fechaVencimientoSecuencia: venc,
   });
   const resultado = await enviarDocumentoMseller(config, sesion, payload);
   return {
     estado: 'Procesando', trackId: resultado.internalTrackId ?? resultado.ecf ?? null, codigoSeguridad: resultado.codigoSeguridad ?? null,
-    fechaFirma: null, qrUrl: resultado.qrUrl ?? null, mensaje: 'Enviado a la DGII, esperando respuesta.', reintentable: true,
+    fechaFirma: null, fechaFirmaTexto: null, qrUrl: resultado.qrUrl ?? null, mensaje: 'Enviado a la DGII, esperando respuesta.', reintentable: true,
     respuesta: resultado.raw, xmlFirmado: resultado.signedXml ?? null,
   };
 }
@@ -604,8 +608,10 @@ export interface IRepresentacionEcf {
   ncf: string;
   electronico: boolean;
   estado: string | null;
+  /** dd-MM-yyyy HH:mm:ss en hora de Santo Domingo (se imprime tal cual, sin pasar por ninguna zona horaria). */
   fechaEmision: string;
   fechaVencimientoSecuencia: string | null;
+  /** dd-MM-yyyy HH:mm:ss en hora de Santo Domingo. */
   fechaFirma: string | null;
   codigoSeguridad: string | null;
   qrUrl: string | null;
@@ -623,10 +629,10 @@ interface IFilaRepresentacion {
   rnc_cedula_cliente: string | null;
   razon_social_cliente: string | null;
   total: string;
-  fecha_cierre: Date | null;
+  fecha_emision_txt: string;
   estado_ecf: string | null;
   codigo_seguridad: string | null;
-  fecha_firma: Date | null;
+  fecha_firma_txt: string | null;
   qr_url: string | null;
   fecha_vencimiento_secuencia: string | null;
 }
@@ -634,8 +640,9 @@ interface IFilaRepresentacion {
 /** Datos de la cuenta cobrada para imprimir su comprobante (NCF o e-CF). */
 export async function datosRepresentacion(cuentaId: number, client: IQueryable = getDatabase()): Promise<IRepresentacionEcf | null> {
   const r = await client.query<IFilaRepresentacion>(
-    `SELECT c.id, c.ncf_ecf_generado AS ncf, c.tipo_comprobante, c.rnc_cedula_cliente, c.razon_social_cliente, c.total::text, c.fecha_cierre,
-            e.estado AS estado_ecf, e.codigo_seguridad, e.fecha_firma, e.qr_url, to_char(e.fecha_vencimiento_secuencia, 'YYYY-MM-DD') AS fecha_vencimiento_secuencia
+    `SELECT c.id, c.ncf_ecf_generado AS ncf, c.tipo_comprobante, c.rnc_cedula_cliente, c.razon_social_cliente, c.total::text,
+            to_char(COALESCE(c.fecha_cierre, NOW()), 'DD-MM-YYYY HH24:MI:SS') AS fecha_emision_txt,
+            e.estado AS estado_ecf, e.codigo_seguridad, to_char(e.fecha_firma, 'DD-MM-YYYY HH24:MI:SS') AS fecha_firma_txt, e.qr_url, to_char(e.fecha_vencimiento_secuencia, 'YYYY-MM-DD') AS fecha_vencimiento_secuencia
        FROM cuentas c LEFT JOIN e_cf_comprobantes e ON e.cuenta_id = c.id AND e.ncf = c.ncf_ecf_generado
       WHERE c.id = $1 AND c.estado = 'Cerrada'`,
     [cuentaId]
@@ -651,16 +658,15 @@ export async function datosRepresentacion(cuentaId: number, client: IQueryable =
 export function representacionDeFila(f: IFilaRepresentacion, cfg: IConfigEcfFila | null, emisor: IRepresentacionEcf['emisor']): IRepresentacionEcf {
   const tipo = f.tipo_comprobante ?? 'B02';
   const electronico = esTipoElectronico(tipo);
-  const emision = f.fecha_cierre ?? new Date();
   const aceptado = f.estado_ecf === 'Aceptado' || f.estado_ecf === 'Aceptado Condicional';
-  const pendiente = electronico && !(aceptado || (f.codigo_seguridad && f.fecha_firma));
+  const pendiente = electronico && !(aceptado || (f.codigo_seguridad && f.fecha_firma_txt));
   const rncEmisor = normalizarRNC(emisor.rnc || cfg?.rnc_emisor);
   const qrUrl = electronico
     ? (f.qr_url
       || (f.codigo_seguridad
         ? construirUrlConsultaTimbre({
-          ambiente: ambienteDeConfiguracion(cfg ?? {}), rncEmisor, rncComprador: f.rnc_cedula_cliente, encf: f.ncf as string, fechaEmision: fechaDdMmYyyy(emision),
-          montoTotal: Number(f.total), fechaFirma: f.fecha_firma ? fechaHoraDdMmYyyy(f.fecha_firma) : null, codigoSeguridad: f.codigo_seguridad, tipo,
+          ambiente: ambienteDeConfiguracion(cfg ?? {}), rncEmisor, rncComprador: f.rnc_cedula_cliente, encf: f.ncf as string, fechaEmision: f.fecha_emision_txt.slice(0, 10),
+          montoTotal: Number(f.total), fechaFirma: f.fecha_firma_txt, codigoSeguridad: f.codigo_seguridad, tipo,
         })
         : null))
     : null;
@@ -670,9 +676,9 @@ export function representacionDeFila(f: IFilaRepresentacion, cfg: IConfigEcfFila
     ncf: f.ncf as string,
     electronico,
     estado: f.estado_ecf,
-    fechaEmision: new Date(emision).toISOString(),
+    fechaEmision: f.fecha_emision_txt,
     fechaVencimientoSecuencia: f.fecha_vencimiento_secuencia,
-    fechaFirma: f.fecha_firma ? new Date(f.fecha_firma).toISOString() : null,
+    fechaFirma: f.fecha_firma_txt,
     codigoSeguridad: f.codigo_seguridad,
     qrUrl,
     comprador: { rnc: f.rnc_cedula_cliente, razonSocial: f.razon_social_cliente },

@@ -78,6 +78,8 @@ export function fechaLegible(iso) {
 /** 25-10-2026 · 21:30:05 en hora de Santo Domingo (la fecha de firma y de emisión del comprobante). */
 export function fechaHoraRd(valor) {
   if (!valor) return '';
+  // El servidor ya manda las fechas fiscales como texto dd-MM-yyyy HH:mm:ss en hora de Santo Domingo: se muestran tal cual.
+  if (/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/.test(String(valor))) return String(valor);
   const d = new Date(valor);
   if (Number.isNaN(d.getTime())) return String(valor);
   const partes = new Intl.DateTimeFormat('es-DO', {

@@ -419,6 +419,8 @@ async function principal() {
   const cab32 = proveedor.pedidos.find((x) => x.metodo === 'POST')?.cabeceras || {};
   ok('se identifica con la API-KEY, el entorno y una clave de operación que evita la doble emisión', cab32['x-api-key'] === 'key-e2e' && cab32['x-entorno'] === 'PROD' && String(cab32['x-operacion-id']).startsWith('cuenta-'));
   ok('la representación impresa trae título, código de seguridad, fecha de firma y el QR de consulta de la DGII', rep32.electronico === true && rep32.titulo === 'Factura de Consumo Electrónica' && rep32.codigoSeguridad === 'AbC123' && rep32.fechaFirma && rep32.pendiente === false && String(rep32.qrUrl).startsWith('https://fc.dgii.gov.do/ecf/ConsultaTimbreFC?') && String(rep32.qrUrl).includes('CodigoSeguridad=AbC123'), rep32.qrUrl);
+  ok('la fecha de emisión y la de firma salen como texto dd-MM-yyyy HH:mm:ss en hora de Santo Domingo', /^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/.test(rep32.fechaEmision) && rep32.fechaFirma === '25-10-2026 21:30:05', `${rep32.fechaEmision} · ${rep32.fechaFirma}`);
+  ok('el emisor declarado a la DGII viaja con el comprobante para el ticket', rep32.emisor?.rnc === '131000004' && rep32.emisor?.razonSocial === 'RESTAURANTE E2E SRL' && Boolean(rep32.emisor?.direccion), JSON.stringify(rep32.emisor));
   const fila32 = await ecfDe(e32.body.cuenta_id);
   ok('queda registrado como Aceptado con su código de seguridad', fila32?.estado === 'Aceptado' && fila32.codigo_seguridad === 'AbC123');
   const repGet = await llamar('GET', `/api/cuentas/${e32.body.cuenta_id}/comprobante`, { token: T });
@@ -452,6 +454,8 @@ async function principal() {
   ok('con el proveedor caído la venta se cobra igual y el ticket indica "pendiente de validación"', caido.status === 200 && caido.body.representacion?.pendiente === true && !caido.body.representacion?.codigoSeguridad, `${caido.status} pendiente=${caido.body.representacion?.pendiente}`);
   const filaCaido = await ecfDe(caido.body.cuenta_id);
   ok('queda Pendiente, con el motivo y programado para reintentarse', filaCaido?.estado === 'Pendiente' && Number(filaCaido.intentos) === 1 && /proveedor|503|disponible/i.test(filaCaido.ultimo_error || ''), JSON.stringify(filaCaido));
+  const espera = Number((await db.query('SELECT EXTRACT(EPOCH FROM (proximo_intento - NOW())) AS s FROM e_cf_comprobantes WHERE cuenta_id = $1', [caido.body.cuenta_id])).rows[0]?.s);
+  ok('el reintento se programa en el próximo minuto (no horas después, sin importar la zona horaria del servidor)', espera > 0 && espera <= 130, `${Math.round(espera)} s`);
   proveedor.modo = 'aceptar';
   const reenvio = await llamar('POST', '/api/dgii/ecf/enviar', { token: T, body: { cuenta_id: caido.body.cuenta_id } });
   ok('al volver el proveedor, el reenvío lo deja Aceptado con su timbre', reenvio.status === 200 && reenvio.body.estado === 'Aceptado' && (await ecfDe(caido.body.cuenta_id))?.codigo_seguridad === 'AbC123', `${reenvio.status} ${reenvio.body.estado || reenvio.body.error}`);

@@ -6,6 +6,8 @@
 // PRIMER import: carga .env como efecto de módulo antes de evaluar config.ts
 // (los imports estáticos se ejecutan en orden DFS; config lee process.env).
 import './lib/env.js';
+// Las fechas del negocio son las de República Dominicana, sin importar la zona del servidor donde corra.
+import './lib/zonaHoraria.js';
 
 import createApp from './app.js';
 import { createLogger } from './lib/logger.js';
