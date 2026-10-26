@@ -16,13 +16,21 @@ function ReporteResumen({ apiUrl }) {
         const res = await fetch(`${apiUrl}/api/reportes/cierre`, {
           headers: { 'Authorization': `Bearer ${obtenerSesion()}` }
         });
-        setDatosReporte(await res.json());
-      } catch (e) { console.error("Error cargando reportes"); }
+        const data = await res.json();
+        if (res.ok && data && data.totalesGenerales) {
+          setDatosReporte(data);
+        } else {
+          setDatosReporte({
+            totalesGenerales: { subtotal: 0, itbis: 0, propina: 0, total: 0 },
+            facturasDetalladas: []
+          });
+        }
+      } catch { console.error("Error cargando reportes"); }
     };
     cargarReportes();
   }, [apiUrl]);
 
-  if (!datosReporte) return null;
+  if (!datosReporte?.totalesGenerales) return null;
 
   const kpis = [
     { icon: DollarSign, label: 'Ventas Netas', value: `RD$ ${formatearRD(datosReporte.totalesGenerales.subtotal)}`, color: 'blue' },

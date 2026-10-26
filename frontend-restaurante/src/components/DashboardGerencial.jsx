@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  DollarSign, FileText, TrendingUp, TableProperties,
+  TrendingUp, TableProperties,
   UtensilsCrossed, AlertCircle, Loader2, Sparkles,
-  ChevronLeft, ChevronRight, BarChart2, Flame, Award, Coffee
+  ChevronLeft, ChevronRight, Flame, Award, Coffee
 } from 'lucide-react';
 
 function DashboardGerencial({ apiUrl }) {
@@ -104,7 +104,7 @@ function DashboardGerencial({ apiUrl }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Fila Superior: Rendimiento Financiero y Estado del Local (Mismo formato de recuadros) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: '20px' }}>
         
         {/* Recuadro 1: Rendimiento Financiero (Ventas Totales, Facturas, Ticket Promedio) */}
         <div className="admin-section" style={{ marginBottom: 0 }}>
@@ -188,9 +188,9 @@ function DashboardGerencial({ apiUrl }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={18} style={{ color: 'var(--gold, #f5b842)' }} />
             <h3 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-              {slideActivo === 0 && '📊 Gráfico: Top 5 Platos Más Vendidos'}
-              {slideActivo === 1 && '🌟 Recomendaciones del Chef & Platos Sugeridos'}
-              {slideActivo === 2 && '⚡ Eficiencia Operativa & Desempeño'}
+              {slideActivo === 0 && 'Top 5 platos más vendidos'}
+              {slideActivo === 1 && 'Recomendaciones del chef y platos sugeridos'}
+              {slideActivo === 2 && 'Eficiencia operativa y desempeño'}
             </h3>
           </div>
 
@@ -220,6 +220,7 @@ function DashboardGerencial({ apiUrl }) {
             <button
               type="button"
               onClick={() => setSlideActivo((prev) => (prev === 0 ? 2 : prev - 1))}
+              aria-label="Diapositiva anterior"
               style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <ChevronLeft size={15} />
@@ -227,6 +228,7 @@ function DashboardGerencial({ apiUrl }) {
             <button
               type="button"
               onClick={() => setSlideActivo((prev) => (prev === 2 ? 0 : prev + 1))}
+              aria-label="Diapositiva siguiente"
               style={{ background: 'var(--bg-card-hover)', border: '1px solid var(--border-light)', color: 'var(--text-primary)', borderRadius: '6px', padding: '4px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <ChevronRight size={15} />
@@ -251,7 +253,7 @@ function DashboardGerencial({ apiUrl }) {
                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: idx === 0 ? 'rgba(245, 184, 61, 0.2)' : 'var(--bg-card-hover)', color: idx === 0 ? 'var(--gold, #f5b842)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
+                          <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: idx === 0 ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'var(--bg-card-hover)', color: idx === 0 ? 'var(--gold, #f5b842)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
                             {idx + 1}
                           </span>
                           <strong style={{ color: 'var(--text-primary)' }}>{p.nombre}</strong>
@@ -266,7 +268,7 @@ function DashboardGerencial({ apiUrl }) {
                             width: `${porcentaje}%`,
                             height: '100%',
                             borderRadius: '4px',
-                            background: idx === 0 ? 'linear-gradient(90deg, #f5b842 0%, #eab308 100%)' : 'linear-gradient(90deg, #38bdf8 0%, #10b981 100%)',
+                            background: idx === 0 ? 'linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%)' : 'linear-gradient(90deg, #38bdf8 0%, #10b981 100%)',
                             transition: 'width 0.6s ease'
                           }}
                         />
@@ -281,7 +283,7 @@ function DashboardGerencial({ apiUrl }) {
 
         {/* ── Slide 1: Recomendaciones del Chef & Platos Sugeridos ── */}
         {slideActivo === 1 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '12px' }}>
             {RECOMENDACIONES_CHEF.map((rec, i) => {
               const Icono = rec.icono;
               return (

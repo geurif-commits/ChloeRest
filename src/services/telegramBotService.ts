@@ -13,6 +13,7 @@
 /* global fetch, AbortController, clearTimeout */
 
 import { createLogger } from '../lib/logger.js';
+import { constantTimeEquals } from '../lib/core.js';
 import { runWithRequestContext } from '../db/index.js';
 
 const API_BASE = 'https://api.telegram.org';
@@ -267,7 +268,7 @@ export async function iniciarTelegramBot(opciones: IOpcionesTelegramBot = {}): P
 }
 
 export function validarWebhookSecret(value: unknown): boolean {
-  return Boolean(webhookSecret) && String(value || '') === webhookSecret;
+  return Boolean(webhookSecret) && constantTimeEquals(value, webhookSecret);
 }
 
 export async function procesarActualizacionWebhook(update: ITelegramUpdate | null | undefined): Promise<void> {
@@ -332,7 +333,11 @@ async function enviar(chatId: string, texto: string): Promise<void> {
   const trozos = texto.length <= LIMITE_TEXTO ? [texto] : dividirTexto(texto);
   for (const trozo of trozos) {
     try {
-      await peticion('sendMessage', { chat_id: String(chatId), text: trozo, parse_mode: 'HTML' });
+      // Sin tarjeta de vista previa: los enlaces de WhatsApp de los teléfonos llenarían el chat de recuadros.
+      await peticion('sendMessage', {
+        chat_id: String(chatId), text: trozo, parse_mode: 'HTML',
+        link_preview_options: { is_disabled: true }, disable_web_page_preview: true,
+      });
     } catch (err) {
       console.warn('Telegram: no se pudo enviar mensaje:', (err as Error).message);
     }
@@ -362,6 +367,33 @@ function escaparHTML(texto: unknown): string {
     .replace(/>/g, '&gt;');
 }
 
+/**
+ * Número de WhatsApp (solo dígitos, con código de país) a partir de lo que el cliente escribió en el formulario, o
+ * null si no se puede deducir con seguridad. Acepta "809-555-1234", "(829) 555 1234", "+1 849 555 1234",
+ * "18095551234", "+34 600 123 456", "0034600123456". Un número de 10 dígitos se toma como norteamericano/dominicano
+ * (+1); uno de 7 dígitos (sin código de área) o de largo raro no se enlaza.
+ */
+export function numeroParaWhatsApp(telefono: unknown): string | null {
+  const texto = String(telefono ?? '').trim();
+  if (!texto) {return null;}
+  let digitos = texto.replace(/\D/g, '');
+  if (texto.startsWith('+')) {
+    // Ya viene con código de país.
+  } else if (digitos.startsWith('00')) {
+    digitos = digitos.slice(2);
+  } else if (digitos.length === 10) {
+    digitos = `1${digitos}`;
+  }
+  return digitos.length >= 11 && digitos.length <= 15 && !digitos.startsWith('0') ? digitos : null;
+}
+
+/** El teléfono tal cual lo escribió el cliente, como enlace que abre un chat NUEVO de WhatsApp (https://wa.me/<número>). */
+export function telefonoConWhatsApp(telefono: unknown): string {
+  const numero = numeroParaWhatsApp(telefono);
+  const visible = escaparHTML(String(telefono ?? '').trim());
+  return numero ? `<a href="https://wa.me/${numero}">${visible}</a>` : visible;
+}
+
 function fmtFecha(fecha: string | number | Date | null | undefined): string {
   if (!fecha) {return '—';}
   const d = new Date(fecha);
@@ -378,13 +410,14 @@ function fmtMonto(moneda: string | null | undefined, monto: unknown): string {
 }
 
 function esPropietario(chatId: string): boolean {
+  // Seguridad (H5): eliminada la auto-registración del primer chat que escribe
+  // al bot. El propietario solo se define vía TELEGRAM_OWNER_CHAT_ID (env).
   if (!ownerChatId) {
-    ownerChatId = chatId;
-    logger.info({
-      action: 'TELEGRAM_PROPIETARIO_AUTORREGISTRADO',
-      message: `Telegram: propietario auto-registrado (chat ${chatId}).`,
+    logger.warn({
+      action: 'TELEGRAM_MENSAJE_SIN_PROPIETARIO',
+      message: `Telegram: mensaje de chat ${chatId} ignorado; TELEGRAM_OWNER_CHAT_ID no configurado.`,
     });
-    return true;
+    return false;
   }
   return chatId === ownerChatId;
 }
@@ -445,7 +478,7 @@ export function notificarSolicitud(sol?: ISolicitudRow | null): void {
     `🆔 <b>#${fila.id}</b>`,
     `👤 <b>Propietario:</b> ${escaparHTML(fila.propietario)}`,
     `🏪 <b>Negocio:</b> ${escaparHTML(fila.negocio)}`,
-    `📞 <b>Teléfono:</b> ${escaparHTML(fila.telefono)}`,
+    `📞 <b>Teléfono:</b> ${telefonoConWhatsApp(fila.telefono)}`,
     `📧 <b>Correo:</b> ${escaparHTML(fila.email)}`,
     fila.plan_nombre ? `📅 <b>Plan:</b> ${escaparHTML(fila.plan_nombre)}` : '',
     fila.provincia ? `📌 <b>Provincia:</b> ${escaparHTML(fila.provincia)}` : '',
@@ -459,6 +492,12 @@ export function notificarSolicitud(sol?: ISolicitudRow | null): void {
     `/solicitud ${fila.id}  — ver detalle`,
   ].filter(Boolean).join('\n');
   void enviar(ownerChatId, lineas);
+}
+
+/** Aviso corto al chat del propietario (por ejemplo, un acceso a su panel). No hace nada si el bot no está activo. */
+export function notificarPropietario(texto: string): void {
+  if (!activo || !ownerChatId || !texto) {return;}
+  void enviar(ownerChatId, escaparHTML(texto));
 }
 
 export function notificarPago(sol?: ISolicitudRow | null): void {
@@ -489,7 +528,7 @@ export async function enviarClaveActivacion(
     `🆔 <b>Solicitud:</b> #${fila.id}`,
     `👤 <b>Propietario:</b> ${escaparHTML(fila.propietario)}`,
     `🏪 <b>Negocio:</b> ${escaparHTML(fila.negocio)}`,
-    `📞 <b>Teléfono:</b> ${escaparHTML(fila.telefono)}`,
+    `📞 <b>Teléfono:</b> ${telefonoConWhatsApp(fila.telefono)}`,
     `📧 <b>Correo:</b> ${escaparHTML(fila.email)}`,
     fila.plan_nombre ? `📅 <b>Plan:</b> ${escaparHTML(fila.plan_nombre)}` : '',
     '',
@@ -731,7 +770,7 @@ async function cmdPendientes(chatId: string): Promise<void> {
     lineas.push(
       `<b>#${f.id}</b> · ${escaparHTML(f.plan_nombre || 'Sin plan')}`,
       `   ${escaparHTML(f.propietario)} — ${escaparHTML(f.negocio)}`,
-      `   📞 ${escaparHTML(f.telefono)} · 🕐 ${fmtFecha(f.creado_en)}`,
+      `   📞 ${telefonoConWhatsApp(f.telefono)} · 🕐 ${fmtFecha(f.creado_en)}`,
       `   /solicitud ${f.id} · /pagada ${f.id} · /rechazar ${f.id}`,
       ''
     );
@@ -756,7 +795,7 @@ async function cmdSolicitud(chatId: string, arg: string): Promise<void> {
     '───────────────────',
     `👤 <b>Propietario:</b> ${escaparHTML(f.propietario)}`,
     `🏪 <b>Negocio:</b> ${escaparHTML(f.negocio)}`,
-    `📞 <b>Teléfono:</b> ${escaparHTML(f.telefono)}`,
+    `📞 <b>Teléfono:</b> ${telefonoConWhatsApp(f.telefono)}`,
     `📧 <b>Correo:</b> ${escaparHTML(f.email)}`,
     f.provincia ? `📌 <b>Provincia:</b> ${escaparHTML(f.provincia)}` : '',
     f.plan_nombre ? `📅 <b>Plan:</b> ${escaparHTML(f.plan_nombre)}` : '',

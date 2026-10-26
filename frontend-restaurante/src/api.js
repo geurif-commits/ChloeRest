@@ -1,5 +1,12 @@
 ﻿const TOKEN_KEY = 'POS_SESSION_TOKEN';
 
+const CODIGOS_SIN_LICENCIA = new Set([
+  'DISPOSITIVO_NO_ACTIVADO',
+  'LICENCIA_REQUERIDA',
+  'LICENCIA_VENCIDA',
+  'LICENCIA_REVOCADA',
+]);
+
 const PUBLIC_PATHS = [
   '/api/login/camarero',
   '/api/licencia/verificar',
@@ -217,6 +224,32 @@ export function guardarSesion(token) {
 
 export function borrarSesion() {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('POS_DUENO_TOKEN');
+  localStorage.removeItem('pos_owner_token');
+}
+
+/**
+ * Ticket efímero de un solo uso para conectar EventSource sin exponer el
+ * token de sesión en la URL (item 9). Usa el fetch autenticado global.
+ */
+export async function obtenerTicketSse(apiUrl = '') {
+  try {
+    const res = await fetch(`${apiUrl}/api/sse/ticket`, { method: 'POST' });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data.ticket || '';
+  } catch {
+    return '';
+  }
+}
+
+/** Logout server-side (item 7): revoca la sesión en el backend. */
+export async function cerrarSesionServidor(apiUrl = '') {
+  try {
+    await fetch(`${apiUrl}/api/logout`, { method: 'POST' });
+  } catch {
+    /* el logout local continúa aunque falle la red */
+  }
 }
 
 export function instalarFetchAutenticado() {
@@ -377,6 +410,24 @@ export function instalarFetchAutenticado() {
             'pos-sesion-vencida'
           )
         );
+      }
+
+      // El servidor verifica la licencia en cada petición: si venció, se revocó o el equipo ya no está activado,
+      // responde 403 con uno de estos códigos y la sesión deja de servir.
+      if (response.status === 403 && !isPublicRequest(targetInput, init)) {
+        try {
+          const cuerpo = await response.clone().json();
+          if (CODIGOS_SIN_LICENCIA.has(cuerpo?.code)) {
+            borrarSesion();
+            window.dispatchEvent(
+              new CustomEvent('pos-licencia-invalida', {
+                detail: { codigo: cuerpo.code, motivo: cuerpo.error || '' }
+              })
+            );
+          }
+        } catch {
+          /* respuesta sin JSON: no es un aviso de licencia */
+        }
       }
 
       const responseProxy =

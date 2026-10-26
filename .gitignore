@@ -18,6 +18,8 @@ build/
 *.tsbuildinfo
 release/
 bundle.cjs
+bundle-pin-prueba.cjs
+bundle-pruebas.cjs
 ServidorPOS.exe
 ServidorPOS.cjs
 out/
@@ -63,3 +65,10 @@ frontend-restaurante/dist/
 
 # esbuils
 .esbuild/
+# Video comercial: fotogramas, borradores y montaje (se regeneran con marketing/video)
+marketing/video/salida/
+# Imágenes subidas durante las pruebas locales (logotipos de demostración)
+uploads/*.png
+
+# Secretos rotados y copias locales de credenciales (NUNCA se suben a git)
+.secretos/

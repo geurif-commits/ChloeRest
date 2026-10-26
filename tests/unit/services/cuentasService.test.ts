@@ -5,6 +5,10 @@ import {
   cuentaAbiertaParaMesa,
   descontarInventario,
   siguienteComprobante,
+  tomarSiguienteComprobante,
+  planificarDivision,
+  validarDescuento,
+  validarPagoMixto,
   type ITotalesDetalleFila,
 } from '../../../src/services/cuentasService.js';
 import type { IQueryable } from '../../../src/services/auditoriaService.js';
@@ -63,7 +67,7 @@ describe('siguienteComprobante', () => {
 
   it('lanza 400 si la secuencia está agotada', async () => {
     const { cliente } = crearCliente([
-      { match: SECUENCIA_SQL, rows: [{ id: 3, prefijo: 'B02', secuencia_actual: 100, secuencia_final: 100 }] },
+      { match: SECUENCIA_SQL, rows: [{ id: 3, prefijo: 'B02', secuencia_actual: 101, secuencia_final: 100 }] },
     ]);
     await expect(siguienteComprobante(cliente, 'factura', 1)).rejects.toMatchObject({
       statusCode: 400,
@@ -72,20 +76,61 @@ describe('siguienteComprobante', () => {
   });
 });
 
+describe('tomarSiguienteComprobante · e-NCF', () => {
+  it('el e-NCF lleva E + tipo + 10 dígitos (13 caracteres) y devuelve el vencimiento de la secuencia', async () => {
+    const { cliente } = crearCliente([
+      { match: SECUENCIA_SQL, rows: [{ id: 9, prefijo: 'E32', secuencia_actual: 1, secuencia_final: 5000, vencimiento: '2027-12-31' }] },
+    ]);
+    const tomado = await tomarSiguienteComprobante(cliente, 'E32');
+    expect(tomado).toEqual({ ncf: 'E320000000001', vencimiento: '2027-12-31' });
+    expect(tomado.ncf).toHaveLength(13);
+  });
+
+  it('en un e-CF el prefijo es siempre el tipo, aunque la secuencia se haya guardado con otro', async () => {
+    const { cliente } = crearCliente([
+      { match: SECUENCIA_SQL, rows: [{ id: 9, prefijo: 'B02', secuencia_actual: 25, secuencia_final: 5000, vencimiento: null }] },
+    ]);
+    expect((await tomarSiguienteComprobante(cliente, 'E31')).ncf).toBe('E310000000025');
+  });
+
+  it('el último número del rango autorizado sí se puede emitir (rango inclusivo)', async () => {
+    const { cliente } = crearCliente([
+      { match: SECUENCIA_SQL, rows: [{ id: 3, prefijo: 'E32', secuencia_actual: 100, secuencia_final: 100, vencimiento: null }] },
+    ]);
+    expect((await tomarSiguienteComprobante(cliente, 'E32')).ncf).toBe('E320000000100');
+  });
+
+  it('distingue «sin secuencia» de «secuencia agotada»', async () => {
+    const sinNinguna = crearCliente([{ match: SECUENCIA_SQL, rows: [] }]);
+    await expect(tomarSiguienteComprobante(sinNinguna.cliente, 'E32')).rejects.toMatchObject({ code: 'SIN_SECUENCIA' });
+
+    // La primera consulta (con números libres) no encuentra nada, pero la de existencia sí: está agotada.
+    let llamada = 0;
+    const agotada: IQueryable = {
+      async query<T extends QueryResultRow = QueryResultRow>(): Promise<QueryResult<T>> {
+        llamada += 1;
+        const rows = (llamada === 1 ? [] : [{ '?column?': 1 }]) as T[];
+        return { rows, rowCount: rows.length } as QueryResult<T>;
+      },
+    };
+    await expect(tomarSiguienteComprobante(agotada, 'E32')).rejects.toMatchObject({ code: 'SECUENCIA_AGOTADA' });
+  });
+});
+
 describe('calcularTotales', () => {
-  it('calcula subtotal, ITBIS 18% sobre gravado, propina 10% y total', async () => {
+  it('calcula subtotal, ITBIS 18% sumado al subtotal, propina 10% y total (precios sin ITBIS)', async () => {
     const { cliente } = crearCliente([
       { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '18')] },
       { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: true, cobrar_propina: true }] },
     ]);
     const totales = await calcularTotales(cliente, 10);
     expect(totales.subtotal).toBe(200);
-    expect(totales.totalGravado).toBe(169.49);
-    expect(totales.totalItbis).toBe(30.51);
+    expect(totales.totalGravado).toBe(200);
+    expect(totales.totalItbis).toBe(36);
     expect(totales.totalExento).toBe(0);
-    expect(totales.itbis).toBe(30.51);
+    expect(totales.itbis).toBe(36);
     expect(totales.propina).toBe(20);
-    expect(totales.total).toBe(250.51);
+    expect(totales.total).toBe(256);
   });
 
   it('clasifica como exento el producto con tasa 0', async () => {
@@ -108,7 +153,7 @@ describe('calcularTotales', () => {
     ]);
     const totales = await calcularTotales(cliente, 10);
     expect(totales.itbis).toBe(0);
-    expect(totales.totalItbis).toBe(30.51);
+    expect(totales.totalItbis).toBe(36);
     expect(totales.total).toBe(220);
   });
 
@@ -119,9 +164,53 @@ describe('calcularTotales', () => {
     ]);
     const totales = await calcularTotales(cliente, 10);
     expect(totales.subtotal).toBe(99.99);
-    expect(totales.totalItbis).toBe(15.25);
+    expect(totales.totalItbis).toBe(18);
     expect(totales.propina).toBe(10);
-    expect(totales.total).toBe(125.24);
+    expect(totales.total).toBe(127.99);
+  });
+
+  it('aplica el porcentaje de propina configurado por el negocio', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] },
+      { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: false, cobrar_propina: true, propina_porcentaje: '15.00' }] },
+    ]);
+    const totales = await calcularTotales(cliente, 10);
+    expect(totales.subtotal).toBe(200);
+    expect(totales.propina).toBe(30);
+    expect(totales.total).toBe(230);
+  });
+
+  it('acepta los límites del rango de propina (2 % y 30 %)', async () => {
+    for (const [porcentaje, propina] of [['2', 4], ['30', 60]] as const) {
+      const { cliente } = crearCliente([
+        { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] },
+        { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: false, cobrar_propina: true, propina_porcentaje: porcentaje }] },
+      ]);
+      expect((await calcularTotales(cliente, 10)).propina).toBe(propina);
+    }
+  });
+
+  it('usa 10 % si el porcentaje guardado es inválido o falta', async () => {
+    for (const guardado of [null, undefined, '1', '31', 'abc']) {
+      const { cliente } = crearCliente([
+        { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] },
+        { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: false, cobrar_propina: true, propina_porcentaje: guardado }] },
+      ]);
+      expect((await calcularTotales(cliente, 10)).propina).toBe(20);
+    }
+  });
+
+  it('no cobra ITBIS ni propina si el negocio no los activó o no hay configuración', async () => {
+    for (const filas of [[{ cobrar_itbis: false, cobrar_propina: false, propina_porcentaje: '10' }], [{ cobrar_itbis: null, cobrar_propina: null }], []]) {
+      const { cliente } = crearCliente([
+        { match: DETALLES_SQL, rows: [detalle(1, '2', '100', '18')] },
+        { match: NEGOCIO_SQL, rows: filas },
+      ]);
+      const totales = await calcularTotales(cliente, 10);
+      expect(totales.itbis).toBe(0);
+      expect(totales.propina).toBe(0);
+      expect(totales.total).toBe(200);
+    }
   });
 
   it('rechaza cobrar una cuenta sin productos activos', async () => {
@@ -196,5 +285,156 @@ describe('cuentaAbiertaParaMesa', () => {
     const { cliente, llamadas } = crearCliente([{ match: CUENTA_SQL, rows: [] }]);
     await cuentaAbiertaParaMesa(cliente, 4);
     expect(llamadas[0].sql).not.toContain('FOR UPDATE');
+  });
+});
+
+describe('validarPagoMixto', () => {
+  it('no valida nada si el pago no es mixto', () => {
+    expect(() => validarPagoMixto(null, -500, 100)).not.toThrow();
+  });
+
+  it('acepta un segundo monto entre 0 y el total', () => {
+    expect(() => validarPagoMixto('Tarjeta', 40, 100)).not.toThrow();
+    expect(() => validarPagoMixto('Tarjeta', 100, 100)).not.toThrow();
+  });
+
+  it('rechaza un monto negativo o no numérico', () => {
+    expect(() => validarPagoMixto('Tarjeta', -500, 100)).toThrow(/no es válido/);
+    expect(() => validarPagoMixto('Efectivo', Number.NaN, 100)).toThrow(/no es válido/);
+  });
+
+  it('rechaza un monto mayor al total de la cuenta', () => {
+    expect(() => validarPagoMixto('Transferencia', 100.01, 100)).toThrow(/no puede superar/);
+  });
+});
+
+describe('calcularTotales · mezcla de tasas y redondeo por línea', () => {
+  it('cada línea usa la tasa de su producto (18 %, 16 % y exento)', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '1', '100', '18'), detalle(2, '2', '50', '16'), detalle(3, '1', '30', '0')] },
+      { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: true, cobrar_propina: false }] },
+    ]);
+    const totales = await calcularTotales(cliente, 10);
+    expect(totales.subtotal).toBe(230);
+    expect(totales.totalGravado).toBe(200);
+    expect(totales.totalExento).toBe(30);
+    expect(totales.itbis).toBe(34); // 18 + 16
+    expect(totales.total).toBe(264);
+  });
+
+  it('redondea el ITBIS línea por línea en centavos (10.25 x 18 % = 1.845 → 1.85)', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '1', '10.25', '18')] },
+      { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: true, cobrar_propina: false }] },
+    ]);
+    const totales = await calcularTotales(cliente, 10);
+    expect(totales.itbis).toBe(1.85);
+    expect(totales.total).toBe(12.1);
+  });
+
+  it('un producto sin tasa cargada se trata como exento', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '1', '100', null)] },
+      { match: NEGOCIO_SQL, rows: [{ cobrar_itbis: true, cobrar_propina: false }] },
+    ]);
+    const totales = await calcularTotales(cliente, 10);
+    expect(totales.itbis).toBe(0);
+    expect(totales.totalExento).toBe(100);
+  });
+});
+
+describe('validarDescuento', () => {
+  it('devuelve null cuando no se pidió descuento', () => {
+    expect(validarDescuento(null, null, null)).toBeNull();
+    expect(validarDescuento('porcentaje', '', 'x')).toBeNull();
+    expect(validarDescuento('monto', 0, 'x')).toBeNull();
+  });
+
+  it('acepta porcentaje (hasta 100) y monto con motivo', () => {
+    expect(validarDescuento('porcentaje', '15', 'Cliente frecuente')).toEqual({ tipo: 'porcentaje', valor: 15 });
+    expect(validarDescuento('monto', 250.5, 'Cortesía de la casa')).toEqual({ tipo: 'monto', valor: 250.5 });
+    expect(validarDescuento('porcentaje', 100, 'Cortesía')).toEqual({ tipo: 'porcentaje', valor: 100 });
+  });
+
+  it('rechaza tipo inválido, valores negativos o > 100 %, y exige motivo', () => {
+    expect(() => validarDescuento('regalo', 10, 'motivo')).toThrow(/porcentaje o monto/);
+    expect(() => validarDescuento('monto', -5, 'motivo')).toThrow(/mayor a 0/);
+    expect(() => validarDescuento('monto', 'abc', 'motivo')).toThrow(/mayor a 0/);
+    expect(() => validarDescuento('porcentaje', 101, 'motivo')).toThrow(/100 %/);
+    expect(() => validarDescuento('porcentaje', 10, '')).toThrow(/motivo/);
+    expect(() => validarDescuento('porcentaje', 10, 'ab')).toThrow(/motivo/);
+  });
+});
+
+describe('calcularTotales con descuento', () => {
+  const conNegocio = (itbis: boolean, propina: boolean) => ({ match: NEGOCIO_SQL, rows: [{ cobrar_itbis: itbis, cobrar_propina: propina, propina_porcentaje: '10' }] });
+
+  it('un porcentaje reduce el subtotal', async () => {
+    const { cliente } = crearCliente([{ match: DETALLES_SQL, rows: [detalle(1, '2', '100', '0')] }, conNegocio(false, false)]);
+    const totales = await calcularTotales(cliente, 10, { tipo: 'porcentaje', valor: 10 });
+    expect(totales.subtotalBruto).toBe(200);
+    expect(totales.descuento).toBe(20);
+    expect(totales.subtotal).toBe(180);
+    expect(totales.total).toBe(180);
+  });
+
+  it('el descuento baja la base del ITBIS y de la propina', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '1', '100', '18'), detalle(2, '1', '100', '0')] },
+      conNegocio(true, true),
+    ]);
+    const totales = await calcularTotales(cliente, 10, { tipo: 'monto', valor: 20 });
+    expect(totales.subtotalBruto).toBe(200);
+    expect(totales.subtotal).toBe(180);
+    expect(totales.totalGravado).toBe(90);
+    expect(totales.totalExento).toBe(90);
+    expect(totales.itbis).toBe(16.2); // 18 % de 90
+    expect(totales.propina).toBe(18); // 10 % de 180
+    expect(totales.total).toBe(214.2);
+  });
+
+  it('reparte los centavos sobrantes sin perder ni inventar dinero', async () => {
+    const { cliente } = crearCliente([
+      { match: DETALLES_SQL, rows: [detalle(1, '1', '10', '0'), detalle(2, '1', '10', '0'), detalle(3, '1', '10', '0')] },
+      conNegocio(false, false),
+    ]);
+    const totales = await calcularTotales(cliente, 10, { tipo: 'monto', valor: 0.01 });
+    expect(totales.descuento).toBe(0.01);
+    expect(totales.subtotal).toBe(29.99);
+    expect(totales.total).toBe(29.99);
+  });
+
+  it('100 % deja la cuenta en cero (cortesía) y un monto mayor al subtotal se rechaza', async () => {
+    const dos = () => crearCliente([{ match: DETALLES_SQL, rows: [detalle(1, '1', '50', '18')] }, conNegocio(true, true)]).cliente;
+    const cero = await calcularTotales(dos(), 10, { tipo: 'porcentaje', valor: 100 });
+    expect(cero.total).toBe(0);
+    expect(cero.itbis).toBe(0);
+    await expect(calcularTotales(dos(), 10, { tipo: 'monto', valor: 50.01 })).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe('planificarDivision', () => {
+  const detalles = [{ id: '1', cantidad: '2.00' }, { id: '2', cantidad: '1.00' }];
+
+  it('separa una parte de la cantidad de una línea', () => {
+    const plan = planificarDivision(detalles, [{ id: 1, cantidad: 1 }]);
+    expect(plan.cubreTodo).toBe(false);
+    expect(plan.movimientos).toEqual([{ id: '1', cantidad: 1, completo: false }]);
+  });
+
+  it('mueve líneas completas y detecta cuando la selección cubre toda la cuenta', () => {
+    const parcial = planificarDivision(detalles, [{ id: 2, cantidad: 1 }]);
+    expect(parcial.cubreTodo).toBe(false);
+    expect(parcial.movimientos[0].completo).toBe(true);
+    const todo = planificarDivision(detalles, [{ id: 1, cantidad: 2 }, { id: 2, cantidad: 1 }]);
+    expect(todo.cubreTodo).toBe(true);
+  });
+
+  it('rechaza selecciones vacías, ajenas, repetidas o que exceden lo consumido', () => {
+    expect(() => planificarDivision(detalles, [])).toThrow(/al menos un producto/);
+    expect(() => planificarDivision(detalles, [{ id: 99, cantidad: 1 }])).toThrow(/no pertenece/);
+    expect(() => planificarDivision(detalles, [{ id: 1, cantidad: 1 }, { id: 1, cantidad: 1 }])).toThrow(/repetido/);
+    expect(() => planificarDivision(detalles, [{ id: 1, cantidad: 3 }])).toThrow(/supera/);
+    expect(() => planificarDivision(detalles, [{ id: 1, cantidad: 0 }])).toThrow(/mayor a 0/);
   });
 });

@@ -6,6 +6,8 @@
 // PRIMER import: carga .env como efecto de módulo antes de evaluar config.ts
 // (los imports estáticos se ejecutan en orden DFS; config lee process.env).
 import './lib/env.js';
+// Las fechas del negocio son las de República Dominicana, sin importar la zona del servidor donde corra.
+import './lib/zonaHoraria.js';
 
 import createApp from './app.js';
 import { createLogger } from './lib/logger.js';
@@ -13,8 +15,12 @@ import { config } from './lib/config.js';
 import { createDatabase, getDatabase } from './db/index.js';
 import { runMigrations, fixDatabaseConsistency } from './db/migrations.js';
 import { iniciarTelegramBot } from './services/telegramBotService.js';
+import { iniciarRespaldosAutomaticos } from './services/backupService.js';
+import { iniciarColaEcf } from './services/ecfEmisionService.js';
+import { longitudPinPropietarioIncrustado } from './lib/propietario.js';
 import { obtenerOpcionesTelegramBot } from './services/telegramBotOptions.js';
 import { execSync } from 'node:child_process';
+import pg from 'pg';
 import type { Express } from 'express';
 
 const logger = createLogger('server');
@@ -35,16 +41,64 @@ createDatabase({
 });
 
 /**
+ * Crea la base de datos si no existe (instalaciones Electron frescas donde
+ * PostgreSQL existe pero aún no se creó `sistema_restaurante`). Nunca tumba
+ * el arranque: si no hay permisos, solo avisa y sigue en modo degradado.
+ */
+async function asegurarBaseDeDatosExiste(): Promise<void> {
+  const database = process.env.DB_NAME || 'postgres';
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(database) || database === 'postgres') {
+    return;
+  }
+  const admin = new pg.Pool({
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    database: 'postgres',
+    password: process.env.DB_PASSWORD || undefined,
+    port: Number(process.env.DB_PORT || 5432),
+    connectionTimeoutMillis: 5000,
+  });
+  try {
+    const existe = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [database]);
+    if (!existe.rowCount) {
+      await admin.query(`CREATE DATABASE "${database}"`);
+      logger.info({ action: 'DB_CREADA', details: { database } });
+    }
+  } catch (error) {
+    logger.warn({
+      action: 'DB_CREAR_OMITIDO',
+      error: { message: error instanceof Error ? error.message : String(error) },
+    });
+  } finally {
+    await admin.end().catch(() => undefined);
+  }
+}
+
+/**
  * Arranque de base de datos (misma secuencia que server.js legacy):
  * verificación de rol en producción, fix de consistencia y migraciones pendientes.
  */
 async function prepararBaseDeDatos(): Promise<void> {
   const db = getDatabase();
-  if (config.isProduction) {
+  if (process.env.NODE_ENV !== 'production') {
+    await asegurarBaseDeDatosExiste();
+  }
+  if (process.env.NODE_ENV === 'production') {
     await db.verifyDatabaseRole();
   }
-  await fixDatabaseConsistency(db);
+  // En producción las migraciones se ejecutan como paso explícito de
+  // despliegue con un rol DDL separado. El usuario de la aplicación nunca
+  // necesita CREATE/ALTER y por eso puede permanecer sin privilegios elevados.
+  if (process.env.NODE_ENV === 'production' && !config.runMigrations) {
+    logger.info({ action: 'DB_MIGRACIONES_OMITIDAS', details: 'RUN_MIGRATIONS no está habilitado; arranque con rol operativo' });
+    return;
+  }
+  // Primero materializamos el esquema y sus migraciones. La corrección de
+  // consistencia depende de tablas creadas por migraciones posteriores (por
+  // ejemplo `empresas`), por lo que ejecutarla antes provoca falsos avisos en
+  // instalaciones nuevas y deja el arranque menos determinista.
   await runMigrations(db);
+  await fixDatabaseConsistency(db);
 }
 
 /**
@@ -101,7 +155,7 @@ function liberarPuertoProcesoPrevio(port: number): void {
  * (puerto de arrancarServidor de server.js legacy).
  */
 function arrancarServidor(app: Express, intento = 1): void {
-  const server = app.listen(PORT, () => {
+  const alEscuchar = (): void => {
     logger.info({
       action: 'SERVER_STARTED',
       details: {
@@ -117,13 +171,30 @@ function arrancarServidor(app: Express, intento = 1): void {
       });
     }
 
+    iniciarRespaldosAutomaticos();
+    // Reintenta cada minuto los e-CF que quedaron pendientes de enviar o de validar por la DGII.
+    iniciarColaEcf();
+
+    const longitudPinFijo = longitudPinPropietarioIncrustado();
+    if (longitudPinFijo !== null) {
+      logger.info({ action: 'PIN_PROPIETARIO_INCRUSTADO', details: { longitud: longitudPinFijo, modo: 'fijo' } });
+    } else {
+      logger.warn({
+        action: 'PIN_PROPIETARIO_NO_INCRUSTADO',
+        details: 'No hay PIN de propietario incrustado en el código: se usa OWNER_PIN o el PIN guardado. Ejecuta "npm run propietario:pin" para fijarlo.',
+      });
+    }
+
     void iniciarTelegramBot(obtenerOpcionesTelegramBot()).catch((error: Error) => {
       logger.warn({
         action: 'TELEGRAM_INICIO_FALLIDO',
         error: { message: error.message },
       });
     });
-  });
+  };
+  // Por defecto escucha en todas las interfaces (las cajas y tablets del local entran por la red). API_HOST=127.0.0.1
+  // lo limita a este equipo; lo usa el entorno de prueba para no dejar un servidor con PIN de prueba visible en la red.
+  const server = process.env.API_HOST ? app.listen(PORT, process.env.API_HOST, alEscuchar) : app.listen(PORT, alEscuchar);
 
   server.on('error', (err: Error & { code?: string }) => {
     if (err.code === 'EADDRINUSE') {
@@ -157,6 +228,13 @@ function arrancarServidor(app: Express, intento = 1): void {
  * del módulo para que el bundle CJS de pkg no dependa de top-level await.
  */
 async function inicializarAplicacion(): Promise<void> {
+  if (process.env.NODE_ENV === 'production' && !config.hasPersistentSessionSecret) {
+    logger.error({
+      action: 'CONFIG_PRODUCCION_INVALIDA',
+      details: 'APP_SESSION_SECRET es obligatorio en producción.',
+    });
+    process.exit(1);
+  }
   try {
     await prepararBaseDeDatos();
   } catch (err) {
@@ -164,7 +242,7 @@ async function inicializarAplicacion(): Promise<void> {
       action: 'DB_BOOT_FALLIDO',
       error: { message: err instanceof Error ? err.message : String(err) },
     });
-    if (config.isProduction) {
+    if (process.env.NODE_ENV === 'production') {
       process.exit(1);
     }
     logger.warn({

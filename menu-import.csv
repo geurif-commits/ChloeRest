@@ -1,0 +1,197 @@
+nombre,precio,categoria
+PAPAS SALTEADAS,160,Entradas y Picaderas
+CROQUETAS DE POLLO,350,Entradas y Picaderas
+PAN CON AJO,120,Entradas y Picaderas
+DEDITOS DE POLLO,525,Entradas y Picaderas
+DEDITOS DE PESCADOS,650,Entradas y Picaderas
+CANASTA DE POLLO,625,Entradas y Picaderas
+CALAMAR FRITO,540,Entradas y Picaderas
+CEVICHE DE PESCADO,645,Ceviches y Cocteles
+CEVICHE DE CAMARON,690,Ceviches y Cocteles
+CANASTA DE CAMARONES,750,Entradas y Picaderas
+COCTEL DE CAMARONES,750,Ceviches y Cocteles
+SOPA DE POLLO,500,Sopas y Ensaladas
+SOPA DE MARISCO,1200,Sopas y Ensaladas
+SOPA DE PESCADO,650,Sopas y Ensaladas
+ENSALADA VERDE,350,Sopas y Ensaladas
+ENSALADA CESAR,590,Sopas y Ensaladas
+TOSTONESA50A18:A216,140,Guarniciones
+PAPAS FRITAS,140,Guarniciones
+ARROZ BLANCO,140,Guarniciones
+ESPECIAL CHILLO 2X1,1250,Platos Principales
+SALMON,1200,Platos Principales
+COLIRRUBIA LBS.,750,Platos Principales
+ESPECIAL BUTÚ LB,700,Platos Principales
+FILETE DE MERO,700,Platos Principales
+DORADO EN RUEDA,700,Platos Principales
+MERLUZA en RUEDAS,650,Platos Principales
+PECHUGA DE POLLO A LA PLANCHA,690,Platos Principales
+PECHURINAS,650,Entradas y Picaderas
+ALITAS DE POLLO,575,Platos Principales
+CHULETA FRESCA,600,Platos Principales
+PECHUGA DE POLLO A LA CRIOLLA,775,Platos Principales
+PECHUGA DE POLLO A LA PARRILLA,750,Platos Principales
+PASTA ROJA CON CAMARONES,800,Pastas
+PASTA ALFREDO DE POLLO,700,Pastas
+PASTA ALFREDO DE CAMARONES,800,Pastas
+PASTA A LA BOLOÑESA,790,Pastas
+PASTA AL PESTO,700,Pastas
+CAMARONES,700,Platos Principales
+PAELLA MARINERA 2 P,1650,Platos Principales
+PICADERA MAR Y TIERRA,2050,Entradas y Picaderas
+CASUELA DE MARISCOS,1490,Platos Principales
+MOFONGO DE POLLO,790,Mofongos y Platos Criollos
+MOFONGO DE CAMARONES,890,Mofongos y Platos Criollos
+LAMBI A LA VINAGRETA,790,Platos Principales
+JUGOS NATURALES,130,Bebidas Sin Alcohol
+PERRIER GDE,350,Bebidas Sin Alcohol
+PERRIER PQ,175,Bebidas Sin Alcohol
+JUGO MOTT'S GD,350,Bebidas Sin Alcohol
+JUGO MOTT'S PQ,200,Bebidas Sin Alcohol
+GATORADE,80,Bebidas Sin Alcohol
+COCA COLA,75,Bebidas Sin Alcohol
+SPRITE,75,Bebidas Sin Alcohol
+BOTELLA DE AGUA,55,Bebidas Sin Alcohol
+SODA,80,Bebidas Sin Alcohol
+TONICA,80,Bebidas Sin Alcohol
+REDBULL GD,220,Bebidas Sin Alcohol
+PRESIDENTE GDE,220,Cervezas
+PRESIDENTE PQ,165,Cervezas
+MILLER,220,Cervezas
+CORONA,220,Cervezas
+MODELO,220,Cervezas
+SMIRNOFF,220,Cervezas
+XV GDE,1400,Licores y Botellas
+XV PQ,700,Licores y Botellas
+BRUGAL EXTRAVIEJO GDE,1400,Licores y Botellas
+BRUGAL EXTRAVIEJO PQ,700,Licores y Botellas
+LEYENDA,1800,Licores y Botellas
+DOBLE RESERVA,1800,Licores y Botellas
+PATRON SILVER,5000,Licores y Botellas
+JOSE CUERVO,3000,Licores y Botellas
+JARANA,2000,Licores y Botellas
+PI��A COLADA SIN ALCOHOL,300,Bebidas Sin Alcohol
+PI��A COLADA CON ALCOHOL,450,Coccteles y Bebidas Preparadas
+MOJITO (COCO LIMON CEREZA),450,Coccteles y Bebidas Preparadas
+MARGARITA,490,Coccteles y Bebidas Preparadas
+CUBA LIBRE,340,Coccteles y Bebidas Preparadas
+BUCHANAN'S 12 AÑOS,350,Licores y Botellas
+OLD PARR TRAGO,350,Licores y Botellas
+TEQUILA JARANA,300,Licores y Botellas
+CHIVAS 12 AÑOS TRAGO,350,Licores y Botellas
+FIREBALL,275,Licores y Botellas
+CAIPIRIÑA,300,Coccteles y Bebidas Preparadas
+FRONTERA BLANCO,850,Licores y Botellas
+CARLOS ROSSI TINTO BLANCO,800,Botellas de vino
+JP CHANNEL ROSA BLANCO,220,Botellas de vino
+BAILEYS,1900,Licores y Botellas
+STOLICHNAYA,1900,Licores y Botellas
+GREY GOOSE,3500,Licores y Botellas
+ABSOLUT,1900,Licores y Botellas
+BUCHANAN'S 12 AÑOS BOTELLA,3700,Licores y Botellas
+OLD PARR 12 AÑOS,3800,Licores y Botellas
+BLACK LABEL 12 AÑOS,3800,Licores y Botellas
+CHIVAS 12 AÑOS BOTELLA,3900,Licores y Botellas
+SOMETHING SPECIAL,1800,Licores y Botellas
+PEPSI,75,Bebidas Sin Alcohol
+COPA CARLO ROSSI TINTO,300,Licores y Botellas
+COPA FRONTERA,300,Licores y Botellas
+ETIQUETA NEGRA,350,Licores y Botellas
+SHOT DE XV,250,Licores y Botellas
+SHOT EXTRA VIEJO,300,Licores y Botellas
+PAELLA PARA 1 PERSONA,850,Platos Principales
+GRAMBERRY GRANDE,350,Bebidas Sin Alcohol
+BROWNIE RUSSA,380,Postres
+CHEESECAKE PATRON,325,Postres
+TRABUCO,1100,Licores y Botellas
+VEGETALES SALTEADOS,140,Acompa�amientos y Extras
+SALPICON DE MARISCOS,1300,Ceviches y Coccteles
+ESPECIAL PALOMETA,550,Platos Principales
+PALOMETA,550,Platos Principales
+SANGRIA,350,Cocteles y Bebidas Preparadas
+HOT DOG KING CRAB,600,Entradas y Picaderas
+HOT DOG POLLO,550,Entradas y Picaderas
+BATIDA DE FRESA,250,Bebidas Sin Alcohol
+AGAVITA,2000,Licores y Botellas
+PASTA DE MARISCOS,1250,Pastas
+DAIKIRI,250,Cocteles y Bebidas Preparadas
+SHOT DOBLE RESERVA,275,Licores y Botellas
+BOLAS DE HELADO,250,Postres
+CHURRASCO,2000,Platos Principales
+SHOT DE VODKAR,350,Licores y Botellas
+GINTONIC,375,Cocteles y Bebidas Preparadas
+FILETE DE RES,1100,Platos Principales
+JP CHENET BOTELLA,2200,Licores y Botellas
+MARISCADA,1200,Platos Principales
+CEVICHE MIXTO,850,Ceviches y Cócteles
+PECHUGA CON CAMARONES,1000,Platos Principales
+PAN CON AJO BUFFETE,1000,Entradas y Picaderas
+ROLLOS PRIMAVERA BEFFETE,1500,Entradas y Picaderas
+SERVICIO DE HUEVO,125,Acompañamientos y Extras
+SALCHIMI SALMON 12,760,Sushi y Asiático
+SALCHIMI ATUN,820,Sushi y Asiático
+ESPECIAL COLIRUBIA 2X1,1100,Platos Principales
+ESPECIAL DORADO,695,Platos Principales
+ESPECIAL PESCADO EN RUEDA,550,Platos Principales
+CHILLO POR LBS,900,Platos Principales
+MOFONGO EXTRA SIN NADA,350,Mofongos y Platos Criollos
+SERVICIO DE AGUACATE,150,Acompañamientos y Extras
+DESCORCHE,500,Servicios
+MOFONGO DE LAMBI,890,Mofongos y Platos Criollos
+JARANA REPOSADA,2300,Licores y Botellas
+BERINGER TINTO,1400,Licores y Botellas
+MOFONGO MIXTO,890,Mofongos y Platos Criollos
+CASTILLO ROSSI TINTA,1200,Licores y Botellas
+MIMOSA,180,Cócteles y Bebidas Preparadas
+ESPECIAL BUTU DOS X 1,1050,Platos Principales
+DESCORCHE RON,300,Servicios
+SALSAS EXTRAS,85,Acompañamientos y Extras
+CAPUCHINO,125,Cafetería
+DESAYUNO,250,Platos Principales
+KING'S PRIDE,1500,Licores y Botellas
+STOLI PEQUEÑO,980,Licores y Botellas
+MALTEADAS,350,Bebidas Sin Alcohol
+CLAMATO,100,Bebidas Sin Alcohol
+HOT DOG,580,Entradas y Picaderas
+HOT DOG CAMARONES,580,Entradas y Picaderas
+MARQUESA,375,Postres
+PICADERA MARISCOS,2600,Entradas y Picaderas
+PICADERA CARNES,1550,Entradas y Picaderas
+PICADERA TIERRA,1550,Entradas y Picaderas
+APEROL SPRIT,350,Cócteles y Bebidas Preparadas
+ESPECIAL DE LANGOSTA,1200,Platos Principales
+LEYENDA SHOT,300,Licores y Botellas
+COPA CASTILLO ROSSI,390,Licores y Botellas
+FLAN,375,Postres
+ESPECIAL DE PECHUGA,600,Platos Principales
+ESPECIAL DE PULPO,800,Platos Principales
+COPA TRABUCO,350,Licores y Botellas
+ESPECIAL PECHUGA,690,Platos Principales
+COCTEL MIXTO,850,Ceviches y Cócteles
+SERVICIO DE SALAMI,100,Acompañamientos y Extras
+FROZER,250,Cócteles y Bebidas Preparadas
+CANITA,125,Cervezas
+PASTEL EN HOJA,250,Mofongos y Platos Criollos
+QUESO,250,Acompañamientos y Extras
+MANGU,140,Mofongos y Platos Criollos
+LAMBI MOLIDO,790,Platos Principales
+LANGOSTA (AL AJILLO VINAGRETA),1200,Platos Principales
+PASTELES EN HOJA,250,Mofongos y Platos Criollos
+TILAPIA ROJA,500,Platos Principales
+PULPO ALA PLANCHA,800,Platos Principales
+PASTA MAR Y TIERRA,800,Pastas
+LAMBI A LA PLANCHA,800,Platos Principales
+PECHUGA AL LIMON Y PIÑA,690,Platos Principales
+PULPO AL AJILLO,800,Platos Principales
+CAMARONES GUISADOS,700,Platos Principales
+CAMARONES EMPANIZADOS,700,Platos Principales
+LAMBI A LA CRIOLLA,790,Mofongos y Platos Criollos
+LAMBIA AL AJILLO,790,Platos Principales
+MOFONGO DE PULPO,890,Mofongos y Platos Criollos
+CAFE,50,Cafetería
+CAFE CON CREMOLA,100,Cafetería
+VINOS CALLEJON COMUN,1200,Licores y Botellas
+VINOS AUREO,1200,Botellas de vino
+VINOS,1200,Botellas de vino
+JUGO RICA SIN AZUCAR,250,Bebidas Sin Alcohol
+,,

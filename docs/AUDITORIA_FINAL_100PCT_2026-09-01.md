@@ -13,7 +13,7 @@ El sistema ChloeRestaurant POS v2.1.0 ha sido **completamente auditado, limpiado
 **Verificación producción (2026-09-01):**
 - `GET https://chloerestaurant.lat` → **200 OK**
 - `GET https://chloerestaurant.lat/api/health` → **200 OK** (DB conectada, migración 027)
-- `POST https://chloerestaurant.lat/api/dueno/login` (PIN 012011) → **200 OK** + JWT token
+- `POST https://chloerestaurant.lat/api/dueno/login` (PIN del propietario) → **200 OK** + JWT token
 
 ---
 
@@ -87,7 +87,7 @@ El sistema ChloeRestaurant POS v2.1.0 ha sido **completamente auditado, limpiado
 ### Seguridad Crítica
 - **SSE/KDS:** `autenticarSse:2140` / `autorizarKDS:2158` → 401 (antes `empresaId:1` sin auth)
 - **PIN admin:** `'041120'` → `config.bootstrapAdminPin` (env `BOOTSTRAP_ADMIN_PIN`)
-- **PIN real:** `smoke.js:35` hardcoded `012011` → `process.env.OWNER_PIN`
+- **PIN real:** `smoke.js:35` hardcoded `<PIN>` → `process.env.OWNER_PIN`
 - **Dueño rate-limit:** `verificarRateLimit` + `registrarIntentoFallido/Exitoso` en `/api/dueno/login:1385`
 - **Duplicación auth:** `firmarDuenoTok`/`verificarDuenoTok` movidos a `auth.js:61` (exportados), `server.js` importa ambos
 

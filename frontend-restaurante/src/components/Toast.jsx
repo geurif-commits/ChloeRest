@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { CircleCheck, CircleX, TriangleAlert, Info, X } from 'lucide-react';
 
 // ──────────────────────────────────────────────
 //  Sistema global de Toast para evitar alert()
@@ -28,8 +29,31 @@ export function toastInfo(msg, duracion)  { mostrarToast(msg, 'info',  duracion)
 export function toastAviso(msg, duracion) { mostrarToast(msg, 'aviso', duracion); }
 
 // ──────────────────────────────────────────────
-//  Componente que renderiza los toasts
+//  Los mensajes históricos traen un emoji inicial (✅ ❌ ⚠️ …). Se usa para
+//  inferir el tono real y se retira del texto para no duplicar el icono.
 // ──────────────────────────────────────────────
+const TONO_POR_EMOJI = [
+  [/^(✅|✔️?|🟢)\s*/u, 'exito'],
+  [/^(❌|⛔|🚫|🔴)\s*/u, 'error'],
+  [/^(⚠️?|📡)\s*/u, 'aviso'],
+  [/^(ℹ️?|🔒|🛎️?|🎨|🌙|✨|🖨️?|🔄|📋|💡)\s*/u, 'info'],
+];
+
+function interpretar(t) {
+  let mensaje = String(t.mensaje ?? '');
+  let tipo = t.tipo;
+  for (const [re, tono] of TONO_POR_EMOJI) {
+    if (re.test(mensaje)) {
+      mensaje = mensaje.replace(re, '');
+      tipo = tono;
+      break;
+    }
+  }
+  return { mensaje, tipo };
+}
+
+const ICONOS = { exito: CircleCheck, error: CircleX, aviso: TriangleAlert, info: Info };
+
 export default function ToastContainer() {
   const [toasts, setToasts] = useState([]);
 
@@ -45,76 +69,20 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div style={estilos.contenedor}>
-      {toasts.map((t) => (
-        <div key={t.id} style={{ ...estilos.toast, ...colores[t.tipo] }}>
-          <span style={estilos.icono}>{iconos[t.tipo]}</span>
-          <span style={estilos.texto}>{t.mensaje}</span>
-          <button
-            style={estilos.cerrar}
-            onClick={() => cerrar(t.id)}
-            aria-label="Cerrar"
-          >
-            ×
-          </button>
-        </div>
-      ))}
+    <div className="px-toasts" role="region" aria-label="Notificaciones" aria-live="polite">
+      {toasts.map((t) => {
+        const { mensaje, tipo } = interpretar(t);
+        const Icono = ICONOS[tipo] || Info;
+        return (
+          <div key={t.id} className={`px-toast px-toast--${tipo}`} role="status">
+            <span className="px-toast__icon"><Icono size={18} /></span>
+            <span className="px-toast__text">{mensaje}</span>
+            <button type="button" className="px-toast__close" onClick={() => cerrar(t.id)} aria-label="Cerrar">
+              <X size={15} />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }
-
-const iconos = {
-  exito: '✅',
-  error: '❌',
-  aviso: '⚠️',
-  info:  'ℹ️',
-};
-
-const colores = {
-  exito: { borderLeft: '4px solid #00f576', background: 'rgba(0,245,118,0.10)' },
-  error: { borderLeft: '4px solid #ff3366', background: 'rgba(255,51,102,0.10)' },
-  aviso: { borderLeft: '4px solid #ffb703', background: 'rgba(255,183,3,0.10)'  },
-  info:  { borderLeft: '4px solid #60a5fa', background: 'rgba(96,165,250,0.10)' },
-};
-
-const estilos = {
-  contenedor: {
-    position: 'fixed',
-    top: '20px',
-    right: '20px',
-    zIndex: 99999,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-    maxWidth: '420px',
-    pointerEvents: 'none',
-  },
-  toast: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '10px',
-    padding: '14px 16px',
-    borderRadius: '12px',
-    backdropFilter: 'blur(12px)',
-    background: 'rgba(20,20,28,0.95)',
-    boxShadow: '0 8px 30px rgba(0,0,0,0.45)',
-    color: '#fff',
-    fontFamily: 'Inter, sans-serif',
-    fontSize: '0.9rem',
-    lineHeight: '1.4',
-    animation: 'toastEntrar 0.3s ease',
-    pointerEvents: 'auto',
-  },
-  icono: { fontSize: '1.1rem', flexShrink: 0, marginTop: '1px' },
-  texto: { flex: 1, wordBreak: 'break-word' },
-  cerrar: {
-    background: 'none',
-    border: 'none',
-    color: '#9494ad',
-    fontSize: '1.3rem',
-    cursor: 'pointer',
-    padding: '0 2px',
-    lineHeight: 1,
-    flexShrink: 0,
-  },
-};

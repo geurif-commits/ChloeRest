@@ -1,0 +1,45 @@
+{
+  "v": 4,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-21T13:20:00Z"
+  },
+  "title": "ChloeRestaurant — Presentación comercial",
+  "order": [
+    "portada",
+    "problema",
+    "solucion",
+    "mesas",
+    "kds",
+    "caja",
+    "equipo",
+    "estilos",
+    "seguridad",
+    "modelo",
+    "distribucion",
+    "instalacion",
+    "cierre"
+  ],
+  "cover": "portada",
+  "sections": {
+    "contexto": {
+      "description": "Qué es ChloeRestaurant y qué problema resuelve",
+      "start": "portada"
+    },
+    "producto": {
+      "description": "Los módulos del sistema, con capturas reales",
+      "start": "mesas"
+    },
+    "mercado": {
+      "description": "Licencias, distribución y cómo empezar",
+      "start": "modelo"
+    }
+  },
+  "faces": {
+    "inter": {
+      "family": "Inter",
+      "href": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    }
+  },
+  "designSystems": []
+}

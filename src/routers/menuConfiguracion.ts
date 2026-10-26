@@ -12,6 +12,7 @@ import { getDatabase } from '../db/index.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { ROLES_ADMIN, ROLES_OPERACION } from '../lib/roles.js';
 import { createLogger } from '../lib/logger.js';
+import { grupoParaCategoria } from '../services/destinoProducto.js';
 
 const router = Router();
 const logger = createLogger('menuConfiguracionRouter');
@@ -56,7 +57,7 @@ router.post('/api/menu-configuracion/:tipo', requireAuth, requireRoles(...ROLES_
   const empresaId = req.auth!.empresaId || 1;
 
   if (tipo === 'categorias') {
-    const grupo = req.body.grupo === 'bebidas' ? 'bebidas' : 'alimentos';
+    const grupo = grupoParaCategoria(nombre, req.body.grupo);
     const result = await db.query<ICategoriaMenuFila>(
       `INSERT INTO menu_categorias (empresa_id, nombre, grupo, activo) VALUES ($1, $2, $3, TRUE)
        ON CONFLICT (empresa_id, nombre) DO UPDATE SET grupo = $3, activo = TRUE RETURNING *`,
@@ -95,7 +96,7 @@ router.put('/api/menu-configuracion/:tipo/:id', requireAuth, requireRoles(...ROL
   const query = tipo === 'categorias'
     ? `UPDATE ${tabla} SET nombre = $1, grupo = $2 WHERE id = $3 AND activo = TRUE RETURNING *`
     : `UPDATE ${tabla} SET nombre = $1 WHERE id = $2 AND activo = TRUE RETURNING *`;
-  const params: unknown[] = tipo === 'categorias' ? [nombre, req.body.grupo === 'bebidas' ? 'bebidas' : 'alimentos', id] : [nombre, id];
+  const params: unknown[] = tipo === 'categorias' ? [nombre, grupoParaCategoria(nombre, req.body.grupo), id] : [nombre, id];
   const result = await db.query(query, params);
   if (!result.rowCount) {throw httpError(404, 'Elemento no encontrado.');}
   logger.info({ action: 'EDITAR_MENU_CONFIGURACION', userId: req.auth!.userId, tipo, id });

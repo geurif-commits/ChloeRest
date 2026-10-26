@@ -1,0 +1,7 @@
+{
+  "name": "chloe-video-comercial",
+  "private": true,
+  "type": "module",
+  "description": "Graba el video comercial de ChloeRestaurant operando el sistema (Playwright + Edge + ffmpeg). Independiente de la app.",
+  "dependencies": { "playwright-core": "^1.50.0" }
+}

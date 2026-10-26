@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import TicketTermico from './TicketTermico';
-import { toastError, toastAviso } from './Toast.jsx';
+import { toastError } from './Toast.jsx';
 import { obtenerSesion } from '../api.js';
+import { obtenerDeviceId } from '../utils/dispositivo.js';
+import { datosTicketFiscal, esTipoElectronico } from '../utils/comprobantes.js';
+import './HistorialFacturas.css';
 import { FileText, Search, Printer, Clock, Filter, LayoutList, LayoutGrid, Receipt, TrendingUp, Hash } from 'lucide-react';
 
 const formatearRD = (val) => {
   return Number(val || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-function HistorialFacturas({ alVolver, apiUrl }) {
+function HistorialFacturas({ apiUrl }) {
   const [facturas, setFacturas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [facturaSeleccionada, setFacturaSeleccionada] = useState(null);
@@ -34,7 +37,12 @@ function HistorialFacturas({ alVolver, apiUrl }) {
 
   const cargarFacturas = async () => {
     try {
-      const res = await fetch(`${urlBase}/api/reportes/facturas`);
+      const res = await fetch(`${urlBase}/api/reportes/facturas`, {
+        headers: {
+          'Authorization': `Bearer ${obtenerSesion()}`,
+          'X-Device-ID': obtenerDeviceId(),
+        }
+      });
       if (!res.ok) throw new Error("No se pudo cargar el historial.");
       const data = await res.json();
       setFacturas(data);
@@ -46,7 +54,16 @@ function HistorialFacturas({ alVolver, apiUrl }) {
     }
   };
 
-  const prepararReimpresion = (fac) => {
+  // Reimprime con los datos fiscales del servidor (emisor, e-NCF, código de seguridad, firma, QR). Si el e-CF aún no tenía
+  // timbre, se vuelve a consultar a la DGII antes de imprimir.
+  const prepararReimpresion = async (fac) => {
+    let representacion = null;
+    try {
+      const res = await fetch(`${urlBase}/api/cuentas/${fac.id}/comprobante?actualizar=1`, {
+        headers: { 'Authorization': `Bearer ${obtenerSesion()}`, 'X-Device-ID': obtenerDeviceId() }
+      });
+      if (res.ok) representacion = await res.json();
+    } catch { /* se reimprime con lo que ya trae la lista */ }
     setFacturaSeleccionada({
       mesa: fac.mesa_nombre || `Mesa #${fac.mesa_id}`,
       cajero: fac.cajero_nombre || fac.camarero_nombre || 'Cajero/a',
@@ -54,12 +71,15 @@ function HistorialFacturas({ alVolver, apiUrl }) {
       items: fac.items || [],
       subtotal: Number(fac.subtotal),
       itbis: Number(fac.itbis),
+      descuento: Number(fac.descuento || 0),
       propina: Number(fac.propina),
       total: Number(fac.total),
       metodoPago: fac.metodo_pago,
-      tipoComprobante: fac.tipo_comprobante || 'B02',
-      rncCliente: fac.rnc_cedula_cliente,
-      ncfGenerado: fac.ncf_ecf_generado || 'N/D',
+      ...datosTicketFiscal(representacion, {
+        tipoComprobante: fac.tipo_comprobante || 'B02',
+        ncfGenerado: fac.ncf_ecf_generado || 'N/D',
+        rncCliente: fac.rnc_cedula_cliente
+      }),
       fecha: new Date(fac.fecha_cierre).toLocaleString()
     });
   };
@@ -115,7 +135,23 @@ function HistorialFacturas({ alVolver, apiUrl }) {
   const TIPO_COLORS = {
     B01: { bg: 'rgba(91, 140, 255, 0.12)', color: 'var(--blue)' },
     B02: { bg: 'rgba(0, 230, 118, 0.12)', color: 'var(--green)' },
+    E32: { bg: 'rgba(0, 230, 118, 0.12)', color: 'var(--green)' },
+    E31: { bg: 'rgba(91, 140, 255, 0.12)', color: 'var(--blue)' },
+    E45: { bg: 'rgba(245, 158, 11, 0.14)', color: 'var(--gold)' },
+    E44: { bg: 'rgba(245, 158, 11, 0.14)', color: 'var(--gold)' },
     'e-CF': { bg: 'rgba(139, 92, 246, 0.12)', color: 'var(--purple)' },
+  };
+
+  // Estado del e-CF ante la DGII (solo comprobantes electrónicos).
+  const estadoEcfBadge = (fac) => {
+    if (!esTipoElectronico(fac.tipo_comprobante) || !fac.estado_ecf) return null;
+    const ok = fac.estado_ecf === 'Aceptado' || fac.estado_ecf === 'Aceptado Condicional';
+    const mal = fac.estado_ecf === 'Rechazado';
+    return (
+      <span title={`Estado ante la DGII: ${fac.estado_ecf}`} style={{ marginLeft: 6, padding: '1px 6px', borderRadius: '999px', fontSize: '0.62rem', fontWeight: 700, fontFamily: 'inherit', background: ok ? 'rgba(0, 230, 118, 0.14)' : mal ? 'rgba(255, 82, 82, 0.16)' : 'rgba(245, 158, 11, 0.16)', color: ok ? 'var(--green)' : mal ? 'var(--red, #ff5252)' : 'var(--gold)' }}>
+        {ok ? 'DGII ✓' : mal ? 'Rechazado' : 'Pendiente DGII'}
+      </span>
+    );
   };
 
   return (
@@ -133,10 +169,10 @@ function HistorialFacturas({ alVolver, apiUrl }) {
         </div>
         {pestana === 'historial' && (
           <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '3px' }}>
-            <button onClick={() => setVistaModo('lista')} style={{ background: vistaModo === 'lista' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'lista' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <button aria-label="Ver como lista" onClick={() => setVistaModo('lista')} style={{ background: vistaModo === 'lista' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'lista' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               <LayoutList size={15} />
             </button>
-            <button onClick={() => setVistaModo('grid')} style={{ background: vistaModo === 'grid' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'grid' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <button aria-label="Ver como cuadrícula" onClick={() => setVistaModo('grid')} style={{ background: vistaModo === 'grid' ? 'var(--bg-card)' : 'transparent', color: vistaModo === 'grid' ? 'var(--gold)' : 'var(--text-muted)', border: 'none', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               <LayoutGrid size={15} />
             </button>
           </div>
@@ -178,7 +214,7 @@ function HistorialFacturas({ alVolver, apiUrl }) {
             /* VISTA LISTA */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
               {/* Header row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 140px 100px 90px', gap: '8px', padding: '6px 12px', fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              <div className="hf-cols hf-cab" style={{ padding: '6px 12px', fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 <span>Mesa / NCF</span>
                 <span>Tipo</span>
                 <span>Metodo</span>
@@ -190,16 +226,16 @@ function HistorialFacturas({ alVolver, apiUrl }) {
                 const mc = METHOD_COLORS[fac.metodo_pago] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' };
                 const tc = TIPO_COLORS[fac.tipo_comprobante] || { bg: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)' };
                 return (
-                  <div key={fac.id} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 120px 140px 100px 90px', gap: '8px', padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', alignItems: 'center', fontSize: '0.82rem', transition: 'border-color 0.15s' }}>
+                  <div key={fac.id} className="hf-cols hf-fila" style={{ padding: '10px 12px', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', alignItems: 'center', fontSize: '0.82rem', transition: 'border-color 0.15s' }}>
                     <div>
                       <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '2px' }}>{fac.mesa_nombre || 'N/A'}</div>
-                      <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--text-dim)' }}>{fac.ncf_ecf_generado || fac.tipo_comprobante || 'NCF'}</div>
+                      <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'var(--text-dim)' }}>{fac.ncf_ecf_generado || fac.tipo_comprobante || 'NCF'}{estadoEcfBadge(fac)}</div>
                     </div>
                     <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: '600', background: tc.bg, color: tc.color, alignSelf: 'center', justifySelf: 'start' }}>{fac.tipo_comprobante || 'N/D'}</span>
                     <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: '600', background: mc.bg, color: mc.color, alignSelf: 'center' }}>{fac.metodo_pago}</span>
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fac.camarero_nombre || 'N/A'}</span>
                     <span style={{ fontWeight: '700', color: 'var(--gold)', textAlign: 'right', fontSize: '0.85rem' }}>RD$ {formatearRD(fac.total)}</span>
-                    <button onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', justifySelf: 'end' }}>
+                    <button aria-label={`Reimprimir factura ${fac.ncf_ecf_generado || fac.id}`} onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', justifySelf: 'end' }}>
                       <Printer size={14} />
                     </button>
                   </div>
@@ -216,7 +252,7 @@ function HistorialFacturas({ alVolver, apiUrl }) {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '0.9rem' }}>{fac.mesa_nombre || 'N/A'}</div>
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>{fac.ncf_ecf_generado || 'NCF'}</div>
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--text-dim)', marginTop: '2px' }}>{fac.ncf_ecf_generado || 'NCF'}{estadoEcfBadge(fac)}</div>
                       </div>
                       <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '0.65rem', fontWeight: '600', background: mc.bg, color: mc.color }}>{fac.metodo_pago}</span>
                     </div>
@@ -225,7 +261,7 @@ function HistorialFacturas({ alVolver, apiUrl }) {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
                       <span style={{ fontWeight: '800', color: 'var(--gold)', fontSize: '1rem' }}>RD$ {formatearRD(fac.total)}</span>
-                      <button onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <button aria-label={`Reimprimir factura ${fac.ncf_ecf_generado || fac.id}`} onClick={() => prepararReimpresion(fac)} style={{ background: 'var(--gold-soft)', color: 'var(--gold)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-xs)', padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                         <Printer size={13} />
                       </button>
                     </div>
@@ -265,9 +301,13 @@ function HistorialFacturas({ alVolver, apiUrl }) {
                 <label className="admin-label">Tipo de Factura</label>
                 <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className="admin-input">
                   <option value="">Todas</option>
-                  <option value="B01">B01 (Credito Fiscal)</option>
-                  <option value="B02">B02 (Consumo)</option>
-                  <option value="e-CF">e-CF</option>
+                  <option value="E32">E32 (Consumo electrónico)</option>
+                  <option value="E31">E31 (Crédito fiscal electrónico)</option>
+                  <option value="E45">E45 (Gubernamental electrónico)</option>
+                  <option value="E44">E44 (Regímenes especiales electrónico)</option>
+                  <option value="B02">B02 (Consumo, NCF)</option>
+                  <option value="B01">B01 (Crédito fiscal, NCF)</option>
+                  <option value="e-CF">e-CF (anteriores)</option>
                 </select>
               </div>
               <div className="admin-form-group" style={{ flex: 0, alignSelf: 'flex-end' }}>
@@ -309,7 +349,7 @@ function HistorialFacturas({ alVolver, apiUrl }) {
                 </div>
               </div>
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-gold)', borderRadius: 'var(--radius-md)', padding: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'rgba(245, 184, 61, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: 'color-mix(in srgb, var(--gold) 12%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Hash size={18} style={{ color: 'var(--gold)' }} />
                 </div>
                 <div>
@@ -325,7 +365,7 @@ function HistorialFacturas({ alVolver, apiUrl }) {
             <div className="admin-section">
               <h4 className="admin-section-title"><FileText size={16} /> Desglose por Tipo</h4>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                {['B01', 'B02', 'e-CF'].map(tipo => {
+                {['E32', 'E31', 'E45', 'E44', 'B02', 'B01', 'e-CF'].map(tipo => {
                   const facturasTipo = reporteFiltrado.filter(f => f.tipo_comprobante === tipo);
                   const totalTipo = facturasTipo.reduce((a, f) => a + Number(f.total || 0), 0);
                   if (facturasTipo.length === 0) return null;

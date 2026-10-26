@@ -1,0 +1,39 @@
+/* Selector de comprobante fiscal (caja y pedidos). Usa los tokens px del sistema de diseño. */
+.sc { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sc-fila { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sc-etiqueta { display: inline-flex; align-items: center; gap: 6px; font: 700 .68rem/1.2 var(--px-font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--px-ink-3); }
+.sc-etiqueta em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; }
+.sc-chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.sc-chip {
+  min-height: 48px; padding: 6px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  border: 1px solid var(--px-line-2); border-radius: var(--px-r-md); background: var(--px-raised); color: var(--px-ink-2); cursor: pointer;
+  font-family: inherit; line-height: 1.15; transition: border-color .15s, background .15s, color .15s;
+}
+.sc-chip strong { font: 700 .92rem var(--px-font-ui); letter-spacing: .02em; }
+.sc-chip small { font-size: .7rem; font-weight: 600; color: var(--px-ink-3); text-align: center; overflow-wrap: normal; }
+.sc-chip:hover:not(:disabled) { border-color: var(--px-gold); color: var(--px-ink); }
+.sc-chip.is-on { border-color: var(--px-gold); background: var(--px-gold-soft); color: var(--px-gold-ink); }
+.sc-chip.is-on small { color: inherit; }
+.sc-chip.is-ncf { border-style: dashed; }
+.sc-chip:disabled { opacity: .45; cursor: not-allowed; }
+
+.sc-aviso { margin: 0; display: flex; gap: 8px; align-items: flex-start; padding: 9px 12px; border-radius: var(--px-r-md); font-size: .78rem; font-weight: 600; line-height: 1.35; }
+.sc-aviso svg { flex: none; margin-top: 1px; }
+.sc-aviso--info { background: color-mix(in srgb, var(--px-gold) 14%, transparent); color: var(--px-ink); }
+.sc-aviso--warn { background: color-mix(in srgb, var(--px-warn, #d9922b) 16%, transparent); color: var(--px-ink); }
+.sc-aviso--error { background: color-mix(in srgb, var(--px-bad) 14%, transparent); color: var(--px-bad); }
+
+.sc-cliente { align-self: flex-start; display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 14px; border: 1px dashed var(--px-line-2); border-radius: 999px; background: transparent; color: var(--px-ink-2); font: 600 .8rem var(--px-font-ui); cursor: pointer; }
+.sc-cliente:hover { border-color: var(--px-gold); color: var(--px-ink); }
+.sc-cliente-campos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; }
+.sc-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.sc-campo > span { font: 650 .72rem var(--px-font-ui); color: var(--px-ink-3); }
+.sc-campo .cobro-input { width: 100%; min-width: 0; }
+.sc-error { grid-column: 1 / -1; margin: 0; font-size: .78rem; font-weight: 600; color: var(--px-bad); }
+
+@media (max-width: 520px) {
+  .sc-cliente-campos { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 420px) {
+  .sc-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

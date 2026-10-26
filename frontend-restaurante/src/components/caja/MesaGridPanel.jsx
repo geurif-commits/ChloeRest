@@ -1,4 +1,5 @@
 import React from 'react';
+import { Plus, UtensilsCrossed, UserRound, ArrowUpRight } from 'lucide-react';
 
 function MesaGridPanel({
   mesas,
@@ -8,6 +9,7 @@ function MesaGridPanel({
   const mesasOcupadas = mesas.filter(
     (m) => m.estado === 'Ocupada'
   );
+  const n = mesasOcupadas.length;
 
   return (
     <section className="mesa-grid-panel">
@@ -15,86 +17,66 @@ function MesaGridPanel({
       <div className="mesa-grid-panel__header">
 
         <div className="mesa-grid-panel__title">
-          <h3>
-            Mesas Ocupadas ({mesasOcupadas.length})
-          </h3>
-
+          <span className="px-eyebrow">Cuentas abiertas</span>
+          <h3>Mesas en consumo ({n})</h3>
           <span className="mesa-grid-panel__status">
-            {mesasOcupadas.length === 0
+            {n === 0
               ? 'Sin mesas en consumo'
-              : `${mesasOcupadas.length} mesa${
-                  mesasOcupadas.length !== 1
-                    ? 's'
-                    : ''
-                } activa${
-                  mesasOcupadas.length !== 1
-                    ? 's'
-                    : ''
-                }`}
+              : `${n} mesa${n !== 1 ? 's' : ''} activa${n !== 1 ? 's' : ''} — toca una para cobrar`}
           </span>
         </div>
 
         <button
           type="button"
-          className="mesa-grid-panel__open-btn"
+          className="px-btn px-btn--gold"
           onClick={onAbrirMesaLibre}
         >
-          + Abrir Mesa Libre
+          <Plus size={17} />
+          Abrir mesa libre
         </button>
 
       </div>
 
       <div className="mesa-grid-panel__grid">
 
-        {mesasOcupadas.length === 0 ? (
+        {n === 0 ? (
 
           <div className="mesa-grid-panel__empty">
-
             <span className="mesa-grid-panel__empty-icon">
-              🍽️
+              <UtensilsCrossed size={28} />
             </span>
-
             <div>
-              <strong>
-                No hay mesas ocupadas
-              </strong>
-
-              <span>
-                Las mesas en consumo aparecerán aquí.
-              </span>
+              <strong>No hay mesas ocupadas</strong>
+              <span>Las mesas en consumo aparecerán aquí para cobrarlas.</span>
             </div>
-
           </div>
 
         ) : (
 
           mesasOcupadas.map((mesa) => (
-
             <button
               type="button"
               key={mesa.id}
               className="mesa-grid-panel__card"
-              onClick={() =>
-                onSeleccionarMesa(mesa)
-              }
+              onClick={() => onSeleccionarMesa(mesa)}
             >
-
               <span className="mesa-grid-panel__card-name">
                 {mesa.nombre_numero}
               </span>
 
               <span className="mesa-grid-panel__card-waiter">
-                {mesa.camarero_nombre ||
-                  mesa.camarero ||
-                  'Sin asignar'}
+                <UserRound size={13} />
+                {mesa.camarero_nombre || mesa.camarero || 'Sin asignar'}
               </span>
 
               <span className="mesa-grid-panel__card-badge">
                 Ocupada
               </span>
 
+              <span className="mesa-grid-panel__cta" aria-hidden="true">
+                <ArrowUpRight size={18} />
+              </span>
             </button>
-
           ))
 
         )}

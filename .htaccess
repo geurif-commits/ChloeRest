@@ -1,7 +1,7 @@
 # DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
-PassengerAppRoot "/home/chlooggp/chloerest"
+PassengerAppRoot "/home/chloerest/chloerest"
 PassengerBaseURI "/"
-PassengerNodejs "/home/chlooggp/nodevenv/chloerest/24/bin/node"
+PassengerNodejs "/home/chloerest/nodevenv/chloerest/24/bin/node"
 PassengerAppType node
 # Backend TypeScript compilado (migración desde server.js legacy).
 PassengerStartupFile dist/server.js

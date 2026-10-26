@@ -29,6 +29,7 @@ interface IFacturaConItemsFila {
   camarero_nombre: string | null;
   cajero_nombre: string | null;
   subtotal: string | null;
+  descuento: string | null;
   itbis: string | null;
   propina: string | null;
   total: string | null;
@@ -148,6 +149,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
       u.nombre AS camarero_nombre,
       j.nombre AS cajero_nombre,
       c.subtotal,
+      c.descuento,
       c.itbis,
       c.propina,
       c.total,
@@ -156,6 +158,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
       c.ncf_ecf_generado,
       c.rnc_cedula_cliente,
       c.fecha_cierre,
+      e.estado AS estado_ecf,
       (
         SELECT COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
           'id', cd.id,
@@ -171,6 +174,7 @@ router.get('/api/reportes/facturas', requireAuth, requireRoles(...ROLES_CAJA), r
     LEFT JOIN mesas m ON m.id = c.mesa_id
     LEFT JOIN usuarios u ON u.id = c.camarero_id
     LEFT JOIN usuarios j ON j.id = c.cajero_id
+    LEFT JOIN e_cf_comprobantes e ON e.cuenta_id = c.id AND e.ncf = c.ncf_ecf_generado
     WHERE c.estado = 'Cerrada'
     ORDER BY c.fecha_cierre DESC
     LIMIT 100
@@ -276,7 +280,7 @@ router.get('/api/reportes/cierre', requireAuth, requireRoles(...ROLES_CAJA), rou
       "SELECT COALESCE(monto_inicial, 0) AS monto_inicial FROM aperturas_caja WHERE fecha::date = CURRENT_DATE AND estado = 'Abierta' ORDER BY id DESC LIMIT 1"
     ),
   ]);
-  const montoInicial = Number(apertura.rows[0].monto_inicial || 0);
+  const montoInicial = Number(apertura.rows[0]?.monto_inicial || 0);
   res.json({
     totalesGenerales: totals.rows[0],
     desgloseMetodos: methods.rows,

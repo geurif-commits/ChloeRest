@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sanitizarEntero } from '../utils/input.js';
 import { toastAviso, toastError } from './Toast.jsx';
 import ConfirmModal from './ConfirmModal';
@@ -17,21 +17,21 @@ function GestionMesas({ apiUrl }) {
   const [busqueda, setBusqueda] = useState('');
   const urlBase = apiUrl;
 
-  useEffect(() => {
-    cargarMesas();
-  }, []);
-
-  const cargarMesas = async () => {
+  const cargarMesas = useCallback(async () => {
     try {
       const res = await fetch(`${urlBase}/api/mesas`);
       const data = await res.json();
       setMesas(Array.isArray(data) ? data : []);
-    } catch (error) {
+    } catch {
       console.error("Error cargando mesas:", error);
     } finally {
       setCargando(false);
     }
-  };
+  }, [urlBase]);
+
+  useEffect(() => {
+    cargarMesas();
+  }, [cargarMesas]);
 
   const generarMesasMasivas = async (e) => {
     e.preventDefault();
@@ -50,7 +50,7 @@ function GestionMesas({ apiUrl }) {
       } else {
         toastAviso(data.error || 'Error al generar mesas.');
       }
-    } catch (error) {
+    } catch {
       toastError("Error al generar mesas.");
     }
   };
@@ -74,7 +74,7 @@ function GestionMesas({ apiUrl }) {
       } else {
         toastError("Error al actualizar el nombre de la mesa.");
       }
-    } catch (error) {
+    } catch {
       toastError("Error de conexión.");
     }
   };
@@ -96,7 +96,7 @@ function GestionMesas({ apiUrl }) {
           } else {
             toastAviso(data.error || 'Error al eliminar mesa.');
           }
-        } catch (error) {
+        } catch {
           toastError("Error al eliminar la mesa.");
         }
       }
@@ -131,7 +131,7 @@ function GestionMesas({ apiUrl }) {
         {/* Banner de Estado del Salón Horizontal */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', width: '100%' }}>
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '14px', padding: '14px 18px', background: 'var(--glass-bg)', border: '1px solid var(--border-light)', borderRadius: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 184, 61, 0.15)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'color-mix(in srgb, var(--gold) 15%, transparent)', color: 'var(--kpi-gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <TableProperties size={20} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -256,6 +256,7 @@ function GestionMesas({ apiUrl }) {
                             <button
                               type="button"
                               onClick={() => guardarEdicion(mesa.id)}
+                              aria-label="Guardar nombre de la mesa"
                               className="admin-btn admin-btn-primary"
                               style={{ padding: '4px 8px', fontSize: '0.76rem' }}
                             >
@@ -264,6 +265,7 @@ function GestionMesas({ apiUrl }) {
                             <button
                               type="button"
                               onClick={() => setEditandoId(null)}
+                              aria-label="Cancelar edición"
                               className="admin-btn admin-btn-secondary"
                               style={{ padding: '4px 8px', fontSize: '0.76rem' }}
                             >
@@ -297,6 +299,7 @@ function GestionMesas({ apiUrl }) {
                           <button
                             type="button"
                             onClick={() => eliminarMesa(mesa.id, mesa.nombre_numero, mesa.estado)}
+                            aria-label={`Eliminar ${mesa.nombre_numero}`}
                             className="admin-btn"
                             style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: 'var(--kpi-red)', padding: '4px 10px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                           >

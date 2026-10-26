@@ -11,6 +11,8 @@ import { createLogger } from '../lib/logger.js';
 import { UserRole, IRequestContext } from '../types/index.js';
 import { getDatabase, runWithRequestContext } from '../db/index.js';
 import { verificarDuenoTok } from '../services/authService.js';
+import { verificarDuenoEpoch } from '../services/seguridadService.js';
+import { errorDeLicencia, evaluarLicenciaDeAcceso } from '../services/licenciaAccesoService.js';
 
 const logger = createLogger('auth');
 
@@ -32,6 +34,33 @@ interface ISessionRow {
   nombre: string;
 }
 
+/**
+ * El token del dueño representa a la plataforma y no a una fila de usuarios
+ * (su identidad lógica es 0). Para operaciones que escriben auditoría o
+ * referencias FK, usamos el administrador raíz real de la empresa 1.
+ */
+async function identidadOperativaDueno(): Promise<{ userId: number; nombre: string; empresaId: number }> {
+  try {
+    const db = getDatabase();
+    const result = await db.queryUnscoped<{ id: number; nombre: string; empresa_id: number | null }>(
+      "SELECT id, nombre, empresa_id FROM usuarios WHERE rol = 'Administrador' AND estado = 'Activo' AND (empresa_id = 1 OR empresa_id IS NULL) ORDER BY id LIMIT 1"
+    );
+    const admin = result.rows[0];
+    if (admin) {
+      return { userId: admin.id, nombre: admin.nombre, empresaId: admin.empresa_id || 1 };
+    }
+  } catch (error) {
+    logger.warn({ action: 'DUENO_IDENTIDAD_OPERATIVA_FALLIDA', error: { message: (error as Error).message } });
+  }
+  return { userId: 0, nombre: 'Propietario Sistema', empresaId: 1 };
+}
+
+/**
+ * Rutas que una sesión puede usar aunque la licencia no esté vigente: cerrar la sesión y activar una clave nueva
+ * (renovar). Todo lo demás exige licencia vigente en cada petición.
+ */
+const RUTAS_SIN_LICENCIA = new Set(['/api/logout', '/api/licencia/activar']);
+
 function extractToken(req: Request): string {
   const header = req.get('authorization') || (req.query?.token ? `Bearer ${req.query.token}` : '');
   return header.startsWith('Bearer ') ? header.slice(7) : header || String(req.query?.token || '');
@@ -49,11 +78,15 @@ export const requireAuth = async (req: Request, _res: Response, next: NextFuncti
 
   const dueno = verificarDuenoTok(token);
   if (dueno) {
+    if (!(await verificarDuenoEpoch(dueno.ep))) {
+      return next(httpError(401, 'Token de propietario revocado o vencido.', 'DUENO_REVOKED'));
+    }
+    const identidad = await identidadOperativaDueno();
     req.auth = {
-      userId: 0,
-      nombre: 'Propietario Sistema',
+      userId: identidad.userId,
+      nombre: identidad.nombre,
       userRole: 'Dueno',
-      empresaId: 1,
+      empresaId: identidad.empresaId,
       isDueno: true,
       ip: getClientIp(req),
       userAgent: req.headers['user-agent'] || 'unknown',
@@ -76,6 +109,16 @@ export const requireAuth = async (req: Request, _res: Response, next: NextFuncti
     }
     if (row.device_id && row.device_id !== deviceId) {
       return next(httpError(401, 'La sesión pertenece a otro dispositivo.', 'DEVICE_MISMATCH'));
+    }
+
+    // La licencia se verifica en CADA petición, no solo al iniciar sesión: si venció, se revocó, se borró o el equipo
+    // se desactivó, la sesión deja de servir de inmediato (el cambio rige en segundos).
+    if (!RUTAS_SIN_LICENCIA.has((req.originalUrl || req.url).split('?')[0])) {
+      const licencia = await evaluarLicenciaDeAcceso({ deviceId: row.device_id, empresaId: row.empresa_id });
+      if (!licencia.vigente) {
+        logger.warn({ action: 'ACCESO_SIN_LICENCIA', codigo: licencia.codigo, empresaId: row.empresa_id, ip: getClientIp(req) });
+        return next(errorDeLicencia(licencia));
+      }
     }
 
     req.auth = {
@@ -119,9 +162,10 @@ export const requireRoles =
 /**
  * Middleware: Solo el Dueño (panel de plataforma/licencias)
  */
-export const requireDueno = (req: Request, _res: Response, next: NextFunction): void => {
+export const requireDueno = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   const token = extractToken(req);
-  if (!verificarDuenoTok(token)) {
+  const dueno = verificarDuenoTok(token);
+  if (!dueno || !(await verificarDuenoEpoch(dueno.ep))) {
     return next(httpError(401, 'Acceso de propietario no válido o vencido.', 'DUENO_ONLY'));
   }
   req.auth = {
@@ -139,22 +183,27 @@ export const requireDueno = (req: Request, _res: Response, next: NextFunction): 
 /**
  * Middleware: Administrador o Dueño
  */
-export const requireAdminODueno = (req: Request, res: Response, next: NextFunction): Promise<void> | void => {
+export const requireAdminODueno = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = extractToken(req);
   const dueno = verificarDuenoTok(token);
-  if (token && dueno) {
+  if (token && dueno && (await verificarDuenoEpoch(dueno.ep))) {
+    const identidad = await identidadOperativaDueno();
     req.auth = {
-      userId: 0,
-      nombre: 'Propietario Sistema',
+      userId: identidad.userId,
+      nombre: identidad.nombre,
       userRole: 'Dueno',
-      empresaId: 1,
+      empresaId: identidad.empresaId,
       isDueno: true,
       ip: getClientIp(req),
       userAgent: req.headers['user-agent'] || 'unknown',
     };
-    return runWithRequestContext({ platform: true }, () => next());
+    runWithRequestContext({ platform: true, empresaId: identidad.empresaId }, () => next());
+    return;
   }
-  return requireAuth(req, res, () => {
+  return requireAuth(req, res, (error?: unknown) => {
+    // Si la autenticación falló (sesión inválida, sin licencia…) ese es el error que se informa: antes se perdía y
+    // toda falla salía como un 403 genérico "sin permiso", sin el código que la interfaz usa para pedir la licencia.
+    if (error) {return next(error as Error);}
     if (!req.auth || (req.auth.userRole !== 'Administrador' && !req.auth.isDueno)) {
       return next(httpError(403, 'No tienes permiso para realizar esta acción.', 'FORBIDDEN'));
     }

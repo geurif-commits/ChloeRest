@@ -14,6 +14,24 @@ import { getDatabase } from '../db/index.js';
 import { registrarAuditoria, type IQueryable } from './auditoriaService.js';
 import { notificarMesas } from '../lib/sse.js';
 import { createLogger } from '../lib/logger.js';
+import { propinaPorcentajeOAlDefecto } from '../lib/propina.js';
+import {
+  esTipoElectronico,
+  estadoCorteEcf,
+  formatearComprobante,
+  resolverTipoComprobante,
+  validarComprador,
+} from '../lib/comprobantes.js';
+import { repartirDescuento } from '../lib/ecfCuenta.js';
+import { validarRNC } from '../lib/rnc.js';
+import {
+  datosRepresentacion,
+  emisorDe,
+  emitirEcfDeCuenta,
+  leerConfigEcf,
+  registrarEcfPendiente,
+  type IRepresentacionEcf,
+} from './ecfEmisionService.js';
 
 const logger = createLogger('cuentasService');
 
@@ -37,7 +55,11 @@ export interface ITotalesDetalleFila {
 /** Resultado de calcularTotales: monto por rubro + detalles que lo componen. */
 export interface ITotalesCuenta {
   detalles: ITotalesDetalleFila[];
+  /** Subtotal después del descuento (base del ITBIS y de la propina). */
   subtotal: number;
+  /** Subtotal antes del descuento. */
+  subtotalBruto: number;
+  descuento: number;
   itbis: number;
   propina: number;
   total: number;
@@ -47,7 +69,18 @@ export interface ITotalesCuenta {
 }
 
 /** Recibo devuelto por cobrarCuenta (comprobante + cajero + totales). */
-export type IReciboCobro = { comprobante: string; cajero_nombre: string } & ITotalesCuenta;
+export type IReciboCobro = {
+  comprobante: string;
+  tipo_comprobante: string;
+  cajero_nombre: string;
+  cuenta_id: number;
+  dividida: boolean;
+  /** Datos para imprimir el comprobante (NCF o e-CF con su timbre). null si no se pudieron leer. */
+  representacion?: IRepresentacionEcf | null;
+} & ITotalesCuenta;
+
+/** Cuánto espera el cobro a que la DGII devuelva el timbre del e-CF antes de imprimir «pendiente de validación». */
+const ESPERA_TIMBRE_MS = 9000;
 
 /** Cuerpo de cobro aceptado (puerto del body del legacy, campos opcionales). */
 export interface ICobrarCuentaBody {
@@ -57,11 +90,18 @@ export interface ICobrarCuentaBody {
   banco_pago_2?: string | null;
   tipo_comprobante?: string;
   rnc_cedula_cliente?: string | null;
+  razon_social_cliente?: string | null;
   tarjeta_ultimos_4?: string;
   tarjeta_marca?: string | null;
   notas?: string | null;
   productos?: unknown;
   motivo?: string | null;
+  /** Descuento sobre la cuenta: 'porcentaje' (0–100) o 'monto' (RD$), con motivo obligatorio. */
+  descuento_tipo?: string | null;
+  descuento_valor?: number | string | null;
+  descuento_motivo?: string | null;
+  /** Cobro parcial (dividir cuenta): líneas y cantidades que se cobran ahora; el resto queda abierto. */
+  detalles_cobrar?: Array<{ id: number | string; cantidad: number | string }> | null;
 }
 
 /** Actor que ejecuta el cobro (requiereAuth fija req.auth con id y nombre). */
@@ -95,22 +135,25 @@ interface ISecuenciaFila {
   prefijo: string | null;
   secuencia_actual: number;
   secuencia_final: number;
+  vencimiento?: string | null;
+}
+
+export interface IComprobanteTomado {
+  ncf: string;
+  /** Vencimiento autorizado de la secuencia (YYYY-MM-DD). */
+  vencimiento: string | null;
 }
 
 /**
- * Toma y avanza la secuencia NCF activa del tipo de comprobante, devolviendo
- * el NCF formateado. El parámetro _cuentaId se conserva por paridad con el
- * legacy (su firma lo recibe aunque no lo use). Puerto de siguienteComprobante.
+ * Toma y avanza la secuencia activa del tipo de comprobante. El rango autorizado por la DGII es INCLUSIVO (del inicial al
+ * final se pueden emitir todos los números). Un e-NCF lleva E + tipo + 10 dígitos (13 caracteres) y el prefijo es siempre
+ * el tipo; el NCF tradicional, 8 dígitos. Se salta una secuencia agotada si hay otra activa y vigente.
  */
-export async function siguienteComprobante(
-  client: IQueryable,
-  tipoComprobante: string,
-  _cuentaId: number
-): Promise<string> {
+export async function tomarSiguienteComprobante(client: IQueryable, tipoComprobante: string): Promise<IComprobanteTomado> {
   const sequence = await client.query<ISecuenciaFila>(
-    `SELECT id, prefijo, secuencia_actual, secuencia_final
+    `SELECT id, prefijo, secuencia_actual, secuencia_final, to_char(fecha_vencimiento, 'YYYY-MM-DD') AS vencimiento
      FROM dgii_secuencias
-     WHERE tipo_comprobante = $1 AND activa = TRUE AND fecha_vencimiento >= CURRENT_DATE
+     WHERE tipo_comprobante = $1 AND activa = TRUE AND fecha_vencimiento >= CURRENT_DATE AND secuencia_actual <= secuencia_final
      ORDER BY id
      LIMIT 1
      FOR UPDATE`,
@@ -118,42 +161,100 @@ export async function siguienteComprobante(
   );
 
   if (!sequence.rowCount) {
-    throw httpError(400, `No hay secuencia activa para ${tipoComprobante}. Configura una secuencia en DGII > Secuencias NCF.`);
+    const agotada = await client.query(
+      `SELECT 1 FROM dgii_secuencias WHERE tipo_comprobante = $1 AND activa = TRUE AND fecha_vencimiento >= CURRENT_DATE LIMIT 1`,
+      [tipoComprobante]
+    );
+    if (agotada.rowCount) {
+      throw httpError(400, `Secuencia de ${tipoComprobante} agotada. Registra un nuevo rango autorizado por la DGII en DGII > Secuencias.`, 'SECUENCIA_AGOTADA');
+    }
+    throw httpError(400, `No hay secuencia activa para ${tipoComprobante}. Configura una secuencia en DGII > Secuencias.`, 'SIN_SECUENCIA');
   }
 
   const row = sequence.rows[0];
-  if (row.secuencia_actual >= row.secuencia_final) {
+  // pg devuelve BIGINT como string; comparar numérico, no lexicográfico.
+  const actual = Number(row.secuencia_actual);
+  const final = Number(row.secuencia_final);
+  if (actual > final) {
     throw httpError(
       400,
-      `Secuencia de ${tipoComprobante} agotada (${row.secuencia_actual}/${row.secuencia_final}). Crea una nueva secuencia o amplía el rango.`
+      `Secuencia de ${tipoComprobante} agotada (${actual - 1}/${final}). Crea una nueva secuencia o amplía el rango.`,
+      'SECUENCIA_AGOTADA'
     );
   }
 
   await client.query('UPDATE dgii_secuencias SET secuencia_actual = secuencia_actual + 1 WHERE id = $1', [row.id]);
-  const ncf = `${row.prefijo || tipoComprobante}${String(row.secuencia_actual).padStart(8, '0')}`;
+  const prefijo = esTipoElectronico(tipoComprobante) ? tipoComprobante : row.prefijo || tipoComprobante;
+  const ncf = formatearComprobante(prefijo, actual);
 
-  // Alerta silenciosa si quedan menos de 1000 comprobantes (legacy: console.warn)
-  const restantes = row.secuencia_final - row.secuencia_actual;
+  // Alerta silenciosa si quedan menos de 1000 comprobantes
+  const restantes = final - actual + 1;
   if (restantes < 1000) {
     logger.warn({ action: 'SECUENCIA_NCF_AGOTANDOSE', tipoComprobante, restantes, ncf });
   }
 
-  return ncf;
+  return { ncf, vencimiento: row.vencimiento ?? null };
+}
+
+/**
+ * Igual que `tomarSiguienteComprobante` pero devuelve solo el número de comprobante. El parámetro _cuentaId se conserva
+ * por paridad con el legacy (su firma lo recibe aunque no lo use). Puerto de siguienteComprobante.
+ */
+export async function siguienteComprobante(
+  client: IQueryable,
+  tipoComprobante: string,
+  _cuentaId: number
+): Promise<string> {
+  return (await tomarSiguienteComprobante(client, tipoComprobante)).ncf;
 }
 
 interface INegocioConfigFila {
   cobrar_itbis: boolean | null;
   cobrar_propina: boolean | null;
+  propina_porcentaje?: string | number | null;
+}
+
+/** Dinero en centavos enteros: evita errores de coma flotante al sumar y redondear por línea. */
+const aCentavos = (valor: number | string): number => Math.round((Number(valor) + Number.EPSILON) * 100);
+
+/** Descuento aplicado a una cuenta antes de calcular ITBIS y propina. */
+export interface IDescuento {
+  tipo: 'porcentaje' | 'monto';
+  valor: number;
 }
 
 /**
- * Calcula subtotal, ITBIS (gravado/exento), propina y total de una cuenta
- * abierta, bloqueando sus detalles y la configuración del negocio. Sin
- * detalles activos no se puede cobrar. Puerto de calcularTotales del legacy.
+ * Valida el descuento pedido al cobrar. Devuelve null si no se pidió ninguno.
+ * Exige un motivo (queda en la auditoría) y un valor válido: porcentaje hasta 100, monto positivo.
  */
-export async function calcularTotales(client: IQueryable, cuentaId: number): Promise<ITotalesCuenta> {
+export function validarDescuento(tipo: unknown, valor: unknown, motivo: unknown): IDescuento | null {
+  const valorTexto = String(valor ?? '').trim();
+  if (!tipo || valorTexto === '' || Number(valorTexto) === 0) {return null;}
+  if (tipo !== 'porcentaje' && tipo !== 'monto') {throw httpError(400, 'El tipo de descuento debe ser porcentaje o monto.');}
+  const numero = Number(valorTexto);
+  if (!Number.isFinite(numero) || numero <= 0) {throw httpError(400, 'El descuento debe ser un número mayor a 0.');}
+  if (tipo === 'porcentaje' && numero > 100) {throw httpError(400, 'El descuento no puede superar el 100 %.');}
+  if (String(motivo ?? '').trim().length < 3) {throw httpError(400, 'Indica el motivo del descuento.');}
+  return { tipo, valor: numero };
+}
+
+/**
+ * Calcula subtotal, descuento, ITBIS (gravado/exento), propina y total de una cuenta
+ * abierta, bloqueando sus detalles y la configuración del negocio. Sin
+ * detalles activos no se puede cobrar.
+ *
+ * Los precios del menú NO incluyen ITBIS ni propina: el ITBIS se suma al subtotal
+ * (por línea, según la tasa de cada producto) y la propina es un porcentaje del subtotal.
+ * El descuento se reparte proporcionalmente entre las líneas y reduce la base del ITBIS y de la propina.
+ * Es la misma fórmula que usa la pantalla (frontend utils/dinero.js).
+ */
+export async function calcularTotales(
+  client: IQueryable,
+  cuentaId: number,
+  descuento: IDescuento | null = null
+): Promise<ITotalesCuenta> {
   const detailResult = await client.query<ITotalesDetalleFila>(
-    `SELECT cd.producto_id, cd.cantidad, cd.precio_unitario, COALESCE(p.tasa_itbis, 18) AS tasa_itbis
+    `SELECT cd.producto_id, cd.cantidad, cd.precio_unitario, COALESCE(p.tasa_itbis, 0) AS tasa_itbis
      FROM cuenta_detalles cd
      JOIN productos p ON p.id = cd.producto_id
      WHERE cd.cuenta_id = $1 AND cd.anulado_en IS NULL
@@ -162,46 +263,136 @@ export async function calcularTotales(client: IQueryable, cuentaId: number): Pro
   );
   if (!detailResult.rowCount) {throw httpError(400, 'No se puede cobrar una cuenta sin productos activos.');}
 
-  let subtotal = 0;
-  let totalItbis = 0;
-  let totalExento = 0;
-  let totalGravado = 0;
+  const lineas = detailResult.rows.map((item) => ({
+    centavos: aCentavos(Number(item.cantidad) * Number(item.precio_unitario)),
+    tasa: Number(item.tasa_itbis ?? 0),
+    descuento: 0,
+  }));
+  const subtotalBrutoC = lineas.reduce((suma, linea) => suma + linea.centavos, 0);
 
-  for (const item of detailResult.rows) {
-    const montoItem = money(Number(item.cantidad) * Number(item.precio_unitario));
-    subtotal += montoItem;
-    const tasa = Number(item.tasa_itbis ?? 18);
-    if (tasa === 0) {
-      totalExento += montoItem;
+  let descuentoC = 0;
+  if (descuento) {
+    descuentoC = descuento.tipo === 'porcentaje'
+      ? Math.round((subtotalBrutoC * descuento.valor) / 100)
+      : aCentavos(descuento.valor);
+    if (descuentoC > subtotalBrutoC) {throw httpError(400, 'El descuento no puede superar el subtotal de la cuenta.');}
+  }
+  // Reparto proporcional; los centavos que sobran van a las últimas líneas con saldo (regla compartida con el e-CF).
+  repartirDescuento(lineas.map((linea) => linea.centavos), descuentoC).forEach((parte, i) => {
+    lineas[i].descuento = parte;
+  });
+
+  let itbisC = 0;
+  let exentoC = 0;
+  let gravadoC = 0;
+  for (const linea of lineas) {
+    const netaC = linea.centavos - linea.descuento;
+    if (linea.tasa === 0) {
+      exentoC += netaC;
     } else {
-      const gravado = money(montoItem / (1 + tasa / 100));
-      totalGravado += gravado;
-      totalItbis += money((gravado * tasa) / 100);
+      gravadoC += netaC;
+      itbisC += Math.round((netaC * linea.tasa) / 100);
     }
   }
-
-  subtotal = money(subtotal);
-  totalItbis = money(totalItbis);
-  totalExento = money(totalExento);
-  totalGravado = money(totalGravado);
+  const subtotalC = subtotalBrutoC - descuentoC;
 
   const businessResult = await client.query<INegocioConfigFila>(
-    'SELECT cobrar_itbis, cobrar_propina FROM negocio_config ORDER BY id LIMIT 1 FOR UPDATE'
+    'SELECT cobrar_itbis, cobrar_propina, propina_porcentaje FROM negocio_config ORDER BY id LIMIT 1 FOR UPDATE'
   );
-  const business = businessResult.rows[0] || { cobrar_itbis: true, cobrar_propina: true };
-  const itbis = business.cobrar_itbis === false ? 0 : totalItbis;
-  const propina = business.cobrar_propina === false ? 0 : money(subtotal * 0.1);
+  // ITBIS y propina solo se cobran si el negocio los activó (por defecto están desactivados).
+  const business = businessResult.rows[0] || { cobrar_itbis: false, cobrar_propina: false };
+  const itbisCobradoC = business.cobrar_itbis === true ? itbisC : 0;
+  const propinaC = business.cobrar_propina === true
+    ? Math.round((subtotalC * propinaPorcentajeOAlDefecto(business.propina_porcentaje)) / 100)
+    : 0;
 
   return {
     detalles: detailResult.rows,
-    subtotal,
-    itbis,
-    propina,
-    total: money(subtotal + itbis + propina),
-    totalExento,
-    totalGravado,
-    totalItbis,
+    subtotal: money(subtotalC / 100),
+    subtotalBruto: money(subtotalBrutoC / 100),
+    descuento: money(descuentoC / 100),
+    itbis: money(itbisCobradoC / 100),
+    propina: money(propinaC / 100),
+    total: money((subtotalC + itbisCobradoC + propinaC) / 100),
+    totalExento: money(exentoC / 100),
+    totalGravado: money(gravadoC / 100),
+    totalItbis: money(itbisC / 100),
   };
+}
+
+/** Línea que se separa de la cuenta al dividirla. */
+export interface IMovimientoDivision {
+  id: string;
+  cantidad: number;
+  /** true si se mueve la línea completa; false si solo una parte de su cantidad. */
+  completo: boolean;
+}
+
+/**
+ * Valida la selección de líneas para dividir una cuenta y decide qué se mueve.
+ * cubreTodo = true si la selección abarca toda la cuenta (entonces se cobra la cuenta original).
+ */
+export function planificarDivision(
+  detalles: Array<{ id: number | string; cantidad: number | string }>,
+  seleccion: Array<{ id: number | string; cantidad: number | string }>
+): { movimientos: IMovimientoDivision[]; cubreTodo: boolean } {
+  if (!seleccion.length) {throw httpError(400, 'Selecciona al menos un producto para cobrar.');}
+  const porId = new Map(detalles.map((d) => [String(d.id), aCentavos(d.cantidad)]));
+  const vistos = new Set<string>();
+  const movimientos: IMovimientoDivision[] = [];
+  for (const item of seleccion) {
+    const id = String(item.id);
+    const disponibleC = porId.get(id);
+    if (disponibleC === undefined) {throw httpError(400, 'Uno de los productos seleccionados no pertenece a esta cuenta.');}
+    if (vistos.has(id)) {throw httpError(400, 'Un producto está repetido en la selección.');}
+    vistos.add(id);
+    const cantidadC = aCentavos(item.cantidad);
+    if (!Number.isFinite(cantidadC) || cantidadC <= 0) {throw httpError(400, 'La cantidad a cobrar debe ser mayor a 0.');}
+    if (cantidadC > disponibleC) {throw httpError(400, 'La cantidad a cobrar supera lo consumido.');}
+    movimientos.push({ id, cantidad: cantidadC / 100, completo: cantidadC === disponibleC });
+  }
+  const cubreTodo = movimientos.length === detalles.length && movimientos.every((m) => m.completo);
+  return { movimientos, cubreTodo };
+}
+
+/**
+ * Separa de la cuenta abierta las líneas elegidas en una cuenta nueva (mismo mesero y mesa) que se cobra
+ * enseguida; lo demás sigue abierto en la cuenta original. Todo ocurre dentro de la transacción del cobro.
+ * La cuenta nueva nace 'Cerrada' porque solo puede haber una cuenta 'Abierta' por mesa.
+ */
+async function separarDetalles(
+  client: IQueryable,
+  cuentaId: number,
+  seleccion: Array<{ id: number | string; cantidad: number | string }>
+): Promise<{ cuentaId: number; dividida: boolean }> {
+  const detalles = await client.query<{ id: string; cantidad: string }>(
+    'SELECT id, cantidad FROM cuenta_detalles WHERE cuenta_id = $1 AND anulado_en IS NULL ORDER BY id FOR UPDATE',
+    [cuentaId]
+  );
+  const plan = planificarDivision(detalles.rows, seleccion);
+  if (plan.cubreTodo) {return { cuentaId, dividida: false };}
+
+  const nueva = await client.query<{ id: string }>(
+    `INSERT INTO cuentas (mesa_id, camarero_id, cliente_id, estado, tipo_servicio, fecha_apertura, cuenta_origen_id)
+     SELECT mesa_id, camarero_id, cliente_id, 'Cerrada', tipo_servicio, fecha_apertura, id FROM cuentas WHERE id = $1
+     RETURNING id`,
+    [cuentaId]
+  );
+  const nuevaId = Number(nueva.rows[0].id);
+  for (const movimiento of plan.movimientos) {
+    if (movimiento.completo) {
+      await client.query('UPDATE cuenta_detalles SET cuenta_id = $1 WHERE id = $2', [nuevaId, movimiento.id]);
+    } else {
+      await client.query('UPDATE cuenta_detalles SET cantidad = cantidad - $1 WHERE id = $2', [movimiento.cantidad, movimiento.id]);
+      await client.query(
+        `INSERT INTO cuenta_detalles (cuenta_id, producto_id, cantidad, precio_unitario, estado_cocina, hora_pedido, notas, guarnicion, termino)
+         SELECT $1, producto_id, $2, precio_unitario, estado_cocina, hora_pedido, notas, guarnicion, termino
+           FROM cuenta_detalles WHERE id = $3`,
+        [nuevaId, movimiento.cantidad, movimiento.id]
+      );
+    }
+  }
+  return { cuentaId: nuevaId, dividida: true };
 }
 
 interface IIngredienteRecetaFila {
@@ -257,6 +448,20 @@ export interface ICobrarCuentaParams {
 }
 
 /**
+ * El monto del segundo método de un pago mixto no puede ser negativo ni superar el total de la
+ * cuenta: de lo contrario descuadra el cierre de caja y los reportes 607.
+ */
+export function validarPagoMixto(metodoPago2: string | null, montoPago2: number, total: number): void {
+  if (!metodoPago2) {return;}
+  if (!Number.isFinite(montoPago2) || montoPago2 < 0) {
+    throw httpError(400, 'El monto del segundo método de pago no es válido.');
+  }
+  if (money(montoPago2) > money(total)) {
+    throw httpError(400, 'El monto del segundo método de pago no puede superar el total de la cuenta.');
+  }
+}
+
+/**
  * Cobra (cierra) una cuenta abierta: valida el pago (Efectivo/Tarjeta/
  * Transferencia y mixto), calcula totales, descuenta inventario, toma el NCF,
  * actualiza la cuenta y libera su mesa. Puerto exacto de cobrarCuenta del
@@ -271,10 +476,6 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
   const metodoPago2 = metodoPago2Raw === null ? null : String(metodoPago2Raw);
   const montoPago2 = Number(body.monto_pago_2 || 0);
   const bancoPago2 = body.banco_pago_2 || null;
-  const tipoComprobanteRaw = body.tipo_comprobante || '';
-  const tipoComprobante = ['B01', 'B02', 'E31', 'E32', 'e-CF'].includes(tipoComprobanteRaw)
-    ? tipoComprobanteRaw
-    : 'B02';
 
   if (!allowedMethods.includes(metodoPago)) {throw httpError(400, 'Método de pago no válido.');}
   if (metodoPago === 'Tarjeta' && !/^\d{4}$/.test(String(body.tarjeta_ultimos_4 || ''))) {
@@ -285,23 +486,61 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
   if (metodoPago2 === metodoPago) {throw httpError(400, 'No puedes repetir el mismo método de pago en pago mixto.');}
 
   const db = getDatabase();
-  return db.transaction(async (client) => {
+  const recibo = await db.transaction(async (client) => {
+    // Desde la fecha de corte solo valen los comprobantes electrónicos: el NCF tradicional (B01/B02/B14/B15) se rechaza.
+    const configEcf = await leerConfigEcf(client);
+    const corte = estadoCorteEcf(configEcf?.ecf_corte);
+    const tipoComprobante = resolverTipoComprobante(body.tipo_comprobante, corte.obligatorio, corte.fechaCorte);
+
     const account = await client.query<ICuentaCobroFila>(
       'SELECT id, mesa_id FROM cuentas WHERE id = $1 AND estado = $2 FOR UPDATE',
       [cuentaId, 'Abierta']
     );
     if (!account.rowCount) {throw httpError(404, 'La cuenta no está abierta o no existe.');}
 
-    const totals = await calcularTotales(client, cuentaId);
+    // Sin caja abierta no se cobra (la apertura vigente puede cruzar la medianoche: se aceptan las últimas 24 h).
+    const cajaAbierta = await client.query(
+      "SELECT 1 FROM aperturas_caja WHERE estado = 'Abierta' AND fecha >= NOW() - INTERVAL '24 hours' LIMIT 1"
+    );
+    if (!cajaAbierta.rowCount) {
+      throw httpError(409, 'La caja está cerrada. Abre la caja antes de cobrar.', 'CAJA_CERRADA');
+    }
+
+    // Dividir cuenta: solo se cobran las líneas elegidas y el resto sigue abierto.
+    const seleccion = Array.isArray(body.detalles_cobrar) ? body.detalles_cobrar : [];
+    const { cuentaId: cuentaACobrar, dividida } = seleccion.length
+      ? await separarDetalles(client, cuentaId, seleccion)
+      : { cuentaId, dividida: false };
+
+    const descuento = validarDescuento(body.descuento_tipo, body.descuento_valor, body.descuento_motivo);
+    const totals = await calcularTotales(client, cuentaACobrar, descuento);
+    validarPagoMixto(metodoPago2, montoPago2, totals.total);
+    const comprador = validarComprador(tipoComprobante, totals.total, body.rnc_cedula_cliente, body.razon_social_cliente);
+    if (esTipoElectronico(tipoComprobante)) {
+      const negocioEmisor = await client.query<{ nombre_comercial: string | null; razon_social: string | null; rnc: string | null; direccion: string | null; telefono: string | null; cobrar_itbis: boolean | null }>(
+        'SELECT nombre_comercial, razon_social, rnc, direccion, telefono, cobrar_itbis FROM negocio_config ORDER BY id LIMIT 1'
+      );
+      const emisor = emisorDe(configEcf, negocioEmisor.rows[0] ?? { nombre_comercial: null, razon_social: null, rnc: null, direccion: null, telefono: null, cobrar_itbis: null });
+      if (!validarRNC(emisor.rnc) || !emisor.razonSocial || !emisor.direccion) {
+        throw httpError(
+          409,
+          'Antes de emitir comprobantes electrónicos registra el RNC, la razón social y la dirección del negocio en DGII > e-CF > Datos del emisor.',
+          'EMISOR_INCOMPLETO'
+        );
+      }
+    }
     await descontarInventario(client, totals.detalles);
-    const comprobante = await siguienteComprobante(client, tipoComprobante, cuentaId);
+    const tomado = await tomarSiguienteComprobante(client, tipoComprobante);
+    const comprobante = tomado.ncf;
 
     await client.query(
       `UPDATE cuentas
        SET estado = 'Cerrada', metodo_pago = $1, subtotal = $2, itbis = $3, propina = $4, total = $5,
            fecha_cierre = CURRENT_TIMESTAMP, tipo_comprobante = $6, rnc_cedula_cliente = $7,
            ncf_ecf_generado = $8, tarjeta_ultimos_4 = $9, tarjeta_marca = $10, cajero_id = $12,
-           metodo_pago_2 = $13, monto_pago_2 = $14, banco_pago_2 = $15
+           metodo_pago_2 = $13, monto_pago_2 = $14, banco_pago_2 = $15,
+           descuento = $16, descuento_tipo = $17, descuento_valor = $18, descuento_motivo = $19,
+           razon_social_cliente = $20
        WHERE id = $11`,
       [
         metodoPago,
@@ -310,19 +549,31 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
         totals.propina,
         totals.total,
         tipoComprobante,
-        body.rnc_cedula_cliente?.trim() || null,
+        comprador.rnc || null,
         comprobante,
         metodoPago === 'Tarjeta' ? body.tarjeta_ultimos_4 || null : null,
         metodoPago === 'Tarjeta' ? String(body.tarjeta_marca || '').trim() || null : null,
-        cuentaId,
+        cuentaACobrar,
         actor.id,
         metodoPago2,
         montoPago2 || null,
         metodoPago2 === 'Transferencia' ? String(bancoPago2 || '').trim() || null : null,
+        totals.descuento,
+        descuento?.tipo ?? null,
+        descuento?.valor ?? null,
+        descuento ? String(body.descuento_motivo).trim() : null,
+        comprador.razonSocial || null,
       ]
     );
+    if (esTipoElectronico(tipoComprobante)) {
+      await registrarEcfPendiente(client, {
+        cuentaId: cuentaACobrar, tipo: tipoComprobante, ncf: comprobante, total: totals.total, propina: totals.propina,
+        rncReceptor: comprador.rnc || null, vencimientoSecuencia: tomado.vencimiento,
+      });
+    }
 
-    if (account.rows[0].mesa_id) {
+    // Si solo se cobró una parte, la mesa sigue ocupada con lo que quedó abierto.
+    if (!dividida && account.rows[0].mesa_id) {
       await client.query("UPDATE mesas SET estado = 'Disponible', camarero_id = NULL WHERE id = $1", [
         account.rows[0].mesa_id,
       ]);
@@ -331,11 +582,25 @@ export async function cobrarCuenta(params: ICobrarCuentaParams): Promise<IRecibo
       usuarioId: actor.id,
       accion: 'COBRAR_CUENTA',
       entidad: 'cuentas',
-      entidadId: cuentaId,
-      detalle: { metodoPago, metodoPago2, montoPago2, comprobante, ...totals },
+      entidadId: cuentaACobrar,
+      detalle: {
+        metodoPago, metodoPago2, montoPago2, comprobante, ...totals, detalles: undefined,
+        ...(dividida ? { dividida: true, cuentaOrigen: cuentaId } : {}),
+        ...(descuento ? { descuentoTipo: descuento.tipo, descuentoValor: descuento.valor, descuentoMotivo: String(body.descuento_motivo).trim() } : {}),
+      },
       ip: clientIp(req),
     });
     notificarMesas('mesa_actualizada');
-    return { comprobante, cajero_nombre: actor.nombre, ...totals };
+    return { comprobante, tipo_comprobante: tipoComprobante, cajero_nombre: actor.nombre, cuenta_id: cuentaACobrar, dividida, ...totals } as IReciboCobro;
   });
+
+  // Ya con el cobro confirmado: el e-CF se envía a la DGII sin comprometer la venta. Si el proveedor no responde a tiempo,
+  // el comprobante queda «Pendiente» y un proceso en segundo plano lo reintenta; el ticket lo dice.
+  if (esTipoElectronico(recibo.tipo_comprobante)) {
+    await emitirEcfDeCuenta(recibo.cuenta_id, { esperaMs: ESPERA_TIMBRE_MS }).catch((error: unknown) => {
+      logger.warn({ action: 'ECF_EMISION_INMEDIATA_FALLIDA', details: { cuentaId: recibo.cuenta_id }, error: { message: error instanceof Error ? error.message : String(error) } });
+    });
+  }
+  recibo.representacion = await datosRepresentacion(recibo.cuenta_id).catch(() => null);
+  return recibo;
 }

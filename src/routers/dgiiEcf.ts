@@ -9,14 +9,18 @@
 /* global fetch */
 
 import { Router, Request, Response } from 'express';
-import { route, httpError, positiveInteger, money, clientIp } from '../lib/core.js';
+import { route, httpError, positiveInteger, clientIp } from '../lib/core.js';
 import { getDatabase } from '../db/index.js';
 import { requireAuth, requireRoles } from '../middleware/auth.js';
 import { ROLES_ADMIN } from '../lib/roles.js';
 import { registrarAuditoria } from '../services/auditoriaService.js';
-import { construirECF } from '../lib/ecf.js';
-import type { IDetalleECF } from '../lib/ecf.js';
-import { normalizarRNC, validarRNC } from '../lib/rnc.js';
+import { emitirEcfDeCuenta } from '../services/ecfEmisionService.js';
+import {
+  autenticarMseller,
+  consultarEstadoMseller,
+  mapearEstadoMsellerAEstadoLocal,
+  type IMsellerConfig,
+} from '../services/msellerEcfService.js';
 
 const router = Router();
 
@@ -29,27 +33,15 @@ interface IConfigECFFila {
   rnc_emisor: string | null;
   razon_social_emisor: string | null;
   direccion_emisor: string | null;
+  proveedor_ecf: string | null;
+  ambiente: string | null;
+  estado_ecf: string | null;
   algoback_api_key: string | null;
   algoback_url: string | null;
   algoback_ambiente: string | null;
-}
-
-/** Fila de cuentas cerradas candidatas a e-CF (SELECT c.* + alias ncf). */
-interface ICuentaCerradaFila {
-  id: number;
-  ncf: string;
-  tipo_comprobante: string | null;
-  rnc_cedula_cliente: string | null;
-  total: string | null;
-  metodo_pago: string | null;
-}
-
-/** Fila de cuenta_detalles con producto y tasa de ITBIS (valores crudos de pg). */
-interface IDetalleCuentaFila {
-  cantidad: string | null;
-  precio_unitario: string | null;
-  producto_nombre: string | null;
-  tasa_itbis: string;
+  email_mseller: string | null;
+  password_mseller: string | null;
+  api_key_mseller: string | null;
 }
 
 /** Fila de e_cf_comprobantes (SELECT *, valores crudos de pg). */
@@ -99,131 +91,37 @@ interface IAlgoBackRespuesta {
   mensaje?: unknown;
 }
 
-// POST /api/dgii/ecf/enviar (Administrador): envía e-CF a la DGII vía AlgoBack.
+// POST /api/dgii/ecf/enviar (Administrador): envía (o reenvía) a la DGII el e-CF de una cuenta cerrada, con el proveedor activo.
+// Es la misma emisión que se dispara sola al cobrar; aquí sirve para reintentar a mano o para cuentas anteriores.
 router.post('/api/dgii/ecf/enviar', requireAuth, requireRoles(...ROLES_ADMIN), route(async (req: Request, res: Response) => {
-  const db = getDatabase();
   const cuentaId = positiveInteger(req.body.cuenta_id, 'Cuenta');
-  const configResult = await db.query<IConfigECFFila>('SELECT * FROM dgii_config ORDER BY id LIMIT 1');
-  const cfg = configResult.rows[0];
-  const apiKey = cfg?.algoback_api_key || '';
-  if (!cfg || !apiKey) {
-    throw httpError(400, 'No hay API Key de AlgoBack configurada. Ve a DGII > e-CF y guarda tus credenciales.');
-  }
-
-  const cuenta = await db.query<ICuentaCerradaFila>(
-    `SELECT c.*, COALESCE(c.ncf_ecf_generado, '') AS ncf
-     FROM cuentas c WHERE c.id = $1 AND c.estado = 'Cerrada'`,
-    [cuentaId]
-  );
-  if (!cuenta.rowCount) {
-    throw httpError(404, 'Cuenta no encontrada o no está cerrada.');
-  }
-
-  const cta = cuenta.rows[0];
-  const tipoCF = cta.tipo_comprobante || 'E32';
-  if (!tipoCF.startsWith('E3') && tipoCF !== 'e-CF') {
-    throw httpError(400, 'Esta cuenta no fue registrada como e-CF (usa tipo B01/B02).');
-  }
-
-  const tipoECF = tipoCF === 'E31' || (tipoCF === 'e-CF' && (cta.ncf || '').startsWith('E31')) ? 31 : 32;
-
-  const detalles = await db.query<IDetalleCuentaFila>(
-    `SELECT cd.*, p.nombre AS producto_nombre, COALESCE(p.tasa_itbis, 18) AS tasa_itbis
-     FROM cuenta_detalles cd JOIN productos p ON p.id = cd.producto_id
-     WHERE cd.cuenta_id = $1 AND cd.anulado_en IS NULL`,
-    [cuentaId]
-  );
-
-  if (!detalles.rowCount) {
-    throw httpError(400, 'No hay detalles para enviar.');
-  }
-
-  // Validar RNC del receptor para E31
-  if (tipoECF === 31 && !validarRNC(cta.rnc_cedula_cliente)) {
-    throw httpError(400, 'Para e-CF E31 (Crédito Fiscal) se requiere un RNC válido del cliente.');
-  }
-
-  const items: IDetalleECF[] = detalles.rows.map((d) => ({
-    cantidad: Number(d.cantidad),
-    precio_unitario: Number(d.precio_unitario),
-    tasa_itbis: Number(d.tasa_itbis),
-    producto_nombre: d.producto_nombre ?? undefined,
-  }));
-
-  const tipoPago = cta.metodo_pago === 'Efectivo' ? 1 : 2;
-  const eCFPayload = construirECF({
-    tipoECF,
-    ncf: cta.ncf,
-    cfg: {
-      rnc_emisor: cfg.rnc_emisor || '',
-      razon_social_emisor: cfg.razon_social_emisor ?? undefined,
-      direccion_emisor: cfg.direccion_emisor ?? undefined,
-    },
-    rncReceptor: cta.rnc_cedula_cliente || '',
-    razonSocialReceptor: req.body.razon_social_cliente || cta.rnc_cedula_cliente || 'Cliente Final',
-    detalles: items,
-    tipoPago,
-  });
-
-  const algoUrl = cfg.algoback_url || URL_ALGOBACK;
-  const algoAmbiente = cfg.algoback_ambiente || 'TEST';
-
-  const response = await fetch(algoUrl, {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': apiKey,
-      'X-Entorno': algoAmbiente,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(eCFPayload),
-  });
-
-  const responseData = (await response.json().catch(() => null)) as IAlgoBackRespuesta | null;
-  if (!response.ok) {
-    const errMsg = responseData?.error || responseData?.mensaje || `Error HTTP ${response.status}`;
-    throw httpError(response.status || 502, `AlgoBack: ${String(errMsg)}`);
-  }
-
-  const trackId = responseData?.trackId || responseData?.track_id || null;
-  const estado = responseData?.estado || 'Enviado';
-  const codigoSeguridad = responseData?.codigoSeguridad || responseData?.codigo_seguridad || null;
-
-  // Calcular totales para almacenar
-  let montoGravado = 0;
-  let montoExento = 0;
-  let totalItbis = 0;
-  for (const d of detalles.rows) {
-    const montoItem = money(Number(d.cantidad) * Number(d.precio_unitario));
-    const tasa = Number(d.tasa_itbis ?? 18);
-    if (tasa === 0) {
-      montoExento += montoItem;
-    } else {
-      const gravado = money(montoItem / (1 + tasa / 100));
-      montoGravado += gravado;
-      totalItbis += money((gravado * tasa) / 100);
-    }
-  }
-
-  await db.query(
-    `INSERT INTO e_cf_comprobantes
-     (cuenta_id, tipo_cf, ncf, track_id, estado, rnc_emisor, rnc_receptor, monto_total,
-      enviado_en, respuesta_json, ambiente, tipo_emision, codigo_seguridad,
-      tipo_pago, monto_exento, monto_gravado, total_itbis)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, $10, 1, $11, $12, $13, $14, $15)`,
-    [cuentaId, tipoCF, cta.ncf, trackId, estado, normalizarRNC(cfg.rnc_emisor), cta.rnc_cedula_cliente || null,
-      cta.total, JSON.stringify(responseData), algoAmbiente, codigoSeguridad, tipoPago,
-      montoExento, montoGravado, totalItbis]
-  );
-
-  await registrarAuditoria(db, {
+  const resultado = await emitirEcfDeCuenta(cuentaId, { esperaMs: 12_000 });
+  await registrarAuditoria(getDatabase(), {
     usuarioId: req.auth!.userId,
     accion: 'ENVIAR_ECF',
     entidad: 'e_cf_comprobantes',
     entidadId: cuentaId,
-    detalle: { trackId, estado, tipoCF: tipoECF },
+    detalle: { ncf: resultado.ncf, estado: resultado.estado, trackId: resultado.trackId },
     ip: clientIp(req),
   });
-  res.json({ mensaje: `e-CF enviado exitosamente. Track ID: ${String(trackId)}`, trackId, estado, codigoSeguridad });
+  if (!resultado.ok && resultado.estado === 'Error') {
+    throw httpError(400, resultado.mensaje, 'ECF_NO_ENVIABLE');
+  }
+  if (resultado.estado === 'Rechazado') {
+    throw httpError(422, `La DGII rechazó el comprobante: ${resultado.mensaje}`, 'ECF_RECHAZADO');
+  }
+  res.json({
+    mensaje: resultado.ok
+      ? `e-CF aceptado por la DGII. Código de seguridad: ${String(resultado.codigoSeguridad)}`
+      : resultado.reintentable
+        ? `e-CF enviado; esperando respuesta de la DGII. ${resultado.mensaje}`
+        : resultado.mensaje,
+    estado: resultado.estado,
+    trackId: resultado.trackId,
+    codigoSeguridad: resultado.codigoSeguridad,
+    fechaFirma: resultado.fechaFirma,
+    ncf: resultado.ncf,
+  });
 }));
 
 // GET /api/dgii/ecf/consultar/:trackId (Administrador): estado desde DB + polling AlgoBack.
@@ -237,12 +135,46 @@ router.get('/api/dgii/ecf/consultar/:trackId', requireAuth, requireRoles(...ROLE
 
   const ecf = result.rows[0];
 
-  // Intentar actualizar estado desde AlgoBack si está en estado intermedio
+  // Intentar actualizar estado desde el proveedor activo si está en estado intermedio
   if (['Pendiente', 'Enviado', 'Procesando'].includes(ecf.estado)) {
     try {
       const configResult = await db.query<IConfigECFFila>('SELECT * FROM dgii_config ORDER BY id LIMIT 1');
       const cfg = configResult.rows[0];
-      if (cfg?.algoback_api_key) {
+      if (!cfg) {
+        return;
+      }
+      const proveedor = (cfg.proveedor_ecf || 'algoback').toLowerCase();
+
+      if (proveedor === 'mseller' && cfg.email_mseller && cfg.password_mseller && cfg.api_key_mseller) {
+        const msellerConfig: IMsellerConfig = {
+          email: cfg.email_mseller,
+          password: cfg.password_mseller,
+          apiKey: cfg.api_key_mseller,
+          ambiente: cfg.ambiente,
+          estadoEcf: cfg.estado_ecf,
+        };
+        const sesion = await autenticarMseller(msellerConfig);
+        const consulta = await consultarEstadoMseller(msellerConfig, sesion, ecf.ncf);
+        const estadoNuevo = mapearEstadoMsellerAEstadoLocal(consulta.estado);
+        if (consulta.estado && estadoNuevo && estadoNuevo !== ecf.estado) {
+          await db.query(
+            `UPDATE e_cf_comprobantes
+             SET estado = $1, respuesta_json = $2,
+                 codigo_seguridad = COALESCE($3, codigo_seguridad),
+                 qr_url = COALESCE($4, qr_url),
+                 xml_firmado = COALESCE($5, xml_firmado)
+             WHERE track_id = $6`,
+            [estadoNuevo, JSON.stringify(consulta.raw),
+              consulta.securityCode || null, consulta.qrUrl || null, consulta.signedXml || null,
+              trackId]
+          );
+          ecf.estado = estadoNuevo;
+          ecf.respuesta_json = consulta.raw as Record<string, unknown> | null;
+          if (consulta.securityCode) { ecf.codigo_seguridad = consulta.securityCode; }
+          if (consulta.qrUrl) { ecf.qr_url = consulta.qrUrl; }
+          if (consulta.signedXml) { ecf.xml_firmado = consulta.signedXml; }
+        }
+      } else if (cfg.algoback_api_key) {
         const pollUrl = `${cfg.algoback_url || URL_ALGOBACK}/consultar/${trackId}`;
         const pollRes = await fetch(pollUrl, {
           headers: {
@@ -282,7 +214,8 @@ router.get('/api/dgii/ecf/historial', requireAuth, requireRoles(...ROLES_ADMIN),
     params.push(estado);
     sql += ` WHERE ec.estado = $${params.length}`;
   }
-  sql += ` ORDER BY ec.creado_en DESC LIMIT ${limit}`;
+  sql += ` ORDER BY ec.creado_en DESC LIMIT $${params.length + 1}`;
+  params.push(String(limit));
   const result = await db.query<IECFHistorialFila>(sql, params);
   res.json(result.rows);
 }));
