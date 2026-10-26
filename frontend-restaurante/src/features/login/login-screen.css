@@ -112,6 +112,7 @@ html.is-electron .lg-pin__top { padding-right: var(--px-winctl-w, 0px); }
 .lg-btn:hover:not(:disabled) { background: var(--px-surface-2); }
 .lg-btn:active:not(:disabled) { transform: scale(.98); }
 .lg-btn:disabled { opacity: .55; cursor: default; }
+.lg-btn.is-on { border-color: var(--gold); background: var(--gold-soft); }
 .lg-btn--icon { width: 46px; padding: 0; }
 .lg-btn--lg { min-height: 56px; font-size: 16px; border-radius: var(--px-r-md); }
 .lg-btn--primary { background: var(--gold); border-color: transparent; color: var(--text-on-accent); }
@@ -131,6 +132,8 @@ html.is-electron .lg-pin__top { padding-right: var(--px-winctl-w, 0px); }
 .lg-dots { display: flex; gap: 16px; height: 28px; align-items: center; }
 .lg-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--px-line-2); transition: background .12s, border-color .12s, transform .12s; }
 .lg-dot.is-filled { background: var(--gold); border-color: var(--gold); transform: scale(1.08); }
+.lg-dots--muchos { gap: 9px; }
+.lg-dots--muchos .lg-dot { width: 15px; height: 15px; }
 .lg-dots.is-error { animation: lg-shake .35s; }
 .lg-dots.is-error .lg-dot { background: var(--px-bad); border-color: var(--px-bad); }
 @keyframes lg-shake { 25% { transform: translateX(-9px); } 75% { transform: translateX(9px); } }

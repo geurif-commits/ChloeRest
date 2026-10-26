@@ -20,6 +20,7 @@ import {
   WifiOff,
   Fingerprint,
   ArrowLeft,
+  Crown,
 } from 'lucide-react';
 import './login-screen.css';
 import { toastError, toastAviso, toastExito } from '../../components/Toast.jsx';
@@ -28,6 +29,7 @@ import { esElectronApp } from '../../configApi.js';
 import logoPredeterminado from '../../assets/branding/chloe-logo.png';
 import { useTemaLocal } from '../../utils/tema.js';
 import { horariosDe, rango, turnoVigente } from '../../utils/turnos.js';
+import { longitudesDuenoValidas, maxDigitos, planificarEnvioPin, puntosVisibles } from '../../utils/pinLogin.js';
 import Screensaver, { TIPOS_PROTECTOR, VistaPreviaProtector } from './Screensaver.jsx';
 
 const PIN_LONGITUD_DEFECTO = 6;
@@ -62,6 +64,11 @@ function LoginScreen({
   const [pin, setPin] = useState('');
   const [cargando, setCargando] = useState(false);
   const [modo, setModo] = useState('acceso'); // 'acceso' | 'turno'
+  // PIN del propietario: sus longitudes (10 a 12 dígitos con el PIN incrustado) vienen de /api/dueno/pin-info. El teclado
+  // deja teclearlo aquí mismo y, si se completa, abre el panel del propietario; el botón «Propietario» lo pide a propósito.
+  const [duenoLongitudes, setDuenoLongitudes] = useState([]);
+  const [modoDueno, setModoDueno] = useState(false);
+  const envioPendiente = useRef(null);
   // Pantalla KDS pedida desde el acceso rápido: los pedidos exigen sesión, así que primero se pide el PIN.
   const [kdsPendiente, setKdsPendiente] = useState(null); // 'Cocina' | 'Bar' | null
   const [turnoPaso, setTurnoPaso] = useState(null);
@@ -77,6 +84,20 @@ function LoginScreen({
     const l = Number(configSistema?.pin_longitud);
     return Number.isInteger(l) && l >= 4 && l <= 8 ? l : PIN_LONGITUD_DEFECTO;
   }, [configSistema?.pin_longitud]);
+
+  useEffect(() => {
+    let vigente = true;
+    fetch(`${apiUrl}/api/dueno/pin-info`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((info) => { if (vigente) setDuenoLongitudes(longitudesDuenoValidas(info)); })
+      .catch(() => { /* sin conexión: el login del personal sigue igual */ });
+    return () => { vigente = false; };
+  }, [apiUrl]);
+
+  const cancelarEnvioPendiente = useCallback(() => {
+    if (envioPendiente.current) { clearTimeout(envioPendiente.current); envioPendiente.current = null; }
+  }, []);
+  useEffect(() => cancelarEnvioPendiente, [cancelarEnvioPendiente]);
 
   /* Reloj en tiempo real */
   useEffect(() => {
@@ -145,6 +166,45 @@ function LoginScreen({
     [apiUrl, cargando, onLogin, avisar, marcarFallo, kdsPendiente]
   );
 
+  /* Acceso del propietario (botón «Propietario»): ruta propia con su bloqueo y auditoría. */
+  const iniciarSesionDueno = useCallback(
+    async (pinAEnviar) => {
+      if (cargando) return;
+      setCargando(true);
+      avisar('Verificando…');
+      try {
+        const res = await fetch(`${apiUrl}/api/dueno/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pinAEnviar }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.token) {
+          avisar('Hola, Propietario', 'ok');
+          onLogin({
+            token: data.token,
+            tokenDueno: data.token,
+            expiraEn: data.expiraEn,
+            esDueno: true,
+            requiereCambioPin: false,
+            usuario: { id: 0, nombre: 'Propietario / Dueño', rol: 'Dueno' },
+          });
+        } else {
+          toastError(data.error || 'PIN de propietario incorrecto');
+          marcarFallo(data.error || 'PIN de propietario incorrecto.');
+          setPin('');
+        }
+      } catch {
+        toastError('No fue posible conectar con el servidor central');
+        marcarFallo('Sin conexión con el servidor.');
+        setPin('');
+      } finally {
+        setCargando(false);
+      }
+    },
+    [apiUrl, cargando, onLogin, avisar, marcarFallo]
+  );
+
   /* ── Registro de turno (entrada / salida) ── */
   const llamarMarcaje = useCallback(async (pinEnviar, confirmar) => {
     const res = await fetch(`${apiUrl}/api/asistencia/marcar`, {
@@ -202,13 +262,25 @@ function LoginScreen({
 
   const cambiarModo = useCallback((nuevo) => {
     if (cargando) return;
+    cancelarEnvioPendiente();
+    setModoDueno(false);
     turnoPinRef.current = '';
     setTurnoPaso(null);
     setPin('');
     avisar('');
     setKdsPendiente(null);
     setModo(nuevo);
-  }, [cargando, avisar]);
+  }, [cargando, avisar, cancelarEnvioPendiente]);
+
+  const alternarModoDueno = useCallback(() => {
+    if (cargando) return;
+    cancelarEnvioPendiente();
+    setPin('');
+    avisar('');
+    setKdsPendiente(null);
+    setModo('acceso');
+    setModoDueno((v) => !v);
+  }, [cargando, avisar, cancelarEnvioPendiente]);
 
   // El resultado se cierra solo para dejar el teclado listo para el siguiente empleado.
   useEffect(() => {
@@ -218,26 +290,50 @@ function LoginScreen({
   }, [turnoPaso, reiniciarTurno]);
 
   /* Teclado numérico */
+  const opcionesPin = { pinLength, duenoLongitudes, modoDueno, esTurno: modo === 'turno', kdsPendiente };
+
+  const enviarPin = useCallback(
+    (valor, destino) => {
+      if (destino === 'dueno') iniciarSesionDueno(valor);
+      else if (modo === 'turno') previsualizarTurno(valor);
+      else iniciarSesion(valor);
+    },
+    [iniciarSesionDueno, iniciarSesion, previsualizarTurno, modo]
+  );
+
   const agregarNumero = useCallback(
     (digito) => {
-      if (cargando || pin.length >= pinLength) return;
+      if (cargando || pin.length >= maxDigitos(opcionesPin)) return;
+      cancelarEnvioPendiente();
       const nuevo = pin + digito;
       setPin(nuevo);
       if (mensaje.tipo === 'error') avisar('');
-      if (nuevo.length === pinLength) {
-        setTimeout(() => (modo === 'turno' ? previsualizarTurno(nuevo) : iniciarSesion(nuevo)), 80);
+      const plan = planificarEnvioPin({ nuevo, ...opcionesPin });
+      if (plan.accion === 'enviar') {
+        envioPendiente.current = setTimeout(() => { envioPendiente.current = null; enviarPin(nuevo, plan.destino); }, plan.demoraMs);
       }
     },
-    [cargando, pin, pinLength, iniciarSesion, previsualizarTurno, modo, mensaje.tipo, avisar]
+    // opcionesPin se arma con estas mismas dependencias
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cargando, pin, pinLength, duenoLongitudes, modoDueno, modo, kdsPendiente, enviarPin, mensaje.tipo, avisar, cancelarEnvioPendiente]
   );
 
   const borrarNumero = useCallback(() => {
-    if (!cargando) setPin((prev) => prev.slice(0, -1));
-  }, [cargando]);
+    if (cargando) return;
+    cancelarEnvioPendiente();
+    setPin((prev) => prev.slice(0, -1));
+  }, [cargando, cancelarEnvioPendiente]);
 
   const limpiarPin = useCallback(() => {
-    if (!cargando) { setPin(''); avisar(''); }
-  }, [cargando, avisar]);
+    if (!cargando) { cancelarEnvioPendiente(); setPin(''); avisar(''); }
+  }, [cargando, avisar, cancelarEnvioPendiente]);
+
+  // Enter envía ya lo tecleado (teclado físico, o un PIN de longitud distinta a la configurada).
+  const confirmarPin = useCallback(() => {
+    if (cargando || pin.length < 4) return;
+    cancelarEnvioPendiente();
+    enviarPin(pin, modoDueno ? 'dueno' : 'general');
+  }, [cargando, pin, modoDueno, enviarPin, cancelarEnvioPendiente]);
 
   /* Teclado físico */
   useEffect(() => {
@@ -255,10 +351,11 @@ function LoginScreen({
       if (/^[0-9]$/.test(e.key)) agregarNumero(e.key);
       else if (e.key === 'Backspace') borrarNumero();
       else if (e.key === 'Escape') limpiarPin();
+      else if (e.key === 'Enter' && !(e.target instanceof Element && e.target.closest('button, a[href], input, textarea, select'))) confirmarPin();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [agregarNumero, borrarNumero, limpiarPin, cargando, ajustesAbiertos, turnoPaso, confirmarTurno, reiniciarTurno]);
+  }, [agregarNumero, borrarNumero, limpiarPin, confirmarPin, cargando, ajustesAbiertos, turnoPaso, confirmarTurno, reiniciarTurno]);
 
   const nombreNegocio = configSistema?.nombre_negocio || 'Mi Negocio';
   const provincia = configSistema?.provincia || 'Santo Domingo, DO';
@@ -316,6 +413,7 @@ function LoginScreen({
   };
 
   const esTurno = modo === 'turno';
+  const totalPuntos = puntosVisibles({ pin, ...opcionesPin });
   const skinFijo = configSistema?.login_theme === 'medianoche' || configSistema?.login_theme === 'bosque';
 
   return (
@@ -364,6 +462,11 @@ function LoginScreen({
           <button type="button" className="lg-btn lg-only-mobile" onClick={() => cambiarModo(esTurno ? 'acceso' : 'turno')} disabled={cargando}>
             {esTurno ? <ArrowLeft size={16} /> : <Fingerprint size={16} />}<span>{esTurno ? 'Acceso' : 'Fichar turno'}</span>
           </button>
+          {duenoLongitudes.length > 0 && !esTurno && (
+            <button type="button" className={`lg-btn ${modoDueno ? 'is-on' : ''}`} onClick={alternarModoDueno} disabled={cargando} aria-pressed={modoDueno} title="Acceso del propietario">
+              {modoDueno ? <ArrowLeft size={16} /> : <Crown size={16} />}<span>{modoDueno ? 'Personal' : 'Propietario'}</span>
+            </button>
+          )}
           {!skinFijo && (
             <button type="button" className="lg-btn" onClick={alternarTema} aria-label="Cambiar tema">
               {esOscuro ? <Sun size={17} /> : <Moon size={17} />}
@@ -386,19 +489,19 @@ function LoginScreen({
           {!turnoPaso && (
             <>
               <div className="lg-head">
-                <h1>{esTurno ? 'Marca tu turno' : kdsPendiente ? `PIN para KDS ${kdsPendiente}` : 'Introduce tu PIN'}</h1>
-                <p>{esTurno ? 'Digita tu PIN para registrar tu entrada o tu salida.' : kdsPendiente ? `Ingresa tu PIN para abrir la pantalla de ${kdsPendiente === 'Bar' ? 'bar' : 'cocina'}.` : 'Tu PIN abre tu sesión y tus mesas.'}</p>
+                <h1>{modoDueno ? 'Acceso del propietario' : esTurno ? 'Marca tu turno' : kdsPendiente ? `PIN para KDS ${kdsPendiente}` : 'Introduce tu PIN'}</h1>
+                <p>{modoDueno ? 'Tu PIN de propietario abre el panel de la plataforma.' : esTurno ? 'Digita tu PIN para registrar tu entrada o tu salida.' : kdsPendiente ? `Ingresa tu PIN para abrir la pantalla de ${kdsPendiente === 'Bar' ? 'bar' : 'cocina'}.` : 'Tu PIN abre tu sesión y tus mesas.'}</p>
               </div>
 
-              <div className={`lg-dots ${fallo ? 'is-error' : ''}`} role="img" aria-label={`${pin.length} de ${pinLength} dígitos`}>
-                {Array.from({ length: pinLength }).map((_, i) => (
+              <div className={`lg-dots ${fallo ? 'is-error' : ''} ${totalPuntos > 8 ? 'lg-dots--muchos' : ''}`} role="img" aria-label={`${pin.length} de ${totalPuntos} dígitos`}>
+                {Array.from({ length: totalPuntos }).map((_, i) => (
                   <span key={i} className={`lg-dot ${i < pin.length ? 'is-filled' : ''}`} />
                 ))}
               </div>
 
               <p className={`lg-msg ${mensaje.tipo ? `is-${mensaje.tipo}` : ''}`} role="status" aria-live="polite">
                 {cargando && <RefreshCw size={14} className="lg-spin" />}
-                {mensaje.texto || (esTurno ? '' : 'Terminal lista')}
+                {mensaje.texto || (esTurno ? '' : modoDueno ? 'Teclea tu PIN de propietario' : pin.length > pinLength ? 'PIN de propietario…' : 'Terminal lista')}
               </p>
 
               <div className="lg-keypad" role="group" aria-label="Teclado numérico">
@@ -412,7 +515,7 @@ function LoginScreen({
                 </button>
               </div>
 
-              {!esTurno && onVerKDS && (
+              {!esTurno && !modoDueno && onVerKDS && (
                 <div className="lg-kds">
                   {kdsPendiente ? (
                     <button type="button" className="lg-btn" onClick={() => { setKdsPendiente(null); setPin(''); avisar(''); }}><ArrowLeft size={16} />Cancelar KDS {kdsPendiente}</button>
