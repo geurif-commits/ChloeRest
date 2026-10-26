@@ -78,20 +78,20 @@ Producción (comprobado el 2026-10-18 con `/api/health`) corre la versión 2.5.0
 2. **Desplegar** el código: `python scripts/deploy.py` (compila, sube `dist/` —incluye los comandos de este apartado— y reinicia). Entre el reinicio y el paso 4 el código nuevo ve la base vieja: lo que use las columnas nuevas (activar equipos, lista de licencias del propietario) mostrará «La base de datos no está actualizada». Hazlo seguido o fuera de horas de servicio.
 3. **Diagnóstico de licencias** (solo lectura, §3e) y **migración**, en el servidor por SSH (usa el `.env` de allí para el servidor y la base):
    ```bash
-   ssh -i ~/.ssh/chloerest_deploy -p 21098 chlogdyh@104.207.79.62   # con la llave de despliegue: no se usa contraseña
-   source /home/chlogdyh/nodevenv/chloerest/24/bin/activate        # cPanel: sin esto "node: command not found"
-   cd /home/chlogdyh/chloerest
+   ssh -i ~/.ssh/chloerest_deploy -p 21098 chloerest@104.207.79.62   # con la llave de despliegue: no se usa contraseña
+   source /home/chloerest/nodevenv/chloerest/24/bin/activate        # cPanel: sin esto "node: command not found"
+   cd /home/chloerest/chloerest
    node dist/diagnosticoLicencias.js                      # quién quedaría sin acceso; corrige lo que marque
    node dist/migrar.js                                    # si el .env ya usa el usuario dueño de la base
    DB_USER='<rol_ddl>' DB_PASSWORD='<contraseña>' node dist/migrar.js   # si hay que usar otro rol (sustituye los <…>)
    ```
-4. **Conceder al rol de la aplicación** acceso a las tablas nuevas (`npm run provision:production-role` desde un equipo con acceso a la base, o los dos `GRANT` de `src/migrar.ts`), y **reiniciar**: `touch /home/chlogdyh/chloerest/tmp/restart.txt`.
+4. **Conceder al rol de la aplicación** acceso a las tablas nuevas (`npm run provision:production-role` desde un equipo con acceso a la base, o los dos `GRANT` de `src/migrar.ts`), y **reiniciar**: `touch /home/chloerest/chloerest/tmp/restart.txt`.
 5. **Verificar:** `npm run verify:deploy -- https://chloerestaurant.lat` (la migración mostrada debe ser `054_configuracion_sistema_unica_por_empresa`) e iniciar sesión.
 
 **Alternativa sin ventana de error** (si el hosting permite reenviar puertos por SSH): migrar ANTES de desplegar, desde tu equipo, por un túnel. En PowerShell, en una ventana déjalo abierto:
 
 ```powershell
-ssh -i $HOME\.ssh\chloerest_deploy -p 21098 -N -L 5433:127.0.0.1:5432 chlogdyh@104.207.79.62
+ssh -i $HOME\.ssh\chloerest_deploy -p 21098 -N -L 5433:127.0.0.1:5432 chloerest@104.207.79.62
 ```
 
 (Con la llave de despliegue no se pide contraseña. El destino debe ser `127.0.0.1`: con `localhost` el túnel abre pero el servidor corta cada conexión. Comprobado el 2026-10-18.)
@@ -251,3 +251,11 @@ El `<title>`, la descripción, el `sitemap.xml` y los datos estructurados viven 
 4. **Al menos un enlace entrante real** (redes sociales, Google Business Profile, un directorio de negocios): sin ningún enlace apuntando al dominio, a los buscadores les cuesta mucho más encontrarlo por su cuenta.
 
 Ver `docs/AUDITORIA_FINAL_2026-09-21.md` y el hallazgo del 2026-09-27 en `ESTADO_DEL_SISTEMA.md` §12e: el `<title>` de SEO se pisaba con "Mi Restaurante - Sistema de Gestión" en cualquier visitante (no solo equipos activados), lo que probablemente impedía indexar el título real. Ya está corregido; falta desplegarlo.
+
+## Cuenta sin shell (SFTP solamente)
+
+Si el hosting responde `Shell access is not enabled on your account!`, `python scripts/deploy.py` lo detecta y despliega solo por SFTP:
+sube `dist/`, publica el frontend archivo por archivo y reinicia Passenger con `tmp/restart.txt`. En ese modo no se pueden ejecutar
+`npm install`, migraciones ni limpieza en el servidor: actualice `node_modules` subiéndolo completo por SFTP y haga las migraciones o la
+restauración de la base por un túnel SSH (`ssh -N -L 5433:127.0.0.1:5432 chloerest@104.207.79.62`). Cuenta actual: `chloerest`
+(`/home/chloerest/chloerest`); la anterior (`chlogdyh`) fue dada de baja.

@@ -1,5 +1,5 @@
 # Passenger configuration for the Namecheap deployment.
-PassengerAppRoot "/home/chlogdyh/chloerest"
+PassengerAppRoot "/home/chloerest/chloerest"
 PassengerBaseURI "/"
 PassengerNodejs "/opt/alt/alt-nodejs24/root/usr/bin/node"
 PassengerAppType node

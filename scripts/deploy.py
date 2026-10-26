@@ -38,9 +38,9 @@ def _obtener_pass():
 
 HOST = os.environ.get('DEPLOY_HOST', '104.207.79.62')
 PORT = int(os.environ.get('DEPLOY_PORT', '21098'))
-USER = os.environ.get('DEPLOY_USER', 'chlogdyh')
+USER = os.environ.get('DEPLOY_USER', 'chloerest')
 PASS = _obtener_pass()
-REMOTE_APP_DIR = '/home/chlogdyh/chloerest'
+REMOTE_APP_DIR = '/home/chloerest/chloerest'
 
 # Item 11: autenticación por llave SSH (preferida). Fallback a password.
 DEPLOY_KEY = os.environ.get('DEPLOY_KEY') or os.path.join(os.path.expanduser('~'), '.ssh', 'chloerest_deploy')
@@ -86,6 +86,44 @@ def sftp_mkdir_p(sftp, remote_dir):
         except IOError:
             sftp.mkdir(current)
 
+def sftp_rmtree(sftp, remote_dir):
+    """Borra un directorio remoto completo usando solo SFTP (cuando la cuenta no tiene shell)."""
+    import stat as _stat
+    try:
+        items = sftp.listdir_attr(remote_dir)
+    except IOError:
+        return
+    for it in items:
+        path = f"{remote_dir}/{it.filename}"
+        if _stat.S_ISDIR(it.st_mode):
+            sftp_rmtree(sftp, path)
+        else:
+            sftp.remove(path)
+    sftp.rmdir(remote_dir)
+
+
+def sftp_upload_tree(sftp, local_dir, remote_dir):
+    """Sube un directorio completo archivo por archivo (reemplaza al tar + extracción remota)."""
+    count = 0
+    for root, dirs, files in os.walk(local_dir):
+        rel = os.path.relpath(root, local_dir).replace('\\', '/')
+        target = remote_dir if rel == '.' else f"{remote_dir}/{rel}"
+        sftp_mkdir_p(sftp, target)
+        for file in files:
+            sftp.put(os.path.join(root, file), f"{target}/{file}")
+            count += 1
+    return count
+
+
+def tiene_shell(ssh):
+    """True si la cuenta permite ejecutar comandos. En hostings con 'Shell access is not enabled' solo funciona SFTP."""
+    try:
+        _, out, err = ssh.exec_command('echo shell-ok', timeout=15)
+        return 'shell-ok' in out.read().decode('utf-8', errors='replace')
+    except Exception:
+        return False
+
+
 def build_and_pack():
     print("[1] Compilando Frontend...")
     frontend_dir = os.path.join(LOCAL_ROOT, 'frontend-restaurante')
@@ -125,6 +163,10 @@ def deploy():
     print(f"\n[3] Conectando a {HOST}:{PORT}...")
     ssh = _conectar_ssh()
     sftp = ssh.open_sftp()
+    shell = tiene_shell(ssh)
+    if not shell:
+        print("  AVISO: la cuenta no tiene shell habilitado; se despliega solo por SFTP "
+              "(sin extraer paquetes ni limpiar el backend legacy en el servidor).")
 
     print("\n[3] Subiendo Backend (dist/ compilado) y Paquete Frontend...")
     for bf in BACKEND_FILES:
@@ -143,44 +185,59 @@ def deploy():
             sftp.put(full_p, f"{REMOTE_APP_DIR}/dist/{rel_p}")
     print("  dist/ (Backend TypeScript compilado)")
 
-    sftp.put(TAR_PATH, f"{REMOTE_APP_DIR}/dist.tar.gz")
-    print("  dist.tar.gz (Paquete completo de Frontend)")
-    sftp.close()
+    if shell:
+        sftp.put(TAR_PATH, f"{REMOTE_APP_DIR}/dist.tar.gz")
+        print("  dist.tar.gz (Paquete completo de Frontend)")
 
-    print("\n[4] Extrayendo archivos en producción...")
-    cmd = (
-        f"mkdir -p {REMOTE_APP_DIR}/public && "
-        f"rm -rf {REMOTE_APP_DIR}/public/assets && "
-        f"tar -xzf {REMOTE_APP_DIR}/dist.tar.gz -C {REMOTE_APP_DIR}/public/ && "
-        f"rm -f {REMOTE_APP_DIR}/dist.tar.gz && "
-        f"mkdir -p {REMOTE_APP_DIR}/tmp && "
-        f"touch {REMOTE_APP_DIR}/tmp/restart.txt && "
-        # Corte defensivo: solo se borra el backend legacy si el .htaccess del
-        # hosting ya apunta a dist/server.js. Si no, se conserva (el deploy
-        # queda en el estado anterior, sin caída) y se avisa.
-        f"if grep -qs 'dist/server\\.js' /home/{USER}/public_html/.htaccess 2>/dev/null || "
-        f"grep -qs 'dist/server\\.js' {REMOTE_APP_DIR}/.htaccess 2>/dev/null || "
-        f"grep -qs 'dist/server\\.js' /home/{USER}/.htaccess 2>/dev/null; then "
-        f"rm -f {REMOTE_APP_DIR}/server.js {REMOTE_APP_DIR}/auth.js {REMOTE_APP_DIR}/db.js "
-        f"{REMOTE_APP_DIR}/config.js {REMOTE_APP_DIR}/migrations.js {REMOTE_APP_DIR}/telegramBot.js "
-        f"{REMOTE_APP_DIR}/audit.js {REMOTE_APP_DIR}/index.js {REMOTE_APP_DIR}/smoke.js && "
-        f"rm -rf {REMOTE_APP_DIR}/routes {REMOTE_APP_DIR}/lib && "
-        f"echo 'LEGACY_REMOVED: .htaccess apunta a dist/server.js'; "
-        f"else "
-        f"mv -f {REMOTE_APP_DIR}/server.js {REMOTE_APP_DIR}/server.js.legacy.bak 2>/dev/null; "
-        f"echo 'AVISO: el .htaccess del hosting NO apunta a dist/server.js. "
-        f"El backend legacy se conserva (produccion intacta). "
-        f"Actualiza el .htaccess (PassengerStartupFile dist/server.js) y vuelve a ejecutar deploy.py.'; "
-        f"fi && "
-        f"pkill -9 -u {USER} node || true"
-    )
-    stdin, stdout, stderr = ssh.exec_command(cmd)
-    out = stdout.read().decode('utf-8', errors='replace')
-    err = stderr.read().decode('utf-8', errors='replace')
-    print(out.strip())
-    if err.strip():
-        print("stderr:", err.strip())
-    print("Extracción y reinicio de Node completados.")
+    if shell:
+        print("\n[4] Extrayendo archivos en producción...")
+        cmd = (
+            f"mkdir -p {REMOTE_APP_DIR}/public && "
+            f"rm -rf {REMOTE_APP_DIR}/public/assets && "
+            f"tar -xzf {REMOTE_APP_DIR}/dist.tar.gz -C {REMOTE_APP_DIR}/public/ && "
+            f"rm -f {REMOTE_APP_DIR}/dist.tar.gz && "
+            f"mkdir -p {REMOTE_APP_DIR}/tmp && "
+            f"touch {REMOTE_APP_DIR}/tmp/restart.txt && "
+            # Corte defensivo: solo se borra el backend legacy si el .htaccess del
+            # hosting ya apunta a dist/server.js. Si no, se conserva (el deploy
+            # queda en el estado anterior, sin caída) y se avisa.
+            f"if grep -qs 'dist/server\\.js' /home/{USER}/public_html/.htaccess 2>/dev/null || "
+            f"grep -qs 'dist/server\\.js' {REMOTE_APP_DIR}/.htaccess 2>/dev/null || "
+            f"grep -qs 'dist/server\\.js' /home/{USER}/.htaccess 2>/dev/null; then "
+            f"rm -f {REMOTE_APP_DIR}/server.js {REMOTE_APP_DIR}/auth.js {REMOTE_APP_DIR}/db.js "
+            f"{REMOTE_APP_DIR}/config.js {REMOTE_APP_DIR}/migrations.js {REMOTE_APP_DIR}/telegramBot.js "
+            f"{REMOTE_APP_DIR}/audit.js {REMOTE_APP_DIR}/index.js {REMOTE_APP_DIR}/smoke.js && "
+            f"rm -rf {REMOTE_APP_DIR}/routes {REMOTE_APP_DIR}/lib && "
+            f"echo 'LEGACY_REMOVED: .htaccess apunta a dist/server.js'; "
+            f"else "
+            f"mv -f {REMOTE_APP_DIR}/server.js {REMOTE_APP_DIR}/server.js.legacy.bak 2>/dev/null; "
+            f"echo 'AVISO: el .htaccess del hosting NO apunta a dist/server.js. "
+            f"El backend legacy se conserva (produccion intacta). "
+            f"Actualiza el .htaccess (PassengerStartupFile dist/server.js) y vuelve a ejecutar deploy.py.'; "
+            f"fi && "
+            f"pkill -9 -u {USER} node || true"
+        )
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        out = stdout.read().decode('utf-8', errors='replace')
+        err = stderr.read().decode('utf-8', errors='replace')
+        print(out.strip())
+        if err.strip():
+            print("stderr:", err.strip())
+        print("Extracción y reinicio de Node completados.")
+
+    else:
+        print("\n[4] Publicando el frontend por SFTP...")
+        public_dir = f"{REMOTE_APP_DIR}/public"
+        sftp_mkdir_p(sftp, public_dir)
+        sftp_rmtree(sftp, f"{public_dir}/assets")
+        n = sftp_upload_tree(sftp, LOCAL_FRONTEND_DIST, public_dir)
+        print(f"  {n} archivos del frontend publicados.")
+        # Passenger reinicia la app cuando cambia la fecha de tmp/restart.txt.
+        sftp_mkdir_p(sftp, f"{REMOTE_APP_DIR}/tmp")
+        with sftp.open(f"{REMOTE_APP_DIR}/tmp/restart.txt", 'w') as fh:
+            fh.write(time.strftime('%Y-%m-%d %H:%M:%S'))
+        print("  Reinicio solicitado (tmp/restart.txt).")
+    sftp.close()
 
     if os.path.exists(TAR_PATH):
         os.remove(TAR_PATH)

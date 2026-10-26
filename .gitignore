@@ -69,3 +69,6 @@ frontend-restaurante/dist/
 marketing/video/salida/
 # Imágenes subidas durante las pruebas locales (logotipos de demostración)
 uploads/*.png
+
+# Secretos rotados y copias locales de credenciales (NUNCA se suben a git)
+.secretos/
