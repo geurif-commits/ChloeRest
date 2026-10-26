@@ -259,3 +259,20 @@ sube `dist/`, publica el frontend archivo por archivo y reinicia Passenger con `
 `npm install`, migraciones ni limpieza en el servidor: actualice `node_modules` subiéndolo completo por SFTP y haga las migraciones o la
 restauración de la base por un túnel SSH (`ssh -N -L 5433:127.0.0.1:5432 chloerest@104.207.79.62`). Cuenta actual: `chloerest`
 (`/home/chloerest/chloerest`); la anterior (`chlogdyh`) fue dada de baja.
+
+## 9. Carga inicial de un negocio (catálogo y personal)
+
+`scripts/cargar-datos-empresa.mjs` carga en UN negocio ya creado el catálogo de productos desde un CSV (las mismas reglas que la
+importación masiva de la pantalla) y personal con PIN aleatorios (camareros y cajeras). Solo necesita `dist/` y el `.env`, así que
+funciona en el servidor:
+
+```bash
+# copiar el script y el CSV a la carpeta de la app y, desde ella:
+node cargar-datos-empresa.mjs --empresa=3 --csv=menu.csv --camareros=5 --cajeras=3 --dry-run   # prueba: no guarda nada
+node cargar-datos-empresa.mjs --empresa=3 --csv=menu.csv --camareros=5 --cajeras=3             # real
+```
+
+Es idempotente (omite productos y usuarios que ya existen) y muestra los PIN una sola vez (en la base solo queda su hash). Haga un
+respaldo antes (`~/backup_db.sh`). Primera carga real: 2026-10-26, empresa 3 (ChloeRestaurant): 223 productos, 27 categorías,
+5 camareros y 3 cajeras; los PIN están en `.secretos/` (no versionado).
+
