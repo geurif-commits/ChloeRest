@@ -31,6 +31,8 @@
 .mp-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .mp-brand__logo, .mp-brand__icon { width: 44px; height: 44px; flex: none; border-radius: 14px; object-fit: cover; }
 .mp-brand__icon { display: grid; place-items: center; background: var(--gold); color: var(--text-on-accent); font-size: 20px; font-weight: 800; }
+.mp-brand__text { min-width: 0; }
+.mp-brand__text p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-brand__text h1 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mp-brand__text p { font-size: 13px; color: var(--px-ink-2); }
 

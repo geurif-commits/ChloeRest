@@ -139,7 +139,7 @@ function GestionRecetas({ alVolver, apiUrl }) {
         </div>
 
         {/* Panel Dividido en 2 Columnas */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', alignItems: 'start', width: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '20px', alignItems: 'start', width: '100%' }}>
           
           {/* Columna 1: Selección de Platos del Menú */}
           <div className="admin-section" style={{ minWidth: 0 }}>

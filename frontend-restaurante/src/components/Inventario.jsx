@@ -246,7 +246,7 @@ function Inventario({ alVolver, apiUrl }) {
         </div>
       ) : (
         /* VISTA PRINCIPAL: FORMULARIO + LISTADO DE EXISTENCIAS */
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', alignItems: 'start', width: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: '20px', alignItems: 'start', width: '100%' }}>
           
           {/* Formulario de Alta de Insumo */}
           <div className="admin-section" style={{ minWidth: 0 }}>

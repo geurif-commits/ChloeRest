@@ -104,7 +104,7 @@ function DashboardGerencial({ apiUrl }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
 
       {/* ── Fila Superior: Rendimiento Financiero y Estado del Local (Mismo formato de recuadros) ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: '20px' }}>
         
         {/* Recuadro 1: Rendimiento Financiero (Ventas Totales, Facturas, Ticket Promedio) */}
         <div className="admin-section" style={{ marginBottom: 0 }}>
@@ -283,7 +283,7 @@ function DashboardGerencial({ apiUrl }) {
 
         {/* ── Slide 1: Recomendaciones del Chef & Platos Sugeridos ── */}
         {slideActivo === 1 && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '12px' }}>
             {RECOMENDACIONES_CHEF.map((rec, i) => {
               const Icono = rec.icono;
               return (

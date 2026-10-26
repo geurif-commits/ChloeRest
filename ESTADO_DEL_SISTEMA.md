@@ -413,3 +413,14 @@ PIN del propietario incrustado (2026-10-18): backend `src/lib/propietario.ts`, `
 - Se rotaron `APP_SESSION_SECRET` y la clave de la base (los valores viven solo en `.secretos/`, ignorado por git); `OWNER_PIN` se quitó del `.env` porque el PIN va incrustado en el código. **No** se rotó `LICENSE_ACTIVATION_KEY` (invalidaría los equipos ya activados) y el `TELEGRAM_BOT_TOKEN` se revoca a mano desde BotFather.
 - Se borró todo rastro de WordPress de `public_html` (incluido el webshell `wp-content/fm88.php`) y de Softaculous; el `.htaccess` del dominio queda solo con el bloque de Passenger y cabeceras de seguridad. Se retiró de `authorized_keys` una llave RSA sin comentario que no era del equipo (copia en `~/.ssh/authorized_keys.bak_*`).
 - La cuenta ya tiene shell SSH; `scripts/deploy.py` usa el modo SFTP solo si el shell vuelve a estar deshabilitado.
+
+
+## 12n. Facturación electrónica obligatoria desde el 15/11/2026, ticket e-CF y pantallas adaptables (2026-10-26)
+
+- **Corte al e-CF** (`docs/FACTURACION_ELECTRONICA.md`): `dgii_config.ecf_obligatorio_desde` (por defecto 2026-11-15). Desde esa fecha el NCF tradicional se rechaza y sin tipo se emite E32. e-NCF de 13 caracteres (E + tipo + 10 dígitos); el rango de la secuencia es inclusivo y una secuencia usada no se puede borrar.
+- **Emisión**: `services/ecfEmisionService.ts` envía el e-CF al cobrar (AlgoBack v2 / MSeller), guarda código de seguridad y fecha de firma, deja «Pendiente» y reintenta cada minuto (`iniciarColaEcf`). Rutas nuevas: `GET /api/comprobantes/estado`, `GET /api/cuentas/:id/comprobante`, `GET /api/dgii/estado-fiscal`. Migración `055_ecf_obligatorio_y_representacion_impresa`.
+- **Ticket** con todos los campos de la representación impresa (emisor declarado a la DGII, e-NCF, fechas, comprador, ITBIS, propina legal, código de seguridad, fecha de firma y QR). El QR de un e-CF no se puede ocultar; se eliminó el RNC `130000001` y la dirección «Republica Dominicana» que se imprimían cuando el negocio no tenía datos.
+- **Zona horaria**: el hosting corre en `America/New_York` (UTC-5 en invierno); el servidor ahora fija `TZ=America/Santo_Domingo` (`lib/zonaHoraria.ts`) y las fechas fiscales salen de la base como texto de Santo Domingo.
+- **Pantallas**: revisadas a 320, 375, 414, 768, 1024, 1366 y 1920 px (zoom 100 %) en caja (cuentas, historial, cierre, venta rápida, cobro), administración (15 módulos), comandera de mesas y pedido, cocina, portada, login y panel del propietario; corregidos los desbordes del historial, los botones del cobro, el catálogo, la barra superior del administrador, las pestañas, KPIs de asistencia, rejillas con mínimo fijo y botones con texto.
+- **Pruebas**: 357 unitarias; e2e 130/130 (sección C8 con un proveedor AlgoBack simulado: aceptado, caído → pendiente → reenvío, rechazado, rango inclusivo, corte).
+- **Pendiente**: nota de crédito electrónica (E34) al anular, propina legal dentro del e-CF, ver `docs/FACTURACION_ELECTRONICA.md`.

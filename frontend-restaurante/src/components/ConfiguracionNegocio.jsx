@@ -489,7 +489,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '16px' }}>
               <div className="admin-form-group">
                 <label className="admin-label">Nombre Comercial *</label>
                 <input
@@ -646,7 +646,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '16px' }}>
                 <div className="admin-form-group">
                   <label className="admin-label">Duración del Plan</label>
                   <select
@@ -710,7 +710,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '14px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--border-subtle)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -928,7 +928,7 @@ export default function ConfiguracionNegocio({ alVolver, apiUrl, alVerificarLice
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '16px' }}>
               <div className="admin-form-group">
                 <label className="admin-label">Nombre de Estación Cocina</label>
                 <input

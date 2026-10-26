@@ -136,7 +136,7 @@
 .ld-feature h3 { position: relative; z-index: 1; margin-top: 22px; font: 600 1.28rem/1.2 var(--px-font-display, Georgia, serif); letter-spacing: -.01em; }
 .ld-feature p { position: relative; z-index: 1; margin-top: 10px; font-size: .92rem; line-height: 1.6; color: var(--ld-ink-2); }
 
-.ld-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; align-items: stretch; }
+.ld-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 18px; align-items: stretch; }
 .ld-plan { position: relative; display: flex; flex-direction: column; gap: 18px; padding: 30px 28px 28px; border: 1px solid var(--ld-line); border-radius: 26px; background: var(--ld-surface); transition: transform .3s cubic-bezier(.22, 1, .36, 1), box-shadow .3s; }
 .ld-plan:hover { transform: translateY(-5px); box-shadow: var(--ld-shadow); }
 .ld-plan h3 { font-size: .8rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ld-ink-3); }
